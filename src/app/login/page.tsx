@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-store';
+import { apiErrorMessage } from '@/lib/api';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import Image from 'next/image';
@@ -9,8 +10,8 @@ import Image from 'next/image';
 export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
-  const [email, setEmail]       = useState('admin@granory.bo');
-  const [password, setPassword] = useState('123456');
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
 
@@ -21,7 +22,7 @@ export default function LoginPage() {
       await login(email, password);
       router.replace('/dashboard');
     } catch (err) {
-      setError((err as Error).message);
+      setError(apiErrorMessage(err, 'Credenciales inválidas'));
     } finally {
       setLoading(false);
     }
@@ -125,12 +126,6 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Demo hint */}
-            <div style={{ marginTop: '20px', padding: '12px', background: '#EAF0EB', borderRadius: '10px' }}>
-              <p style={{ fontSize: '11.5px', color: '#8AA08A', textAlign: 'center', fontWeight: 500 }}>
-                Demo: <strong style={{ color: '#52665A' }}>admin@granory.bo</strong> / <strong style={{ color: '#52665A' }}>123456</strong>
-              </p>
-            </div>
           </div>
         </div>
 

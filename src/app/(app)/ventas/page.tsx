@@ -1,21 +1,25 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { useAppStore, type Venta, type EstadoVenta } from '@/store/useAppStore';
+import { useVentas, useCambiarEstadoVenta } from '@/lib/api/ventas';
+import type { NotaVenta } from '@/lib/types';
+import { EstadoVenta } from '@/lib/types';
 import { formatBs } from '@/lib/utils';
-import { EstadoBadge, Btn, Modal, SearchBox, useToast } from '@/components/ui';
+import { EstadoBadge, Btn, Modal, SearchBox, Spinner, useToast } from '@/components/ui';
 import { Plus, ShoppingCart, Printer, Eye } from 'lucide-react';
+import { apiErrorMessage } from '@/lib/api';
 import Image from 'next/image';
 
 const FILTROS = ['Hoy', 'Esta semana', 'Este mes', 'Todos'] as const;
 
 export default function VentasPage() {
   const toast              = useToast(s => s.show);
-  const ventas             = useAppStore(s => s.ventas);
-  const cambiarEstadoVenta = useAppStore(s => s.cambiarEstadoVenta);
+  const ventasQ            = useVentas();
+  const cambiarEstadoMut   = useCambiarEstadoVenta();
+  const ventas             = ventasQ.data ?? [];
   const [filtro, setFiltro]           = useState<typeof FILTROS[number]>('Todos');
   const [search, setSearch]           = useState('');
-  const [detalleVenta, setDetalleVenta] = useState<Venta | null>(null);
+  const [detalleVenta, setDetalleVenta] = useState<NotaVenta | null>(null);
 
   const ahora    = new Date();
   const hoy      = ahora.toISOString().slice(0, 10);
@@ -28,22 +32,40 @@ export default function VentasPage() {
       filtro === 'Hoy'         ? v.fecha === hoy :
       filtro === 'Esta semana' ? new Date(v.fecha) >= lunes :
       v.fecha.startsWith(primerMes);
+    const clienteNombre = v.cliente?.nombre ?? '';
     const matchSearch = !search
-      || v.clienteNombre.toLowerCase().includes(search.toLowerCase())
-      || String(v.numero).includes(search)
-      || v.detalles.some(d => d.productoNombre.toLowerCase().includes(search.toLowerCase()));
+      || clienteNombre.toLowerCase().includes(search.toLowerCase())
+      || String(v.numeroNota).includes(search)
+      || v.detalles.some(d => (d.producto?.nombre ?? '').toLowerCase().includes(search.toLowerCase()));
     return matchFiltro && matchSearch;
   });
 
-  const totalMostrado = filtradas.reduce((s, v) => s + v.totalBs, 0);
+  const totalMostrado = filtradas.reduce((s, v) => s + Number(v.totalBs), 0);
 
-  function cambiarEstado(id: string) {
+  async function cambiarEstado(id: string) {
     const venta = ventas.find(v => v.id === id);
     if (!venta) return;
-    const cycle: Record<string, EstadoVenta> = { pendiente: 'despachado', despachado: 'entregado', entregado: 'pendiente' };
+    const cycle: Record<string, EstadoVenta> = {
+      [EstadoVenta.PENDIENTE]:  EstadoVenta.DESPACHADA,
+      [EstadoVenta.DESPACHADA]: EstadoVenta.ENTREGADA,
+      [EstadoVenta.ENTREGADA]:  EstadoVenta.PENDIENTE,
+    };
     const next = cycle[venta.estado];
-    if (next) cambiarEstadoVenta(id, next);
-    toast('Estado actualizado', 'success');
+    if (!next) return;
+    try {
+      await cambiarEstadoMut.mutateAsync({ id, estado: next });
+      toast('Estado actualizado', 'success');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'No se pudo cambiar el estado'), 'error');
+    }
+  }
+
+  if (ventasQ.isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Spinner size={28} color="var(--color-gr-primary)" />
+      </div>
+    );
   }
 
   return (
@@ -62,9 +84,9 @@ export default function VentasPage() {
       {/* Stats quick */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Pendientes',  value: ventas.filter(v => v.estado === 'pendiente').length,  color: 'text-[var(--color-gr-warning)]' },
-          { label: 'Despachadas', value: ventas.filter(v => v.estado === 'despachado').length, color: 'text-[var(--color-gr-info)]'    },
-          { label: 'Entregadas',  value: ventas.filter(v => v.estado === 'entregado').length,  color: 'text-[var(--color-gr-success)]' },
+          { label: 'Pendientes',  value: ventas.filter(v => v.estado === EstadoVenta.PENDIENTE).length,  color: 'text-[var(--color-gr-warning)]' },
+          { label: 'Despachadas', value: ventas.filter(v => v.estado === EstadoVenta.DESPACHADA).length, color: 'text-[var(--color-gr-info)]'    },
+          { label: 'Entregadas',  value: ventas.filter(v => v.estado === EstadoVenta.ENTREGADA).length,  color: 'text-[var(--color-gr-success)]' },
         ].map(s => (
           <div key={s.label} className="card text-center">
             <p className={`text-[28px] font-900 ${s.color}`}>{s.value}</p>
@@ -103,22 +125,22 @@ export default function VentasPage() {
         {filtradas.length === 0 ? (
           <div className="py-16 text-center text-[var(--color-gr-muted)] text-[14px]">Sin resultados para este filtro</div>
         ) : (
-          [...filtradas].reverse().map((v, i) => (
+          filtradas.map((v, i) => (
             <div key={v.id}
               className={`flex flex-col md:grid md:grid-cols-[auto_1fr_1fr_auto_auto_auto] gap-3 md:gap-4 px-5 py-4 items-start md:items-center cursor-pointer hover:bg-[var(--color-gr-border-lite)] transition-colors ${i < filtradas.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}
               onClick={() => setDetalleVenta(v)}>
-              <span className="font-800 text-[var(--color-gr-text)] text-[13px]">NV-{v.numero}</span>
+              <span className="font-800 text-[var(--color-gr-text)] text-[13px]">NV-{v.numeroNota}</span>
               <div>
-                <p className="font-600 text-[var(--color-gr-text)] text-[13.5px]">{v.clienteNombre}</p>
+                <p className="font-600 text-[var(--color-gr-text)] text-[13.5px]">{v.cliente?.nombre ?? '—'}</p>
                 <p className="text-[12px] text-[var(--color-gr-muted)]">{v.fecha}</p>
               </div>
               <div>
                 <p className="text-[13px] text-[var(--color-gr-sub)]">
-                  {v.detalles[0]?.productoNombre}
+                  {v.detalles[0]?.producto?.nombre ?? '—'}
                   {v.detalles.length > 1 && <span className="text-[var(--color-gr-muted)]"> +{v.detalles.length - 1}</span>}
                 </p>
               </div>
-              <span className="font-800 text-[var(--color-gr-primary)] text-[14px]">{formatBs(v.totalBs)}</span>
+              <span className="font-800 text-[var(--color-gr-primary)] text-[14px]">{formatBs(Number(v.totalBs))}</span>
               <EstadoBadge estado={v.estado} />
               <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
                 <Btn size="sm" variant="ghost" className="px-2.5" onClick={() => setDetalleVenta(v)}>
@@ -140,11 +162,10 @@ export default function VentasPage() {
   );
 }
 
-function DetalleModal({ venta: v, onClose, onCambiarEstado }: { venta: Venta; onClose: () => void; onCambiarEstado: (id: string) => void }) {
-  const transportistas = useAppStore(s => s.transportistas);
-  const transportista  = transportistas.find(t => t.id === v.transportistaId);
+function DetalleModal({ venta: v, onClose, onCambiarEstado }: { venta: NotaVenta; onClose: () => void; onCambiarEstado: (id: string) => void }) {
+  const transportista = v.transportista;
   return (
-    <Modal open title={`Nota de Venta NV-${v.numero}`} onClose={onClose} wide>
+    <Modal open title={`Nota de Venta NV-${v.numeroNota}`} onClose={onClose} wide>
       <div className="border-[1.5px] border-[var(--color-gr-border)] rounded-[12px] overflow-hidden">
         <div className="bg-[var(--color-gr-primary)] px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -157,7 +178,7 @@ function DetalleModal({ venta: v, onClose, onCambiarEstado }: { venta: Venta; on
           </div>
           <div className="text-right">
             <p className="text-[var(--color-gr-gold)] font-800 text-[13px]">NOTA DE VENTA</p>
-            <p className="text-white font-900 text-[22px]">NV-{v.numero}</p>
+            <p className="text-white font-900 text-[22px]">NV-{v.numeroNota}</p>
             <p className="text-white/60 text-[12px]">{v.fecha}</p>
           </div>
         </div>
@@ -166,11 +187,11 @@ function DetalleModal({ venta: v, onClose, onCambiarEstado }: { venta: Venta; on
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Cliente</p>
-              <p className="font-800 text-[var(--color-gr-text)]">{v.clienteNombre}</p>
+              <p className="font-800 text-[var(--color-gr-text)]">{v.cliente?.nombre ?? '—'}</p>
             </div>
             <div>
               <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">N° Guía</p>
-              <p className="font-800 text-[var(--color-gr-text)]">G-{v.numeroGuia}</p>
+              <p className="font-800 text-[var(--color-gr-text)]">{v.numeroGuia ? `G-${v.numeroGuia}` : '—'}</p>
             </div>
           </div>
 
@@ -179,33 +200,44 @@ function DetalleModal({ venta: v, onClose, onCambiarEstado }: { venta: Venta; on
               <span>Producto</span><span>Cant.</span><span>Precio</span><span>Total</span>
             </div>
             {v.detalles.map((d, i) => (
-              <div key={i} className={`grid grid-cols-[1fr_auto_auto_auto] px-4 py-3 gap-3 text-[13px] ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
+              <div key={d.id ?? i} className={`grid grid-cols-[1fr_auto_auto_auto] px-4 py-3 gap-3 text-[13px] ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
                 <div>
-                  <p className="font-600">{d.productoNombre}</p>
-                  <p className="text-[11.5px] text-[var(--color-gr-muted)]">Lote #{String(d.loteNum).padStart(3, '0')}</p>
+                  <p className="font-600">{d.producto?.nombre ?? '—'}</p>
+                  {d.lote && (
+                    <p className="text-[11.5px] text-[var(--color-gr-muted)]">Lote {d.lote.codigoLote}</p>
+                  )}
                 </div>
-                <span>{d.cantidad} {d.unidad}</span>
-                <span>{formatBs(d.precioUnitario)}</span>
-                <span className="font-800 text-[var(--color-gr-primary)]">{formatBs(d.totalBs)}</span>
+                <span>{Number(d.cantidad)} {d.unidad?.abreviatura ?? d.unidad?.codigo ?? ''}</span>
+                <span>{formatBs(Number(d.precioUnitarioBs))}</span>
+                <span className="font-800 text-[var(--color-gr-primary)]">{formatBs(Number(d.valorTotalBs))}</span>
               </div>
             ))}
           </div>
 
           <div className="space-y-1.5 text-[13.5px]">
-            {v.descuentoBs > 0 && (
+            {Number(v.descuentoBs) > 0 && (
               <div className="flex justify-between text-[var(--color-gr-muted)]">
-                <span>Descuento</span><span>-{formatBs(v.descuentoBs)}</span>
+                <span>Descuento</span><span>-{formatBs(Number(v.descuentoBs))}</span>
+              </div>
+            )}
+            {Number(v.fleteBs) > 0 && (
+              <div className="flex justify-between text-[var(--color-gr-muted)]">
+                <span>Flete</span><span>{formatBs(Number(v.fleteBs))}</span>
               </div>
             )}
             <div className="flex justify-between font-900 text-[18px] text-[var(--color-gr-primary)] pt-1 border-t border-[var(--color-gr-border)]">
-              <span>TOTAL</span><span>{formatBs(v.totalBs)}</span>
+              <span>TOTAL</span><span>{formatBs(Number(v.totalBs))}</span>
             </div>
           </div>
 
           {transportista && (
             <div className="bg-[var(--color-gr-border-lite)] rounded-[10px] px-4 py-3 text-[12.5px]">
               <p className="font-700 text-[var(--color-gr-sub)] mb-1">Transportista</p>
-              <p>{transportista.nombre} · {transportista.marca} · {transportista.placa}</p>
+              <p>
+                {transportista.nombre}
+                {transportista.marca ? ` · ${transportista.marca}` : ''}
+                {transportista.placa ? ` · ${transportista.placa}` : ''}
+              </p>
             </div>
           )}
 

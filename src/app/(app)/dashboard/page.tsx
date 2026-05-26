@@ -1,33 +1,77 @@
 'use client';
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { useAuth } from '@/lib/auth-store';
-import { useAppStore } from '@/store/useAppStore';
+import { useVentas } from '@/lib/api/ventas';
+import { useProductos } from '@/lib/api/productos';
+import { useMateriasPrimas } from '@/lib/api/materia-prima';
 import { formatBs, formatNum } from '@/lib/utils';
-import { StockBar, EstadoBadge } from '@/components/ui';
+import { StockBar, EstadoBadge, Spinner } from '@/components/ui';
 import { Package, Wheat, ShoppingCart, TrendingUp, AlertTriangle, CheckCircle2, Plus, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { EstadoVenta } from '@/lib/types';
 
 export default function DashboardPage() {
   const { user } = useAuth();
 
-  const ventas         = useAppStore(s => s.ventas);
-  const productos       = useAppStore(s => s.productos);
-  const materiasPrimas = useAppStore(s => s.materiasPrimas);
-  const statsDelMes    = useAppStore(s => s.statsDelMes);
-  const ventasPorMes   = useAppStore(s => s.ventasPorMes);
+  const ventasQ    = useVentas();
+  const productosQ = useProductos();
+  const mpQ        = useMateriasPrimas();
 
-  const stats     = statsDelMes();
-  const chartData = ventasPorMes();
+  const ventas         = ventasQ.data ?? [];
+  const productos      = productosQ.data ?? [];
+  const materiasPrimas = mpQ.data ?? [];
+
+  const stats = useMemo(() => {
+    const mesKey = new Date().toISOString().slice(0, 7);
+    const delMes = ventas.filter(v => v.fecha.startsWith(mesKey));
+    return {
+      totalVentas: delMes.reduce((s, v) => s + Number(v.totalBs), 0),
+      notasMes: delMes.length,
+      pendientes: ventas.filter(v => v.estado === EstadoVenta.PENDIENTE).length,
+      totalStock: productos.reduce((s, p) => s + Number(p.stockActual), 0),
+      totalQQ: productos.reduce(
+        (s, p) => s + (Number(p.stockActual) * Number(p.pesoKgPorUnidad)) / 46,
+        0,
+      ),
+      totalMP: materiasPrimas.reduce((s, m) => s + Number(m.stockActualKg), 0) / 46,
+    };
+  }, [ventas, productos, materiasPrimas]);
+
+  const chartData = useMemo(() => {
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return {
+        mes: meses[d.getMonth()],
+        monto: ventas
+          .filter(v => v.fecha.startsWith(key))
+          .reduce((s, v) => s + Number(v.totalBs), 0),
+      };
+    });
+  }, [ventas]);
 
   const nombreMes = new Date().toLocaleDateString('es-BO', { month: 'long', year: 'numeric' });
   const hora      = new Date().getHours();
   const saludo    = hora < 12 ? 'Buenos días' : hora < 18 ? 'Buenas tardes' : 'Buenas noches';
 
-  const stockBajo      = productos.filter(p => p.stockActual < p.stockMinimo);
-  const dispPendientes = ventas.filter(v => v.estado === 'pendiente').length;
+  const stockBajo      = productos.filter(p => Number(p.stockActual) < Number(p.stockMinimo));
+  const dispPendientes = stats.pendientes;
   const hayAlertas     = stockBajo.length > 0 || dispPendientes > 0;
+  const mpStockBajo    = materiasPrimas.some(m => Number(m.stockActualKg) < Number(m.stockMinimoKg));
 
-  const ultimas5 = [...ventas].reverse().slice(0, 5);
+  const ultimas5 = [...ventas].slice(0, 5);
+
+  const loading = ventasQ.isLoading || productosQ.isLoading || mpQ.isLoading;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Spinner size={28} color="var(--color-gr-primary)" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -80,8 +124,8 @@ export default function DashboardPage() {
           sub={`${formatNum(stats.totalQQ, 1)} QQ equivalente`}
           icon={<Package size={20} />} color="gold" href="/stock" />
         <KpiCard
-          label="Materia Prima" value={formatNum(stats.totalMP, 0) + ' QQ+'}
-          sub={materiasPrimas.some(m => m.stockTotal < m.stockMinimo) ? '⚠ Hay stock bajo' : 'Stock suficiente'}
+          label="Materia Prima" value={formatNum(stats.totalMP, 0) + ' QQ'}
+          sub={mpStockBajo ? '⚠ Hay stock bajo' : 'Stock suficiente'}
           icon={<Wheat size={20} />} color="success" href="/materia-prima" />
         <KpiCard
           label="Pendientes" value={stats.pendientes.toString()}
@@ -134,16 +178,16 @@ export default function DashboardPage() {
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {productos.map(p => {
-            const low = p.stockActual < p.stockMinimo;
+            const low = Number(p.stockActual) < Number(p.stockMinimo);
             return (
               <div key={p.id} className={`card p-4 border-t-[3px] ${low ? 'border-t-[var(--color-gr-danger)]' : 'border-t-[var(--color-gr-success)]'}`}>
                 <p className="text-[11px] font-600 text-[var(--color-gr-muted)] uppercase tracking-wide mb-1">{p.codigo}</p>
                 <p className="font-700 text-[var(--color-gr-text)] text-[13px] mb-3 leading-tight">{p.nombre}</p>
                 <p className="text-[28px] font-900 text-[var(--color-gr-text)] leading-none mb-1">
-                  {formatNum(p.stockActual, 0)} <span className="text-[14px] font-500 text-[var(--color-gr-muted)]">bol</span>
+                  {formatNum(Number(p.stockActual), 0)} <span className="text-[14px] font-500 text-[var(--color-gr-muted)]">bol</span>
                 </p>
-                <p className="text-[12px] text-[var(--color-gr-muted)] mb-3">{formatNum(p.stockActual * p.kgPorBolsa / 46, 1)} QQ</p>
-                <StockBar value={p.stockActual} min={p.stockMinimo} />
+                <p className="text-[12px] text-[var(--color-gr-muted)] mb-3">{formatNum((Number(p.stockActual) * Number(p.pesoKgPorUnidad)) / 46, 1)} QQ</p>
+                <StockBar value={Number(p.stockActual)} min={Number(p.stockMinimo)} />
               </div>
             );
           })}
@@ -165,11 +209,11 @@ export default function DashboardPage() {
                 <ShoppingCart size={16} className="text-[var(--color-gr-primary)]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-700 text-[var(--color-gr-text)] text-[13.5px]">NV-{v.numero} · {v.clienteNombre}</p>
-                <p className="text-[12px] text-[var(--color-gr-muted)]">{v.detalles[0]?.productoNombre} · {v.fecha}</p>
+                <p className="font-700 text-[var(--color-gr-text)] text-[13.5px]">NV-{v.numeroNota} · {v.cliente?.nombre ?? '—'}</p>
+                <p className="text-[12px] text-[var(--color-gr-muted)]">{v.detalles?.[0]?.producto?.nombre ?? 'Sin detalle'} · {v.fecha}</p>
               </div>
               <div className="text-right shrink-0">
-                <p className="font-800 text-[var(--color-gr-primary)] text-[14px]">{formatBs(v.totalBs)}</p>
+                <p className="font-800 text-[var(--color-gr-primary)] text-[14px]">{formatBs(Number(v.totalBs))}</p>
                 <EstadoBadge estado={v.estado} />
               </div>
             </div>
