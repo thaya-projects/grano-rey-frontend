@@ -1,32 +1,45 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import {
-  useAppStore,
-  type Producto, type Cliente, type Transportista,
-  type RecetaItem, type MateriaPrimaStock,
-} from '@/store/useAppStore';
+  useClientes,
+  useCreateCliente,
+  useProveedores,
+  useCreateProveedor,
+  useTransportistas,
+  useCreateTransportista,
+  useUnidades,
+  useCategoriasMP,
+  useCreateCategoriaMP,
+} from '@/lib/api/catalogos';
+import { useProductos, useCreateProducto, useUpdateProducto } from '@/lib/api/productos';
+import { useMateriasPrimas, useCreateMateriaPrima } from '@/lib/api/materia-prima';
+import { useEmpresa, useActualizarConfiguracion } from '@/lib/api/empresa';
+import { apiErrorMessage } from '@/lib/api';
 import { formatBs } from '@/lib/utils';
-import { Btn, Modal, FormField, Input, Select, Badge, useToast } from '@/components/ui';
-import { Package, Users, Truck, Wheat, Plus, Pencil, Trash2, Info, Check } from 'lucide-react';
+import type { Producto } from '@/lib/types';
+import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
+import { Package, Users, Truck, Wheat, Plus, Pencil, Building2, ShieldCheck, Tag } from 'lucide-react';
 
-type Tab = 'productos' | 'mp' | 'clientes' | 'transportistas';
+type Tab = 'empresa' | 'productos' | 'mp' | 'clientes' | 'transportistas' | 'proveedores';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: 'productos',      label: 'Productos',      icon: <Package size={15} /> },
-  { id: 'mp',             label: 'Materia Prima',  icon: <Wheat size={15} /> },
-  { id: 'clientes',       label: 'Clientes',       icon: <Users size={15} /> },
-  { id: 'transportistas', label: 'Transportistas', icon: <Truck size={15} /> },
+  { id: 'empresa',        label: 'Empresa',         icon: <Building2 size={15} /> },
+  { id: 'productos',      label: 'Productos',       icon: <Package size={15} /> },
+  { id: 'mp',             label: 'Materia Prima',   icon: <Wheat size={15} /> },
+  { id: 'clientes',       label: 'Clientes',        icon: <Users size={15} /> },
+  { id: 'transportistas', label: 'Transportistas',  icon: <Truck size={15} /> },
+  { id: 'proveedores',    label: 'Proveedores',     icon: <Tag size={15} /> },
 ];
 
 export default function ConfiguracionPage() {
-  const [tab, setTab] = useState<Tab>('productos');
+  const [tab, setTab] = useState<Tab>('empresa');
 
   return (
     <div className="space-y-5 animate-fade-up">
       <div>
         <h1 className="text-[22px] font-900 text-[var(--color-gr-text)]">Configuración</h1>
         <p className="text-[var(--color-gr-muted)] text-[13.5px] mt-0.5">
-          Gestiona productos, materias primas, clientes y transportistas
+          Datos de la empresa y catálogos maestros
         </p>
       </div>
 
@@ -42,788 +55,504 @@ export default function ConfiguracionPage() {
         ))}
       </div>
 
+      {tab === 'empresa'        && <TabEmpresa />}
       {tab === 'productos'      && <TabProductos />}
       {tab === 'mp'             && <TabMateriasPrimas />}
       {tab === 'clientes'       && <TabClientes />}
       {tab === 'transportistas' && <TabTransportistas />}
+      {tab === 'proveedores'    && <TabProveedores />}
     </div>
   );
 }
 
-// ─── Inline-editable cell ──────────────────────────────────────────────────────
-type EditCell = { id: string; field: string; value: string } | null;
+// ─── Tab Empresa (SENASAG) ─────────────────────────────────────────────────
+function TabEmpresa() {
+  const toast = useToast(s => s.show);
+  const empresaQ = useEmpresa();
+  const actualizar = useActualizarConfiguracion();
+  const [registroSanitario, setRS] = useState('');
 
-function InlineCell({ id, field, displayValue, editCell, setEditCell, onSave, className = '' }: {
-  id: string; field: string; displayValue: string;
-  editCell: EditCell; setEditCell: (c: EditCell) => void;
-  onSave: (id: string, field: string, value: string) => void;
-  className?: string;
-}) {
-  const active = editCell?.id === id && editCell?.field === field;
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') { onSave(id, field, editCell!.value); setEditCell(null); }
-    if (e.key === 'Escape') { setEditCell(null); }
+  if (empresaQ.isLoading) {
+    return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
   }
+  const empresa = empresaQ.data;
+  const rsActual = empresa?.configuracion?.registroSanitario ?? '';
 
-  if (active) {
-    return (
-      <input
-        ref={inputRef}
-        autoFocus
-        type="number"
-        value={editCell!.value}
-        onChange={e => setEditCell({ id, field, value: e.target.value })}
-        onBlur={() => { onSave(id, field, editCell!.value); setEditCell(null); }}
-        onKeyDown={handleKeyDown}
-        className={`w-full bg-white border-2 rounded-[6px] px-2 py-1 text-[13px] font-600 outline-none ${className}`}
-        style={{ borderColor: '#378ADD' }}
-      />
-    );
+  async function handleGuardar() {
+    try {
+      await actualizar.mutateAsync({ registroSanitario });
+      toast('Configuración actualizada', 'success');
+      setRS('');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'No se pudo actualizar'), 'error');
+    }
   }
 
   return (
-    <span
-      onDoubleClick={() => setEditCell({ id, field, value: displayValue })}
-      className={`cursor-text select-none rounded-[4px] px-1 hover:bg-[var(--color-gr-border-lite)] transition-colors ${className}`}
-      title="Doble clic para editar"
-    >
-      {displayValue}
-    </span>
+    <div className="space-y-5 max-w-2xl">
+      <div className="card space-y-4">
+        <div className="flex items-center gap-2">
+          <Building2 size={18} className="text-[var(--color-gr-primary)]" />
+          <h2 className="font-800 text-[15px] text-[var(--color-gr-text)]">Datos de la empresa</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3 text-[13.5px]">
+          <div>
+            <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Razón social</p>
+            <p className="font-700">{empresa?.nombre ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">NIT</p>
+            <p className="font-700">{empresa?.nit ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Plan</p>
+            <p className="font-700 capitalize">{empresa?.plan ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Ciudad</p>
+            <p className="font-700">{empresa?.ciudad ?? '—'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="card space-y-4">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={18} className="text-[var(--color-gr-primary)]" />
+          <h2 className="font-800 text-[15px] text-[var(--color-gr-text)]">Registro sanitario SENASAG</h2>
+        </div>
+        <p className="text-[12.5px] text-[var(--color-gr-muted)] -mt-2">
+          Conforme a Norma Boliviana NB 314001 y SENASAG R.A. 042/2023. Se imprime automáticamente en cada lote producido.
+        </p>
+
+        <div className="rounded-[10px] px-4 py-3" style={{ background: 'var(--color-gr-primary-lite)' }}>
+          <p className="text-[12px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Registro actual</p>
+          <p className="font-800 text-[15px] text-[var(--color-gr-primary)] font-mono">
+            {rsActual || <span className="text-[var(--color-gr-muted)] font-normal italic">Sin configurar</span>}
+          </p>
+        </div>
+
+        <FormField label="Nuevo número de registro sanitario">
+          <Input placeholder={rsActual || 'RS-BO-2024-001234'} value={registroSanitario}
+            onChange={e => setRS(e.target.value)} />
+        </FormField>
+
+        <div className="flex justify-end">
+          <Btn onClick={handleGuardar} disabled={!registroSanitario.trim()} loading={actualizar.isPending}>
+            <ShieldCheck size={14} /> Guardar registro
+          </Btn>
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ─── Tab Productos ─────────────────────────────────────────────────────────────
+// ─── Tab Productos ─────────────────────────────────────────────────────────
 function TabProductos() {
-  const toast          = useToast(s => s.show);
-  const productos      = useAppStore(s => s.productos);
-  const materiasPrimas = useAppStore(s => s.materiasPrimas);
-  const updateProducto = useAppStore(s => s.updateProducto);
+  const toast = useToast(s => s.show);
+  const productosQ = useProductos();
+  const unidadesQ  = useUnidades();
+  const productos = productosQ.data ?? [];
+  const unidades  = unidadesQ.data ?? [];
 
-  const [modalEditar, setModalEditar] = useState<Producto | null>(null);
-  const [modalNuevo,  setModalNuevo]  = useState(false);
-  const [form,        setForm]        = useState<Partial<Omit<Producto, 'id'>>>({});
-  const [editCell,    setEditCell]    = useState<EditCell>(null);
+  const [modal, setModal] = useState<{ mode: 'create' } | { mode: 'edit'; producto: Producto } | null>(null);
 
-  // ── Edit existing ──
-  function openEdit(p: Producto) {
-    setModalEditar(p);
-    setForm({ codigo: p.codigo, nombre: p.nombre, kgPorBolsa: p.kgPorBolsa, bolsaEsQQ: p.bolsaEsQQ, precioUnitarioBs: p.precioUnitarioBs, stockMinimo: p.stockMinimo, receta: [...p.receta] });
-  }
-
-  function addRecetaItem() {
-    setForm(f => ({ ...f, receta: [...(f.receta ?? []), { materia_prima_id: '', nombre: '', qq_por_qq_producido: 1 }] }));
-  }
-
-  function updateRecetaItem(idx: number, patch: Partial<RecetaItem>) {
-    setForm(f => {
-      const receta = [...(f.receta ?? [])];
-      receta[idx] = { ...receta[idx], ...patch };
-      if (patch.materia_prima_id) {
-        const mp = materiasPrimas.find(m => m.id === patch.materia_prima_id);
-        if (mp) receta[idx].nombre = mp.nombre;
-      }
-      return { ...f, receta };
-    });
-  }
-
-  function removeRecetaItem(idx: number) {
-    setForm(f => ({ ...f, receta: (f.receta ?? []).filter((_, i) => i !== idx) }));
-  }
-
-  function handleSaveEdit() {
-    if (!modalEditar) return;
-    updateProducto(modalEditar.id, form);
-    setModalEditar(null);
-    toast('Producto actualizado', 'success');
-  }
-
-  // ── Inline cell save ──
-  function handleInlineSave(id: string, field: string, value: string) {
-    const num = parseFloat(value);
-    if (!isNaN(num) && num >= 0) {
-      updateProducto(id, { [field]: num });
-    }
+  if (productosQ.isLoading) {
+    return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Btn size="sm" onClick={() => setModalNuevo(true)}>
-          <Plus size={13} /> Agregar producto
-        </Btn>
-      </div>
-
-      <div className="card-no-pad">
-        <div className="hidden md:grid gap-4 px-5 py-3 text-[11.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide border-b border-[var(--color-gr-border)]"
-          style={{ gridTemplateColumns: '90px 1fr 80px auto auto auto auto', background: 'var(--color-gr-border-lite)' }}>
-          <span>Código</span><span>Nombre</span><span>Kg/bolsa</span>
-          <span className="text-right">Precio</span><span className="text-right">Mín</span>
-          <span>Receta</span><span />
-        </div>
-        {productos.map((p, i) => (
-          <div key={p.id}
-            className={`grid grid-cols-[auto_1fr] md:grid-cols-[90px_1fr_80px_auto_auto_auto_auto] gap-3 md:gap-4 px-5 py-4 items-center
-              ${i < productos.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
-            <span className="font-700 text-[var(--color-gr-primary)] text-[12px] font-mono">{p.codigo}</span>
-            <div>
-              <p className="font-600 text-[var(--color-gr-text)] text-[13.5px]">{p.nombre}</p>
-              <p className="text-[11.5px] text-[var(--color-gr-muted)]">
-                {p.kgPorBolsa} kg/bolsa · mín {p.stockMinimo} · stock {p.stockActual} bol
-              </p>
-            </div>
-            <span className="text-[13px] text-[var(--color-gr-muted)] hidden md:block">{p.kgPorBolsa} kg</span>
-            <span className="font-600 text-[var(--color-gr-text)] hidden md:block text-right">
-              <InlineCell id={p.id} field="precioUnitarioBs" displayValue={formatBs(p.precioUnitarioBs)}
-                editCell={editCell} setEditCell={setEditCell} onSave={handleInlineSave} />
-            </span>
-            <span className="text-[13px] text-[var(--color-gr-muted)] hidden md:block text-right">
-              <InlineCell id={p.id} field="stockMinimo" displayValue={String(p.stockMinimo)}
-                editCell={editCell} setEditCell={setEditCell} onSave={handleInlineSave} />
-            </span>
-            <span className="hidden md:block">
-              <Badge color={p.receta.length > 0 ? 'green' : 'gray'}>
-                {p.receta.length > 0 ? `${p.receta.length} MP` : 'Sin receta'}
-              </Badge>
-            </span>
-            <button onClick={() => openEdit(p)}
-              className="hidden md:flex text-[var(--color-gr-primary)] hover:underline text-[12.5px] font-600 items-center gap-1">
-              <Pencil size={12} /> Editar
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {editCell && (
-        <p className="text-[11.5px] text-[var(--color-gr-muted)] px-1">
-          Editando — presiona Enter para guardar o Escape para cancelar
-        </p>
-      )}
-
-      {/* Modal: Editar producto existente */}
-      {modalEditar && (
-        <Modal open title={`Editar — ${modalEditar.nombre}`} onClose={() => setModalEditar(null)} wide>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Código">
-              <Input value={form.codigo ?? ''} onChange={e => setForm(f => ({ ...f, codigo: e.target.value.toUpperCase() }))} />
-            </FormField>
-            <FormField label="Nombre">
-              <Input value={form.nombre ?? ''} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
-            </FormField>
-            <FormField label="Kg por bolsa">
-              <Input type="number" min="0.01" step="0.01" value={form.kgPorBolsa ?? ''}
-                disabled={form.bolsaEsQQ}
-                onChange={e => setForm(f => ({ ...f, kgPorBolsa: parseFloat(e.target.value) }))} />
-            </FormField>
-            <FormField label="Precio (Bs)">
-              <Input type="number" min="0" value={form.precioUnitarioBs ?? ''}
-                onChange={e => setForm(f => ({ ...f, precioUnitarioBs: parseFloat(e.target.value) }))} />
-            </FormField>
-            <FormField label="Stock mínimo">
-              <Input type="number" min="0" value={form.stockMinimo ?? ''}
-                onChange={e => setForm(f => ({ ...f, stockMinimo: parseInt(e.target.value) }))} />
-            </FormField>
-            <FormField label="Bolsa = 1 QQ">
-              <Select value={form.bolsaEsQQ ? 'si' : 'no'}
-                onChange={e => {
-                  const esQQ = e.target.value === 'si';
-                  setForm(f => ({ ...f, bolsaEsQQ: esQQ, kgPorBolsa: esQQ ? 46 : f.kgPorBolsa }));
-                }}>
-                <option value="no">No (se vende en bolsas)</option>
-                <option value="si">Sí (bolsa ≈ QQ)</option>
-              </Select>
-            </FormField>
-          </div>
-
-          <RecetaSection
-            receta={form.receta ?? []}
-            materiasPrimas={materiasPrimas}
-            nombreProducto={form.nombre ?? modalEditar.nombre}
-            kgPorBolsa={form.kgPorBolsa ?? modalEditar.kgPorBolsa}
-            onAdd={addRecetaItem}
-            onUpdate={updateRecetaItem}
-            onRemove={removeRecetaItem}
-          />
-
-          <div className="flex gap-3 justify-end">
-            <Btn variant="ghost" onClick={() => setModalEditar(null)}>Cancelar</Btn>
-            <Btn onClick={handleSaveEdit}>Guardar cambios</Btn>
-          </div>
-        </Modal>
-      )}
-
-      {/* Modal: Nuevo producto */}
-      {modalNuevo && (
-        <ModalNuevoProducto onClose={() => setModalNuevo(false)} />
-      )}
-    </div>
-  );
-}
-
-// ─── Sección receta (reutilizable en editar y crear) ──────────────────────────
-function RecetaSection({ receta, materiasPrimas, nombreProducto, kgPorBolsa, onAdd, onUpdate, onRemove }: {
-  receta: RecetaItem[];
-  materiasPrimas: MateriaPrimaStock[];
-  nombreProducto: string;
-  kgPorBolsa: number;
-  onAdd: () => void;
-  onUpdate: (idx: number, patch: Partial<RecetaItem>) => void;
-  onRemove: (idx: number) => void;
-}) {
-  const [ejBolsas, setEjBolsas] = useState('100');
-  const ejBolsasNum = parseFloat(ejBolsas) || 0;
-  const ejTotalQQ   = (ejBolsasNum * kgPorBolsa) / 46;
-
-  return (
-    <div className="space-y-3 pt-1">
       <div className="flex items-center justify-between">
-        <div>
-          <p className="font-800 text-[14px] text-[var(--color-gr-text)]">Receta de producción</p>
-          <p className="text-[12px] text-[var(--color-gr-muted)] mt-0.5">
-            Define qué materias primas consume este producto por cada QQ producido
-          </p>
-        </div>
-        <Btn size="sm" variant="ghost" onClick={onAdd}>
-          <Plus size={13} /> Agregar MP
-        </Btn>
+        <p className="text-[13px] text-[var(--color-gr-muted)]">{productos.length} productos</p>
+        <Btn onClick={() => setModal({ mode: 'create' })}><Plus size={14} /> Nuevo producto</Btn>
       </div>
 
-      {receta.length === 0 ? (
-        <div className="rounded-[10px] px-4 py-4 text-center text-[13px] text-[var(--color-gr-muted)]"
-          style={{ background: 'var(--color-gr-border-lite)', border: '1.5px dashed var(--color-gr-border)' }}>
-          Sin materias primas configuradas — haz clic en "Agregar MP"
-        </div>
-      ) : (
-        <div className="rounded-[10px] overflow-hidden border border-[var(--color-gr-border)]">
-          <div className="grid px-4 py-2 text-[11px] font-700 text-white uppercase tracking-wide"
-            style={{ gridTemplateColumns: '1fr 140px auto', background: 'var(--color-gr-primary)' }}>
-            <span>Materia prima</span>
-            <span className="text-right pr-2">QQ por QQ producido</span>
-            <span />
-          </div>
-          {receta.map((r, idx) => (
-            <div key={idx}
-              className="grid px-4 py-3 gap-3 items-center border-t border-[var(--color-gr-border-lite)]"
-              style={{ gridTemplateColumns: '1fr 140px auto' }}>
-              <Select value={r.materia_prima_id}
-                onChange={e => onUpdate(idx, { materia_prima_id: e.target.value })}>
-                <option value="">— Seleccionar MP —</option>
-                {materiasPrimas.map(mp => (
-                  <option key={mp.id} value={mp.id}>{mp.nombre} ({mp.codigo})</option>
-                ))}
-              </Select>
-              <Input type="number" min="0.01" step="0.01" placeholder="1.00"
-                value={r.qq_por_qq_producido || ''}
-                onChange={e => onUpdate(idx, { qq_por_qq_producido: parseFloat(e.target.value) || 0 })} />
-              <button onClick={() => onRemove(idx)}
-                className="p-2 rounded-[6px] text-[var(--color-gr-danger)] hover:bg-[var(--color-gr-danger-bg)] transition-colors">
-                <Trash2 size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Ejemplo en tiempo real */}
-      {receta.some(r => r.materia_prima_id && r.qq_por_qq_producido > 0) && kgPorBolsa > 0 && (
-        <div className="rounded-[10px] px-4 py-3 flex items-start gap-2 text-[12.5px]"
-          style={{ background: 'var(--color-gr-primary-lite)' }}>
-          <Info size={14} className="text-[var(--color-gr-primary)] shrink-0 mt-1" />
-          <div className="text-[var(--color-gr-sub)] flex-1">
-            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <strong>Ejemplo: producir</strong>
-              <input
-                type="number" min="1" value={ejBolsas} onChange={e => setEjBolsas(e.target.value)}
-                className="w-16 border border-[var(--color-gr-border)] rounded-[6px] px-2 py-0.5 text-[12px] font-mono text-center outline-none focus:border-[var(--color-gr-primary)]"
-              />
-              <span>bolsas de {nombreProducto || '…'}</span>
-              {ejTotalQQ > 0 && <span className="text-[var(--color-gr-muted)]">= {ejTotalQQ.toFixed(2)} QQ</span>}
-            </div>
-            {ejBolsasNum > 0 && ejTotalQQ > 0 && (
-              <div>
-                <strong>Necesitarás:</strong>
-                {receta.filter(r => r.materia_prima_id && r.qq_por_qq_producido > 0).map((r, i) => (
-                  <span key={i} className="block ml-2 mt-0.5">
-                    · <strong>{(ejTotalQQ * r.qq_por_qq_producido).toFixed(2)} QQ</strong> de {r.nombre}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Modal: Nuevo producto ─────────────────────────────────────────────────────
-function ModalNuevoProducto({ onClose }: { onClose: () => void }) {
-  const toast          = useToast(s => s.show);
-  const productos      = useAppStore(s => s.productos);
-  const materiasPrimas = useAppStore(s => s.materiasPrimas);
-  const addProducto    = useAppStore(s => s.addProducto);
-
-  const [codigo,          setCodigo]    = useState('');
-  const [nombre,          setNombre]    = useState('');
-  const [kgPorBolsa,      setKgBolsa]   = useState('');
-  const [bolsaEsQQ,       setBolsaEsQQ] = useState(false);
-  const [precioUnitario,  setPrecio]    = useState('');
-  const [stockMinimo,     setStockMin]  = useState('');
-  const [stockInicial,    setStockIni]  = useState('0');
-  const [receta,          setReceta]    = useState<RecetaItem[]>([]);
-  const [errors,          setErrors]    = useState<Record<string, string>>({});
-
-  const kgNum = bolsaEsQQ ? 46 : (parseFloat(kgPorBolsa) || 0);
-
-  function addRecetaItem() {
-    setReceta(r => [...r, { materia_prima_id: '', nombre: '', qq_por_qq_producido: 1 }]);
-  }
-
-  function updateRecetaItem(idx: number, patch: Partial<RecetaItem>) {
-    setReceta(r => {
-      const next = [...r];
-      next[idx] = { ...next[idx], ...patch };
-      if (patch.materia_prima_id) {
-        const mp = materiasPrimas.find(m => m.id === patch.materia_prima_id);
-        if (mp) next[idx].nombre = mp.nombre;
-      }
-      return next;
-    });
-  }
-
-  function removeRecetaItem(idx: number) {
-    setReceta(r => r.filter((_, i) => i !== idx));
-  }
-
-  function validate() {
-    const errs: Record<string, string> = {};
-    const codigoUp = codigo.trim().toUpperCase();
-    if (!codigoUp)                                          errs.codigo = 'Requerido';
-    else if (productos.some(p => p.codigo === codigoUp))   errs.codigo = 'Código ya existe';
-    if (!nombre.trim())                                     errs.nombre = 'Requerido';
-    if (kgNum <= 0)                                         errs.kgPorBolsa = 'Debe ser mayor a 0';
-    if (receta.length > 0 && receta.some(r => !r.materia_prima_id || r.qq_por_qq_producido <= 0))
-                                                            errs.receta = 'Completa o elimina todas las filas';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  }
-
-  function handleSave() {
-    if (!validate()) return;
-    addProducto({
-      codigo:          codigo.trim().toUpperCase(),
-      nombre:          nombre.trim(),
-      kgPorBolsa:      kgNum,
-      bolsaEsQQ,
-      precioUnitarioBs: parseFloat(precioUnitario) || 0,
-      stockMinimo:     parseInt(stockMinimo) || 0,
-      stockActual:     Math.max(0, parseInt(stockInicial) || 0),
-      receta,
-    });
-    toast('Producto agregado correctamente', 'success');
-    onClose();
-  }
-
-  return (
-    <Modal open title="Agregar nuevo producto" onClose={onClose} wide>
-      <div className="grid grid-cols-2 gap-3">
-        {/* Código */}
-        <FormField label="Código *" error={errors.codigo}>
-          <Input
-            value={codigo}
-            onChange={e => { setCodigo(e.target.value.toUpperCase()); setErrors(x => ({ ...x, codigo: '' })); }}
-            placeholder="Ej: HMAP-06"
-            className="font-mono uppercase"
-          />
-        </FormField>
-        {/* Nombre */}
-        <FormField label="Nombre *" error={errors.nombre}>
-          <Input
-            value={nombre}
-            onChange={e => { setNombre(e.target.value); setErrors(x => ({ ...x, nombre: '' })); }}
-            placeholder="Hojuela de Maíz Amarillo Precocida"
-          />
-        </FormField>
-        {/* Kg por bolsa */}
-        <FormField label="Kg por bolsa *" error={errors.kgPorBolsa}>
-          <Input
-            type="number" min="0.01" step="0.01" placeholder="23"
-            value={bolsaEsQQ ? '46' : kgPorBolsa}
-            disabled={bolsaEsQQ}
-            onChange={e => { setKgBolsa(e.target.value); setErrors(x => ({ ...x, kgPorBolsa: '' })); }}
-          />
-        </FormField>
-        {/* Precio */}
-        <FormField label="Precio unitario (Bs)">
-          <Input type="number" min="0" step="0.5" placeholder="305"
-            value={precioUnitario} onChange={e => setPrecio(e.target.value)} />
-        </FormField>
-        {/* Stock mínimo */}
-        <FormField label="Stock mínimo (bolsas)">
-          <Input type="number" min="0" placeholder="20"
-            value={stockMinimo} onChange={e => setStockMin(e.target.value)} />
-        </FormField>
-        {/* Stock inicial */}
-        <FormField label="Stock inicial (bolsas)">
-          <Input type="number" min="0" placeholder="0"
-            value={stockInicial} onChange={e => setStockIni(e.target.value)} />
-        </FormField>
-      </div>
-
-      {/* ¿1 bolsa = 1 QQ? */}
-      <label className="flex items-center gap-3 cursor-pointer select-none px-1">
-        <div
-          onClick={() => {
-            const next = !bolsaEsQQ;
-            setBolsaEsQQ(next);
-            if (next) setKgBolsa('46');
-          }}
-          className="w-5 h-5 rounded-[4px] border-2 flex items-center justify-center shrink-0 transition-colors"
-          style={{
-            borderColor: bolsaEsQQ ? 'var(--color-gr-primary)' : 'var(--color-gr-border)',
-            background:  bolsaEsQQ ? 'var(--color-gr-primary)' : 'white',
-          }}>
-          {bolsaEsQQ && <Check size={12} className="text-white" />}
-        </div>
-        <div>
-          <p className="font-600 text-[13.5px] text-[var(--color-gr-text)]">¿1 bolsa = 1 QQ?</p>
-          <p className="text-[12px] text-[var(--color-gr-muted)]">
-            Activa si la bolsa pesa ~46 kg (ej: hojuelas de 23 kg vendidas por par)
-          </p>
-        </div>
-      </label>
-
-      {/* Receta */}
-      {errors.receta && (
-        <p className="text-[12px] text-[var(--color-gr-danger)] px-1">{errors.receta}</p>
-      )}
-      <RecetaSection
-        receta={receta}
-        materiasPrimas={materiasPrimas}
-        nombreProducto={nombre}
-        kgPorBolsa={kgNum}
-        onAdd={addRecetaItem}
-        onUpdate={updateRecetaItem}
-        onRemove={removeRecetaItem}
-      />
-
-      <div className="flex gap-3 justify-end">
-        <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-        <Btn onClick={handleSave}>Agregar producto</Btn>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── Tab Materias Primas ───────────────────────────────────────────────────────
-function TabMateriasPrimas() {
-  const materiasPrimas     = useAppStore(s => s.materiasPrimas);
-  const categoriasMP       = useAppStore(s => s.categoriasMP);
-  const updateMateriaPrima = useAppStore(s => s.updateMateriaPrima);
-
-  const [modalNuevo, setModalNuevo] = useState(false);
-  const [editCell,   setEditCell]   = useState<EditCell>(null);
-
-  function handleInlineSave(id: string, field: string, value: string) {
-    const num = parseFloat(value);
-    if (!isNaN(num) && num >= 0) {
-      updateMateriaPrima(id, { [field]: num });
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <Btn size="sm" onClick={() => setModalNuevo(true)}>
-          <Plus size={13} /> Agregar materia prima
-        </Btn>
-      </div>
-
-      <div className="card-no-pad">
-        <div className="hidden md:grid gap-4 px-5 py-3 text-[11.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide border-b border-[var(--color-gr-border)]"
-          style={{ gridTemplateColumns: '80px 80px 1fr 80px 90px 80px', background: 'var(--color-gr-border-lite)' }}>
-          <span>Código</span><span>Categoría</span><span>Nombre</span>
-          <span className="text-right">Stock</span><span className="text-right">Mínimo</span><span>Estado</span>
-        </div>
-        {materiasPrimas.map((mp, i) => {
-          const cat = categoriasMP.find(c => c.id === mp.categoriaId);
-          const low  = mp.stockMinimo > 0 && mp.stockTotal < mp.stockMinimo;
-          const warn = !low && mp.stockMinimo > 0 && mp.stockTotal < mp.stockMinimo * 1.5;
-          return (
-            <div key={mp.id}
-              className={`grid grid-cols-[auto_1fr] md:grid-cols-[80px_80px_1fr_80px_90px_80px] gap-3 md:gap-4 px-5 py-4 items-center
-                ${i < materiasPrimas.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
-              <span className="font-700 text-[var(--color-gr-primary)] text-[12px] font-mono">{mp.codigo}</span>
-              <span className="text-[12px] text-[var(--color-gr-muted)] hidden md:block">{cat?.nombre}</span>
-              <span className="font-600 text-[var(--color-gr-text)] text-[13.5px]">{mp.nombre}</span>
-              <span className="text-right font-800 text-[var(--color-gr-text)] hidden md:block">{mp.stockTotal} {mp.unidad}</span>
-              <span className="text-right text-[13px] text-[var(--color-gr-muted)] hidden md:block">
-                <InlineCell id={mp.id} field="stockMinimo" displayValue={String(mp.stockMinimo)}
-                  editCell={editCell} setEditCell={setEditCell} onSave={handleInlineSave} />
-              </span>
-              <span className="hidden md:block">
-                <Badge color={low ? 'red' : warn ? 'yellow' : 'green'}>
-                  {low ? 'Crítico' : warn ? 'Bajo' : 'OK'}
-                </Badge>
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      {editCell && (
-        <p className="text-[11.5px] text-[var(--color-gr-muted)] px-1">
-          Editando — presiona Enter para guardar o Escape para cancelar
-        </p>
-      )}
-
-      {modalNuevo && (
-        <ModalNuevaMP onClose={() => setModalNuevo(false)} />
-      )}
-    </div>
-  );
-}
-
-// ─── Modal: Nueva Materia Prima ────────────────────────────────────────────────
-function ModalNuevaMP({ onClose }: { onClose: () => void }) {
-  const toast           = useToast(s => s.show);
-  const materiasPrimas  = useAppStore(s => s.materiasPrimas);
-  const categoriasMP    = useAppStore(s => s.categoriasMP);
-  const addMateriaPrima = useAppStore(s => s.addMateriaPrima);
-  const addCategoriaMP  = useAppStore(s => s.addCategoriaMP);
-
-  const [categoriaId,    setCategoriaId] = useState('');
-  const [codigo,         setCodigo]      = useState('');
-  const [nombre,         setNombre]      = useState('');
-  const [tieneSubtipos,  setSubtipos]    = useState(false);
-  const [stockMinimo,    setStockMin]    = useState('');
-  const [stockInicial,   setStockIni]    = useState('0');
-  const [errors,         setErrors]      = useState<Record<string, string>>({});
-
-  // Nueva categoría inline
-  const [showNuevaCat,     setShowNuevaCat]     = useState(false);
-  const [nuevaCatNombre,   setNuevaCatNombre]   = useState('');
-  const [nuevaCatSubtipos, setNuevaCatSubtipos] = useState(false);
-  const [catError,         setCatError]         = useState('');
-
-  // Auto-fill subtipos from selected category
-  function handleCategoriaChange(id: string) {
-    setCategoriaId(id);
-    const cat = categoriasMP.find(c => c.id === id);
-    if (cat) setSubtipos(cat.tieneSubtipos);
-    setErrors(x => ({ ...x, categoria: '' }));
-  }
-
-  function handleCrearCategoria() {
-    if (!nuevaCatNombre.trim()) { setCatError('Nombre requerido'); return; }
-    const nueva = addCategoriaMP({ nombre: nuevaCatNombre.trim(), tieneSubtipos: nuevaCatSubtipos });
-    setCategoriaId(nueva.id);
-    setSubtipos(nuevaCatSubtipos);
-    setShowNuevaCat(false);
-    setNuevaCatNombre('');
-    setCatError('');
-    setErrors(x => ({ ...x, categoria: '' }));
-  }
-
-  function validate() {
-    const errs: Record<string, string> = {};
-    if (!categoriaId)                                               errs.categoria = 'Selecciona una categoría';
-    const codigoUp = codigo.trim().toUpperCase();
-    if (!codigoUp)                                                  errs.codigo = 'Requerido';
-    else if (materiasPrimas.some(m => m.codigo === codigoUp))      errs.codigo = 'Código ya existe';
-    if (!nombre.trim())                                             errs.nombre = 'Requerido';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  }
-
-  function handleSave() {
-    if (!validate()) return;
-    const stockIni = Math.max(0, parseFloat(stockInicial) || 0);
-    const mp: Omit<MateriaPrimaStock, 'id'> = {
-      categoriaId,
-      codigo:     codigo.trim().toUpperCase(),
-      nombre:     nombre.trim(),
-      unidad:     'QQ',
-      stockTotal: stockIni,
-      stockMinimo: parseFloat(stockMinimo) || 0,
-    };
-    if (tieneSubtipos) {
-      mp.stockEntero    = stockIni;
-      mp.stockParChico  = 0;
-      mp.stockParGrande = 0;
-    }
-    addMateriaPrima(mp);
-    toast('Materia prima agregada correctamente', 'success');
-    onClose();
-  }
-
-  return (
-    <Modal open title="Agregar materia prima" onClose={onClose} wide>
-      {/* Categoría */}
-      <FormField label="Categoría *" error={errors.categoria}>
-        <div className="space-y-2">
-          <Select value={categoriaId} onChange={e => handleCategoriaChange(e.target.value)}>
-            <option value="">— Seleccionar categoría —</option>
-            {categoriasMP.map(c => (
-              <option key={c.id} value={c.id}>{c.nombre}{c.tieneSubtipos ? ' (con subtipos)' : ''}</option>
+      <div className="card-no-pad overflow-x-auto">
+        <table className="w-full text-[13px]" style={{ minWidth: 720 }}>
+          <thead>
+            <tr style={{ background: 'var(--color-gr-primary)' }}>
+              {['Código', 'Nombre', 'Unidad', 'Kg/Unidad', 'Precio', 'Stock', 'Mínimo', 'Vida útil', ''].map(h => (
+                <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {productos.map((p, i) => (
+              <tr key={p.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
+                className="border-b border-[var(--color-gr-border-lite)]">
+                <td className="px-4 py-3 font-mono font-700 text-[12.5px] text-[var(--color-gr-primary)]">{p.codigo}</td>
+                <td className="px-4 py-3 font-700">{p.nombre}</td>
+                <td className="px-4 py-3 text-[12px] text-[var(--color-gr-muted)]">{p.unidadVenta?.codigo ?? '—'}</td>
+                <td className="px-4 py-3">{Number(p.pesoKgPorUnidad).toFixed(2)}</td>
+                <td className="px-4 py-3">{formatBs(Number(p.precioUnitarioBs))}</td>
+                <td className="px-4 py-3 font-700">{Number(p.stockActual)}</td>
+                <td className="px-4 py-3">{Number(p.stockMinimo)}</td>
+                <td className="px-4 py-3">{p.vidaUtilMeses}m</td>
+                <td className="px-4 py-3 text-right">
+                  <Btn size="sm" variant="ghost" onClick={() => setModal({ mode: 'edit', producto: p })}>
+                    <Pencil size={12} />
+                  </Btn>
+                </td>
+              </tr>
             ))}
+            {productos.length === 0 && (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-[var(--color-gr-muted)]">Sin productos cargados</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {modal && (
+        <ProductoModal
+          mode={modal.mode}
+          producto={modal.mode === 'edit' ? modal.producto : undefined}
+          unidades={unidades}
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); toast('Producto guardado', 'success'); }}
+          onError={(msg) => toast(msg, 'error')}
+        />
+      )}
+    </div>
+  );
+}
+
+function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: {
+  mode: 'create' | 'edit';
+  producto?: Producto;
+  unidades: { id: string; codigo: string; nombre: string }[];
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (msg: string) => void;
+}) {
+  const create = useCreateProducto();
+  const update = useUpdateProducto();
+
+  const [codigo, setCodigo]     = useState(producto?.codigo ?? '');
+  const [nombre, setNombre]     = useState(producto?.nombre ?? '');
+  const [descripcion, setDesc]  = useState(producto?.descripcion ?? '');
+  const [pesoKg, setPesoKg]     = useState(String(producto?.pesoKgPorUnidad ?? ''));
+  const [precio, setPrecio]     = useState(String(producto?.precioUnitarioBs ?? ''));
+  const [stockMinimo, setStockMin] = useState(String(producto?.stockMinimo ?? '0'));
+  const [vidaUtil, setVidaUtil] = useState(String(producto?.vidaUtilMeses ?? '12'));
+  const [unidadId, setUnidadId] = useState(producto?.unidadVenta?.id ?? '');
+
+  const pesoNum   = parseFloat(pesoKg) || 0;
+  const precioNum = parseFloat(precio) || 0;
+  const stockMin  = parseFloat(stockMinimo) || 0;
+  const vidaNum   = parseInt(vidaUtil) || 0;
+  const valid     = !!nombre && pesoNum > 0 && precioNum >= 0 && vidaNum >= 1 && (mode === 'edit' || (!!codigo && !!unidadId));
+
+  async function handleSave() {
+    if (!valid) return;
+    try {
+      if (mode === 'create') {
+        await create.mutateAsync({
+          codigo,
+          nombre,
+          descripcion: descripcion || undefined,
+          pesoKgPorUnidad: pesoNum,
+          precioUnitarioBs: precioNum,
+          stockMinimo: stockMin || undefined,
+          unidadVentaId: unidadId,
+          vidaUtilMeses: vidaNum,
+        });
+      } else if (producto) {
+        await update.mutateAsync({
+          id: producto.id,
+          dto: {
+            nombre,
+            descripcion: descripcion || undefined,
+            precioUnitarioBs: precioNum,
+            stockMinimo: stockMin || undefined,
+            vidaUtilMeses: vidaNum,
+          },
+        });
+      }
+      onSaved();
+    } catch (err) {
+      onError(apiErrorMessage(err, 'No se pudo guardar el producto'));
+    }
+  }
+
+  return (
+    <Modal open title={mode === 'create' ? 'Nuevo producto' : `Editar — ${producto?.nombre}`} onClose={onClose}>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Código" required>
+          <Input value={codigo} onChange={e => setCodigo(e.target.value)} disabled={mode === 'edit'} placeholder="HMAP-06" />
+        </FormField>
+        <FormField label="Unidad de venta" required>
+          <Select value={unidadId} onChange={e => setUnidadId(e.target.value)} disabled={mode === 'edit'}>
+            <option value="">— Seleccionar —</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>{u.codigo} · {u.nombre}</option>)}
           </Select>
-          {!showNuevaCat ? (
-            <button onClick={() => setShowNuevaCat(true)}
-              className="flex items-center gap-1 text-[12.5px] font-600 text-[var(--color-gr-primary)] hover:underline">
-              <Plus size={12} /> Nueva categoría
-            </button>
-          ) : (
-            <div className="rounded-[10px] border border-[var(--color-gr-primary)]/40 p-3 space-y-3"
-              style={{ background: 'var(--color-gr-primary-lite)' }}>
-              <p className="text-[12.5px] font-700 text-[var(--color-gr-primary)]">Nueva categoría</p>
-              <FormField label="Nombre de categoría *" error={catError}>
-                <Input
-                  value={nuevaCatNombre}
-                  onChange={e => { setNuevaCatNombre(e.target.value); setCatError(''); }}
-                  placeholder="Ej: Granos"
-                  autoFocus
-                />
-              </FormField>
-              <div className="flex items-center gap-4 text-[13px]">
-                <p className="font-600 text-[var(--color-gr-sub)]">¿Tiene subtipos?</p>
-                {[{ val: true, label: 'Sí (Entero, Partido Chico, Grande)' }, { val: false, label: 'No (solo cantidad total)' }].map(opt => (
-                  <label key={String(opt.val)} className="flex items-center gap-2 cursor-pointer">
-                    <div
-                      onClick={() => setNuevaCatSubtipos(opt.val)}
-                      className="w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors"
-                      style={{
-                        borderColor: nuevaCatSubtipos === opt.val ? 'var(--color-gr-primary)' : 'var(--color-gr-border)',
-                        background:  nuevaCatSubtipos === opt.val ? 'var(--color-gr-primary)' : 'white',
-                      }}>
-                      {nuevaCatSubtipos === opt.val && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                    </div>
-                    <span className="text-[var(--color-gr-sub)]">{opt.label}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Btn size="sm" onClick={handleCrearCategoria}>Crear categoría</Btn>
-                <Btn size="sm" variant="ghost" onClick={() => { setShowNuevaCat(false); setCatError(''); }}>Cancelar</Btn>
-              </div>
-            </div>
-          )}
-        </div>
+        </FormField>
+      </div>
+
+      <FormField label="Nombre" required>
+        <Input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Harina de Maíz Amarillo" />
       </FormField>
 
-      <div className="grid grid-cols-2 gap-3">
-        {/* Código */}
-        <FormField label="Código *" error={errors.codigo}>
-          <Input
-            value={codigo}
-            onChange={e => { setCodigo(e.target.value.toUpperCase()); setErrors(x => ({ ...x, codigo: '' })); }}
-            placeholder="Ej: FRA-AM"
-            className="font-mono uppercase"
-          />
+      <FormField label="Descripción">
+        <Input value={descripcion ?? ''} onChange={e => setDesc(e.target.value)} />
+      </FormField>
+
+      <div className="grid grid-cols-3 gap-3">
+        <FormField label="Kg por unidad" required>
+          <Input type="number" min="0.001" step="0.01" value={pesoKg} onChange={e => setPesoKg(e.target.value)} />
         </FormField>
-        {/* Nombre */}
-        <FormField label="Nombre *" error={errors.nombre}>
-          <Input
-            value={nombre}
-            onChange={e => { setNombre(e.target.value); setErrors(x => ({ ...x, nombre: '' })); }}
-            placeholder="Frangollo Amarillo"
-          />
+        <FormField label="Precio (Bs)" required>
+          <Input type="number" min="0" step="0.5" value={precio} onChange={e => setPrecio(e.target.value)} />
         </FormField>
-        {/* Stock mínimo */}
-        <FormField label="Stock mínimo (QQ)">
-          <Input type="number" min="0" step="0.5" placeholder="15"
-            value={stockMinimo} onChange={e => setStockMin(e.target.value)} />
-        </FormField>
-        {/* Stock inicial */}
-        <FormField label="Stock inicial (QQ)">
-          <Input type="number" min="0" step="0.5" placeholder="0"
-            value={stockInicial} onChange={e => setStockIni(e.target.value)} />
+        <FormField label="Stock mínimo">
+          <Input type="number" min="0" step="1" value={stockMinimo} onChange={e => setStockMin(e.target.value)} />
         </FormField>
       </div>
 
-      {/* Subtipos */}
-      <div className="rounded-[10px] px-4 py-3 space-y-2"
-        style={{ background: 'var(--color-gr-border-lite)', border: '1px solid var(--color-gr-border)' }}>
-        <p className="font-600 text-[13.5px] text-[var(--color-gr-text)]">¿Tiene subtipos?</p>
-        <p className="text-[12px] text-[var(--color-gr-muted)]">
-          Si activas subtipos, al registrar entradas se pedirá QQ entero, partido chico y partido grande por separado.
-        </p>
-        <div className="flex gap-6">
-          {[{ val: true, label: 'Sí — con subtipos (Entero, Par Chico, Par Grande)' }, { val: false, label: 'No — solo cantidad total' }].map(opt => (
-            <label key={String(opt.val)} className="flex items-center gap-2 cursor-pointer text-[13px]">
-              <div
-                onClick={() => setSubtipos(opt.val)}
-                className="w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors shrink-0"
-                style={{
-                  borderColor: tieneSubtipos === opt.val ? 'var(--color-gr-primary)' : 'var(--color-gr-border)',
-                  background:  tieneSubtipos === opt.val ? 'var(--color-gr-primary)' : 'white',
-                }}>
-                {tieneSubtipos === opt.val && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-              </div>
-              <span className="text-[var(--color-gr-sub)]">{opt.label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
+      <FormField label="Vida útil (meses)" required>
+        <Input type="number" min="1" step="1" value={vidaUtil} onChange={e => setVidaUtil(e.target.value)} />
+      </FormField>
 
       <div className="flex gap-3 justify-end">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-        <Btn onClick={handleSave}>Agregar materia prima</Btn>
+        <Btn onClick={handleSave} disabled={!valid} loading={create.isPending || update.isPending}>
+          {mode === 'create' ? 'Crear' : 'Guardar'}
+        </Btn>
       </div>
     </Modal>
   );
 }
 
-// ─── Tab Clientes ──────────────────────────────────────────────────────────────
-function TabClientes() {
-  const toast      = useToast(s => s.show);
-  const clientes   = useAppStore(s => s.clientes);
-  const addCliente = useAppStore(s => s.addCliente);
-  const [form, setForm]   = useState<Partial<Omit<Cliente, 'id'>>>({});
-  const [modal, setModal] = useState(false);
+// ─── Tab Materias Primas ───────────────────────────────────────────────────
+function TabMateriasPrimas() {
+  const toast = useToast(s => s.show);
+  const mpQ          = useMateriasPrimas();
+  const categoriasQ  = useCategoriasMP();
+  const unidadesQ    = useUnidades();
+  const mps          = mpQ.data ?? [];
+  const categorias   = categoriasQ.data ?? [];
+  const unidades     = unidadesQ.data ?? [];
 
-  function handleSave() {
-    if (!form.nombre) return;
-    addCliente({ nombre: form.nombre, telefono: form.telefono, ciudad: form.ciudad, nit: form.nit });
-    setModal(false); setForm({});
-    toast('Cliente agregado', 'success');
+  const [modal, setModal] = useState<'nueva' | 'categoria' | null>(null);
+
+  if (mpQ.isLoading) {
+    return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Btn size="sm" onClick={() => setModal(true)}><Plus size={13} /> Nuevo cliente</Btn>
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] text-[var(--color-gr-muted)]">{mps.length} materias primas · {categorias.length} categorías</p>
+        <div className="flex gap-2">
+          <Btn variant="ghost" onClick={() => setModal('categoria')}><Plus size={14} /> Categoría</Btn>
+          <Btn onClick={() => setModal('nueva')}><Plus size={14} /> Nueva MP</Btn>
+        </div>
       </div>
-      <div className="card-no-pad">
-        {clientes.map((c, i) => (
-          <div key={c.id}
-            className={`flex items-center gap-4 px-5 py-4 ${i < clientes.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
-            <div className="w-9 h-9 rounded-full bg-[var(--color-gr-primary-lite)] flex items-center justify-center text-[13px] font-800 text-[var(--color-gr-primary)] shrink-0">
-              {c.nombre.charAt(0)}
-            </div>
-            <div className="flex-1">
-              <p className="font-700 text-[var(--color-gr-text)] text-[13.5px]">{c.nombre}</p>
-              <p className="text-[12px] text-[var(--color-gr-muted)]">
-                {c.ciudad}{c.telefono ? ` · ${c.telefono}` : ''}{c.nit ? ` · NIT ${c.nit}` : ''}
-              </p>
-            </div>
-          </div>
-        ))}
+
+      <div className="card-no-pad overflow-x-auto">
+        <table className="w-full text-[13px]" style={{ minWidth: 640 }}>
+          <thead>
+            <tr style={{ background: 'var(--color-gr-primary)' }}>
+              {['Código', 'Nombre', 'Categoría', 'Unidad', 'Stock kg', 'Mínimo kg'].map(h => (
+                <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {mps.map((m, i) => (
+              <tr key={m.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
+                className="border-b border-[var(--color-gr-border-lite)]">
+                <td className="px-4 py-3 font-mono font-700 text-[12.5px] text-[var(--color-gr-primary)]">{m.codigo}</td>
+                <td className="px-4 py-3 font-700">{m.nombre}</td>
+                <td className="px-4 py-3 text-[12px]">{m.categoria?.nombre ?? '—'}</td>
+                <td className="px-4 py-3 text-[12px] text-[var(--color-gr-muted)]">{m.unidadMedida?.codigo ?? '—'}</td>
+                <td className="px-4 py-3">{Number(m.stockActualKg).toFixed(1)}</td>
+                <td className="px-4 py-3">{Number(m.stockMinimoKg).toFixed(1)}</td>
+              </tr>
+            ))}
+            {mps.length === 0 && (
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[var(--color-gr-muted)]">Sin materias primas</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
-      {modal && (
-        <Modal open title="Nuevo cliente" onClose={() => setModal(false)}>
-          <FormField label="Nombre" required>
-            <Input value={form.nombre ?? ''} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} autoFocus />
-          </FormField>
+
+      {modal === 'nueva' && (
+        <NuevaMPModal
+          categorias={categorias}
+          unidades={unidades}
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); toast('Materia prima creada', 'success'); }}
+          onError={(msg) => toast(msg, 'error')}
+        />
+      )}
+      {modal === 'categoria' && (
+        <NuevaCategoriaMPModal
+          onClose={() => setModal(null)}
+          onSaved={() => { setModal(null); toast('Categoría creada', 'success'); }}
+          onError={(msg) => toast(msg, 'error')}
+        />
+      )}
+    </div>
+  );
+}
+
+function NuevaMPModal({ categorias, unidades, onClose, onSaved, onError }: {
+  categorias: { id: string; nombre: string }[];
+  unidades: { id: string; codigo: string; nombre: string }[];
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (msg: string) => void;
+}) {
+  const create = useCreateMateriaPrima();
+  const [codigo, setCodigo] = useState('');
+  const [nombre, setNombre] = useState('');
+  const [descripcion, setDesc] = useState('');
+  const [categoriaId, setCatId] = useState('');
+  const [unidadMedidaId, setUnidad] = useState('');
+  const [stockMinimoKg, setMin] = useState('0');
+
+  const valid = !!codigo && !!nombre && !!categoriaId && !!unidadMedidaId;
+
+  async function handleSave() {
+    if (!valid) return;
+    try {
+      await create.mutateAsync({
+        codigo, nombre, descripcion: descripcion || undefined,
+        categoriaId, unidadMedidaId,
+        stockMinimoKg: parseFloat(stockMinimoKg) || undefined,
+      });
+      onSaved();
+    } catch (err) { onError(apiErrorMessage(err, 'No se pudo crear')); }
+  }
+
+  return (
+    <Modal open title="Nueva materia prima" onClose={onClose}>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Código" required><Input value={codigo} onChange={e => setCodigo(e.target.value)} /></FormField>
+        <FormField label="Stock mínimo (kg)"><Input type="number" min="0" step="0.1" value={stockMinimoKg} onChange={e => setMin(e.target.value)} /></FormField>
+      </div>
+      <FormField label="Nombre" required><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
+      <FormField label="Descripción"><Input value={descripcion} onChange={e => setDesc(e.target.value)} /></FormField>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Categoría" required>
+          <Select value={categoriaId} onChange={e => setCatId(e.target.value)}>
+            <option value="">— Seleccionar —</option>
+            {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Unidad" required>
+          <Select value={unidadMedidaId} onChange={e => setUnidad(e.target.value)}>
+            <option value="">— Seleccionar —</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>{u.codigo} · {u.nombre}</option>)}
+          </Select>
+        </FormField>
+      </div>
+      <div className="flex gap-3 justify-end">
+        <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
+        <Btn onClick={handleSave} disabled={!valid} loading={create.isPending}>Crear</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+function NuevaCategoriaMPModal({ onClose, onSaved, onError }: {
+  onClose: () => void; onSaved: () => void; onError: (msg: string) => void;
+}) {
+  const create = useCreateCategoriaMP();
+  const [nombre, setNombre] = useState('');
+  const [descripcion, setDesc] = useState('');
+  const [tieneSubtipos, setSubt] = useState(false);
+
+  async function handleSave() {
+    if (!nombre) return;
+    try {
+      await create.mutateAsync({ nombre, descripcion: descripcion || undefined, tieneSubtipos });
+      onSaved();
+    } catch (err) { onError(apiErrorMessage(err, 'No se pudo crear')); }
+  }
+
+  return (
+    <Modal open title="Nueva categoría MP" onClose={onClose}>
+      <FormField label="Nombre" required><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
+      <FormField label="Descripción"><Input value={descripcion} onChange={e => setDesc(e.target.value)} /></FormField>
+      <label className="flex items-center gap-2 text-[13.5px] cursor-pointer">
+        <input type="checkbox" checked={tieneSubtipos} onChange={e => setSubt(e.target.checked)} /> Permite subtipos
+      </label>
+      <div className="flex gap-3 justify-end">
+        <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
+        <Btn onClick={handleSave} disabled={!nombre} loading={create.isPending}>Crear</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Tab Clientes ──────────────────────────────────────────────────────────
+function TabClientes() {
+  const toast = useToast(s => s.show);
+  const q = useClientes();
+  const create = useCreateCliente();
+  const clientes = q.data ?? [];
+  const [open, setOpen] = useState(false);
+  const [nombre, setNombre] = useState('');
+  const [telefono, setTel] = useState('');
+  const [direccion, setDir] = useState('');
+  const [ciudad, setCiudad] = useState('');
+  const [nit, setNit] = useState('');
+
+  async function handleSave() {
+    if (!nombre) return;
+    try {
+      await create.mutateAsync({
+        nombre, telefono: telefono || undefined, direccion: direccion || undefined,
+        ciudad: ciudad || undefined, nit: nit || undefined,
+      });
+      setOpen(false); setNombre(''); setTel(''); setDir(''); setCiudad(''); setNit('');
+      toast('Cliente creado', 'success');
+    } catch (err) { toast(apiErrorMessage(err, 'No se pudo crear'), 'error'); }
+  }
+
+  if (q.isLoading) return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] text-[var(--color-gr-muted)]">{clientes.length} clientes</p>
+        <Btn onClick={() => setOpen(true)}><Plus size={14} /> Nuevo cliente</Btn>
+      </div>
+      <div className="card-no-pad overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr style={{ background: 'var(--color-gr-primary)' }}>
+              {['Nombre', 'Ciudad', 'Teléfono', 'NIT'].map(h => (
+                <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {clientes.map((c, i) => (
+              <tr key={c.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
+                className="border-b border-[var(--color-gr-border-lite)]">
+                <td className="px-4 py-3 font-700">{c.nombre}</td>
+                <td className="px-4 py-3">{c.ciudad ?? '—'}</td>
+                <td className="px-4 py-3">{c.telefono ?? '—'}</td>
+                <td className="px-4 py-3 font-mono text-[12px]">{c.nit ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {open && (
+        <Modal open title="Nuevo cliente" onClose={() => setOpen(false)}>
+          <FormField label="Nombre" required><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Ciudad"><Input value={form.ciudad ?? ''} onChange={e => setForm(f => ({ ...f, ciudad: e.target.value }))} /></FormField>
-            <FormField label="Teléfono"><Input value={form.telefono ?? ''} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} /></FormField>
+            <FormField label="Teléfono"><Input value={telefono} onChange={e => setTel(e.target.value)} /></FormField>
+            <FormField label="Ciudad"><Input value={ciudad} onChange={e => setCiudad(e.target.value)} /></FormField>
           </div>
-          <FormField label="NIT"><Input value={form.nit ?? ''} onChange={e => setForm(f => ({ ...f, nit: e.target.value }))} /></FormField>
+          <FormField label="Dirección"><Input value={direccion} onChange={e => setDir(e.target.value)} /></FormField>
+          <FormField label="NIT"><Input value={nit} onChange={e => setNit(e.target.value)} /></FormField>
           <div className="flex gap-3 justify-end">
-            <Btn variant="ghost" onClick={() => setModal(false)}>Cancelar</Btn>
-            <Btn onClick={handleSave} disabled={!form.nombre}>Guardar</Btn>
+            <Btn variant="ghost" onClick={() => setOpen(false)}>Cancelar</Btn>
+            <Btn onClick={handleSave} disabled={!nombre} loading={create.isPending}>Crear</Btn>
           </div>
         </Modal>
       )}
@@ -831,58 +560,153 @@ function TabClientes() {
   );
 }
 
-// ─── Tab Transportistas ────────────────────────────────────────────────────────
+// ─── Tab Transportistas ────────────────────────────────────────────────────
 function TabTransportistas() {
-  const toast            = useToast(s => s.show);
-  const transportistas   = useAppStore(s => s.transportistas);
-  const addTransportista = useAppStore(s => s.addTransportista);
-  const [form, setForm]   = useState<Partial<Omit<Transportista, 'id'>>>({});
-  const [modal, setModal] = useState(false);
+  const toast = useToast(s => s.show);
+  const q = useTransportistas();
+  const create = useCreateTransportista();
+  const items = q.data ?? [];
+  const [open, setOpen] = useState(false);
+  const [nombre, setNombre] = useState('');
+  const [telefono, setTel] = useState('');
+  const [empresa, setEmpresa] = useState('');
+  const [placa, setPlaca] = useState('');
+  const [marca, setMarca] = useState('');
+  const [ci, setCi] = useState('');
 
-  function handleSave() {
-    if (!form.nombre || !form.placa) return;
-    addTransportista({ nombre: form.nombre, placa: form.placa, marca: form.marca ?? '', empresa: form.empresa, telefono: form.telefono });
-    setModal(false); setForm({});
-    toast('Transportista agregado', 'success');
+  async function handleSave() {
+    if (!nombre) return;
+    try {
+      await create.mutateAsync({
+        nombre, telefono: telefono || undefined, empresa: empresa || undefined,
+        placa: placa || undefined, marca: marca || undefined, ci: ci || undefined,
+      });
+      setOpen(false); setNombre(''); setTel(''); setEmpresa(''); setPlaca(''); setMarca(''); setCi('');
+      toast('Transportista creado', 'success');
+    } catch (err) { toast(apiErrorMessage(err, 'No se pudo crear'), 'error'); }
   }
+
+  if (q.isLoading) return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Btn size="sm" onClick={() => setModal(true)}><Plus size={13} /> Nuevo transportista</Btn>
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] text-[var(--color-gr-muted)]">{items.length} transportistas</p>
+        <Btn onClick={() => setOpen(true)}><Plus size={14} /> Nuevo transportista</Btn>
       </div>
-      <div className="card-no-pad">
-        {transportistas.map((t, i) => (
-          <div key={t.id}
-            className={`flex items-center gap-4 px-5 py-4 ${i < transportistas.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
-            <div className="w-9 h-9 rounded-full bg-[var(--color-gr-gold-lite)] flex items-center justify-center text-[13px] font-800 text-[var(--color-gr-gold-dark)] shrink-0">
-              {t.nombre.charAt(0)}
-            </div>
-            <div className="flex-1">
-              <p className="font-700 text-[var(--color-gr-text)] text-[13.5px]">{t.nombre}</p>
-              <p className="text-[12px] text-[var(--color-gr-muted)]">
-                {t.marca} · <strong>{t.placa}</strong>{t.empresa ? ` · ${t.empresa}` : ''}
-              </p>
-            </div>
-          </div>
-        ))}
+      <div className="card-no-pad overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr style={{ background: 'var(--color-gr-primary)' }}>
+              {['Nombre', 'Empresa', 'Placa', 'Marca', 'Teléfono'].map(h => (
+                <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((t, i) => (
+              <tr key={t.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
+                className="border-b border-[var(--color-gr-border-lite)]">
+                <td className="px-4 py-3 font-700">{t.nombre}</td>
+                <td className="px-4 py-3">{t.empresa ?? '—'}</td>
+                <td className="px-4 py-3 font-mono text-[12px]">{t.placa ?? '—'}</td>
+                <td className="px-4 py-3">{t.marca ?? '—'}</td>
+                <td className="px-4 py-3">{t.telefono ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      {modal && (
-        <Modal open title="Nuevo transportista" onClose={() => setModal(false)}>
-          <FormField label="Nombre" required>
-            <Input value={form.nombre ?? ''} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} autoFocus />
-          </FormField>
+      {open && (
+        <Modal open title="Nuevo transportista" onClose={() => setOpen(false)}>
+          <FormField label="Nombre" required><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Placa" required><Input value={form.placa ?? ''} onChange={e => setForm(f => ({ ...f, placa: e.target.value }))} /></FormField>
-            <FormField label="Marca/Modelo" required><Input value={form.marca ?? ''} onChange={e => setForm(f => ({ ...f, marca: e.target.value }))} /></FormField>
+            <FormField label="CI"><Input value={ci} onChange={e => setCi(e.target.value)} /></FormField>
+            <FormField label="Teléfono"><Input value={telefono} onChange={e => setTel(e.target.value)} /></FormField>
           </div>
+          <FormField label="Empresa"><Input value={empresa} onChange={e => setEmpresa(e.target.value)} /></FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Empresa"><Input value={form.empresa ?? ''} onChange={e => setForm(f => ({ ...f, empresa: e.target.value }))} /></FormField>
-            <FormField label="Teléfono"><Input value={form.telefono ?? ''} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} /></FormField>
+            <FormField label="Placa"><Input value={placa} onChange={e => setPlaca(e.target.value)} /></FormField>
+            <FormField label="Marca"><Input value={marca} onChange={e => setMarca(e.target.value)} /></FormField>
           </div>
           <div className="flex gap-3 justify-end">
-            <Btn variant="ghost" onClick={() => setModal(false)}>Cancelar</Btn>
-            <Btn onClick={handleSave} disabled={!form.nombre || !form.placa}>Guardar</Btn>
+            <Btn variant="ghost" onClick={() => setOpen(false)}>Cancelar</Btn>
+            <Btn onClick={handleSave} disabled={!nombre} loading={create.isPending}>Crear</Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab Proveedores ───────────────────────────────────────────────────────
+function TabProveedores() {
+  const toast = useToast(s => s.show);
+  const q = useProveedores();
+  const create = useCreateProveedor();
+  const items = q.data ?? [];
+  const [open, setOpen] = useState(false);
+  const [nombre, setNombre] = useState('');
+  const [telefono, setTel] = useState('');
+  const [ciudad, setCiudad] = useState('');
+  const [contacto, setContacto] = useState('');
+  const [nit, setNit] = useState('');
+
+  async function handleSave() {
+    if (!nombre) return;
+    try {
+      await create.mutateAsync({
+        nombre, telefono: telefono || undefined, ciudad: ciudad || undefined,
+        contacto: contacto || undefined, nit: nit || undefined,
+      });
+      setOpen(false); setNombre(''); setTel(''); setCiudad(''); setContacto(''); setNit('');
+      toast('Proveedor creado', 'success');
+    } catch (err) { toast(apiErrorMessage(err, 'No se pudo crear'), 'error'); }
+  }
+
+  if (q.isLoading) return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] text-[var(--color-gr-muted)]">{items.length} proveedores</p>
+        <Btn onClick={() => setOpen(true)}><Plus size={14} /> Nuevo proveedor</Btn>
+      </div>
+      <div className="card-no-pad overflow-x-auto">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr style={{ background: 'var(--color-gr-primary)' }}>
+              {['Nombre', 'Contacto', 'Ciudad', 'Teléfono', 'NIT'].map(h => (
+                <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((p, i) => (
+              <tr key={p.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
+                className="border-b border-[var(--color-gr-border-lite)]">
+                <td className="px-4 py-3 font-700">{p.nombre}</td>
+                <td className="px-4 py-3">{p.contacto ?? '—'}</td>
+                <td className="px-4 py-3">{p.ciudad ?? '—'}</td>
+                <td className="px-4 py-3">{p.telefono ?? '—'}</td>
+                <td className="px-4 py-3 font-mono text-[12px]">{p.nit ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {open && (
+        <Modal open title="Nuevo proveedor" onClose={() => setOpen(false)}>
+          <FormField label="Nombre" required><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
+          <FormField label="Contacto"><Input value={contacto} onChange={e => setContacto(e.target.value)} /></FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Ciudad"><Input value={ciudad} onChange={e => setCiudad(e.target.value)} /></FormField>
+            <FormField label="Teléfono"><Input value={telefono} onChange={e => setTel(e.target.value)} /></FormField>
+          </div>
+          <FormField label="NIT"><Input value={nit} onChange={e => setNit(e.target.value)} /></FormField>
+          <div className="flex gap-3 justify-end">
+            <Btn variant="ghost" onClick={() => setOpen(false)}>Cancelar</Btn>
+            <Btn onClick={handleSave} disabled={!nombre} loading={create.isPending}>Crear</Btn>
           </div>
         </Modal>
       )}

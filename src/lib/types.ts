@@ -1,0 +1,408 @@
+// ─── Enums (espejados del backend) ───────────────────────────
+
+export const RolUsuario = {
+  ADMINISTRADORA: 'administradora',
+  ALMACENERO: 'almacenero',
+  VENDEDOR: 'vendedor',
+  PRODUCCION: 'produccion',
+} as const;
+export type RolUsuario = (typeof RolUsuario)[keyof typeof RolUsuario];
+
+export const TipoUnidad = {
+  PESO: 'peso',
+  VOLUMEN: 'volumen',
+  UNIDAD: 'unidad',
+} as const;
+export type TipoUnidad = (typeof TipoUnidad)[keyof typeof TipoUnidad];
+
+export const TipoMovimientoMP = {
+  INGRESO: 'ingreso',
+  SALIDA: 'salida',
+  AJUSTE: 'ajuste',
+  DEVOLUCION: 'devolucion',
+} as const;
+export type TipoMovimientoMP = (typeof TipoMovimientoMP)[keyof typeof TipoMovimientoMP];
+
+export const TipoMovimientoPT = {
+  INGRESO: 'ingreso',
+  SALIDA: 'salida',
+  AJUSTE: 'ajuste',
+} as const;
+export type TipoMovimientoPT = (typeof TipoMovimientoPT)[keyof typeof TipoMovimientoPT];
+
+export const EstadoVenta = {
+  PENDIENTE: 'pendiente',
+  DESPACHADA: 'despachada',
+  ENTREGADA: 'entregada',
+  CANCELADA: 'cancelada',
+} as const;
+export type EstadoVenta = (typeof EstadoVenta)[keyof typeof EstadoVenta];
+
+export const TipoFlete = {
+  SIN_FLETE: 'sin_flete',
+  CLIENTE_PAGA_DIRECTO: 'cliente_paga_directo',
+  INCLUIDO_EN_VENTA: 'incluido_en_venta',
+  GRANO_REY_PAGA: 'grano_rey_paga',
+} as const;
+export type TipoFlete = (typeof TipoFlete)[keyof typeof TipoFlete];
+
+export const EstadoRemision = {
+  PENDIENTE: 'pendiente',
+  DESPACHADO: 'despachado',
+  ENTREGADO: 'entregado',
+} as const;
+export type EstadoRemision = (typeof EstadoRemision)[keyof typeof EstadoRemision];
+
+export const CategoriaGasto = {
+  TRANSPORTE: 'transporte',
+  SERVICIOS: 'servicios',
+  MANO_DE_OBRA: 'mano_de_obra',
+  MANTENIMIENTO: 'mantenimiento',
+  MATERIA_PRIMA: 'materia_prima',
+  ADMINISTRATIVO: 'administrativo',
+  OTROS: 'otros',
+} as const;
+export type CategoriaGasto = (typeof CategoriaGasto)[keyof typeof CategoriaGasto];
+
+// ─── Entidades base ──────────────────────────────────────────
+
+export interface AuditFields {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Usuario extends AuditFields {
+  nombre: string;
+  email: string;
+  rol: RolUsuario;
+  telefono?: string | null;
+  activo: boolean;
+  ultimoAcceso?: string | null;
+}
+
+export interface Empresa {
+  id: string;
+  nombre: string;
+  rubro?: string | null;
+  nit?: string | null;
+  telefono?: string | null;
+  email?: string | null;
+  direccion?: string | null;
+  ciudad?: string | null;
+  logoUrl?: string | null;
+  plan: 'basico' | 'profesional' | 'enterprise';
+  configuracion: { registroSanitario?: string;[k: string]: unknown };
+  activo: boolean;
+}
+
+export interface UnidadMedida extends AuditFields {
+  codigo: string;
+  nombre: string;
+  abreviatura?: string | null;
+  tipo: TipoUnidad;
+  factorABase: number;
+}
+
+export interface CategoriaMP extends AuditFields {
+  nombre: string;
+  descripcion?: string | null;
+  tieneSubtipos: boolean;
+}
+
+export interface SubtipoMP extends AuditFields {
+  nombre: string;
+  descripcion?: string | null;
+  categoria?: CategoriaMP;
+}
+
+export interface Cliente extends AuditFields {
+  nombre: string;
+  telefono?: string | null;
+  direccion?: string | null;
+  ciudad?: string | null;
+  nit?: string | null;
+}
+
+export interface Proveedor extends AuditFields {
+  nombre: string;
+  contacto?: string | null;
+  telefono?: string | null;
+  ciudad?: string | null;
+  nit?: string | null;
+}
+
+export interface Transportista extends AuditFields {
+  nombre: string;
+  ci?: string | null;
+  empresa?: string | null;
+  telefono?: string | null;
+  placa?: string | null;
+  marca?: string | null;
+  color?: string | null;
+  destinoHabitual?: string | null;
+}
+
+export interface MateriaPrima extends AuditFields {
+  codigo: string;
+  nombre: string;
+  descripcion?: string | null;
+  stockActualKg: number;
+  stockMinimoKg: number;
+  activo: boolean;
+  categoria?: CategoriaMP;
+  unidadMedida?: UnidadMedida;
+}
+
+export interface KardexMP extends AuditFields {
+  fecha: string;
+  tipoMovimiento: TipoMovimientoMP;
+  cantidad: number;
+  cantidadKg: number;
+  numeroLote?: number | null;
+  costoUnitarioBs?: number | null;
+  costoTotalBs?: number | null;
+  observaciones?: string | null;
+  materiaPrima: MateriaPrima;
+  subtipo?: SubtipoMP | null;
+  proveedor?: Proveedor | null;
+  unidad: UnidadMedida;
+  responsable?: Usuario;
+}
+
+export interface Producto extends AuditFields {
+  codigo: string;
+  nombre: string;
+  descripcion?: string | null;
+  pesoKgPorUnidad: number;
+  precioUnitarioBs: number;
+  stockActual: number;
+  stockMinimo: number;
+  vidaUtilMeses: number;
+  activo: boolean;
+  unidadVenta: UnidadMedida;
+}
+
+export interface LoteProduccion extends AuditFields {
+  fecha: string;
+  codigoLote: string;
+  fechaVencimiento: string;
+  registroSanitario?: string | null;
+  cantidadProducida: number;
+  stockRestante: number;
+  totalKg: number;
+  costoMpBs: number;
+  observaciones?: string | null;
+  producto: Producto;
+  unidad: UnidadMedida;
+  responsable?: Usuario;
+}
+
+export interface KardexProducto extends AuditFields {
+  fecha: string;
+  tipoMovimiento: TipoMovimientoPT;
+  cantidad: number;
+  totalKg: number;
+  detalle?: string | null;
+  producto: Producto;
+  lote?: LoteProduccion | null;
+  unidad: UnidadMedida;
+  responsable?: Usuario;
+}
+
+export interface DetalleVenta extends AuditFields {
+  cantidad: number;
+  pesoUnitarioKg: number;
+  totalKg: number;
+  totalQq: number;
+  precioUnitarioBs: number;
+  valorTotalBs: number;
+  producto: Producto;
+  unidad?: UnidadMedida;
+  lote?: LoteProduccion | null;
+}
+
+export interface NotaVenta extends AuditFields {
+  numeroNota: number;
+  fecha: string;
+  subtotalBs: number;
+  descuentoBs: number;
+  totalBs: number;
+  estado: EstadoVenta;
+  tipoFlete: TipoFlete;
+  fleteBs: number;
+  numeroGuia?: number | null;
+  observaciones?: string | null;
+  cliente: Cliente;
+  vendedor?: Usuario;
+  transportista?: Transportista | null;
+  detalles: DetalleVenta[];
+}
+
+export interface Remision extends AuditFields {
+  fecha: string;
+  numeroGuia?: number | null;
+  numeroLote?: number | null;
+  estado: EstadoRemision;
+  fechaEntrega?: string | null;
+  whatsappConfirmado: boolean;
+  whatsappMensajeId?: string | null;
+  observaciones?: string | null;
+  notaVenta: NotaVenta;
+  transportista: Transportista;
+  despachadoPor?: Usuario;
+  responsableProduccion?: Usuario;
+}
+
+export interface Gasto extends AuditFields {
+  fecha: string;
+  categoria: CategoriaGasto;
+  descripcion: string;
+  montoBs: number;
+  comprobante?: string | null;
+  responsable?: Usuario;
+}
+
+// ─── DTOs (request bodies) ───────────────────────────────────
+
+export interface LoginRequest { email: string; password: string; }
+export interface LoginResponse {
+  access_token: string;
+  usuario: { id: string; nombre: string; email: string; rol: RolUsuario };
+}
+
+export interface ActualizarConfiguracionRequest {
+  registroSanitario?: string;
+}
+
+export interface CreateClienteRequest {
+  nombre: string;
+  telefono?: string;
+  direccion?: string;
+  ciudad?: string;
+  nit?: string;
+}
+
+export interface CreateProveedorRequest {
+  nombre: string;
+  contacto?: string;
+  telefono?: string;
+  ciudad?: string;
+  nit?: string;
+}
+
+export interface CreateTransportistaRequest {
+  nombre: string;
+  ci?: string;
+  empresa?: string;
+  telefono?: string;
+  placa?: string;
+  marca?: string;
+  color?: string;
+  destinoHabitual?: string;
+}
+
+export interface CreateCategoriaMPRequest {
+  nombre: string;
+  descripcion?: string;
+  tieneSubtipos: boolean;
+}
+
+export interface CreateProductoRequest {
+  codigo: string;
+  nombre: string;
+  descripcion?: string;
+  pesoKgPorUnidad: number;
+  precioUnitarioBs: number;
+  stockMinimo?: number;
+  unidadVentaId: string;
+  vidaUtilMeses?: number;
+}
+
+export interface UpdateProductoRequest {
+  nombre?: string;
+  descripcion?: string;
+  precioUnitarioBs?: number;
+  stockMinimo?: number;
+  vidaUtilMeses?: number;
+}
+
+export interface CreateMateriaPrimaRequest {
+  codigo: string;
+  nombre: string;
+  descripcion?: string;
+  stockMinimoKg?: number;
+  categoriaId: string;
+  unidadMedidaId: string;
+}
+
+export interface CreateKardexMPRequest {
+  fecha: string;
+  tipoMovimiento: TipoMovimientoMP;
+  cantidad: number;
+  materiaPrimaId: string;
+  unidadId: string;
+  subtipoId?: string;
+  proveedorId?: string;
+  numeroLote?: number;
+  costoUnitarioBs?: number;
+  observaciones?: string;
+}
+
+export interface CreateKardexProductoRequest {
+  fecha: string;
+  tipoMovimiento: TipoMovimientoPT;
+  cantidad: number;
+  productoId: string;
+  unidadId: string;
+  loteId?: string;
+  detalle?: string;
+}
+
+export interface CreateLoteRequest {
+  fecha: string;
+  cantidadProducida: number;
+  productoId: string;
+  unidadId: string;
+  costoMpBs?: number;
+  observaciones?: string;
+}
+
+export interface CreateDetalleVentaRequest {
+  productoId: string;
+  unidadId: string;
+  loteId?: string;
+  cantidad: number;
+  precioUnitarioBs: number;
+}
+
+export interface CreateVentaRequest {
+  fecha: string;
+  clienteId: string;
+  transportistaId?: string;
+  descuentoBs?: number;
+  tipoFlete?: TipoFlete;
+  fleteBs?: number;
+  numeroGuia?: number;
+  observaciones?: string;
+  detalles: CreateDetalleVentaRequest[];
+}
+
+export interface CreateRemisionRequest {
+  fecha: string;
+  notaVentaId: string;
+  transportistaId: string;
+  despachadoPorId: string;
+  responsableProduccionId: string;
+  numeroGuia?: number;
+  numeroLote?: number;
+  observaciones?: string;
+}
+
+export interface CreateGastoRequest {
+  fecha: string;
+  categoria: CategoriaGasto;
+  descripcion: string;
+  montoBs: number;
+  comprobante?: string;
+}

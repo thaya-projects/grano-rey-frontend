@@ -1,7 +1,10 @@
+import axios from 'axios';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { API_URL } from './api';
+import type { LoginResponse, RolUsuario } from './types';
 
-export type Role = 'administradora' | 'almacenero' | 'vendedor' | 'produccion';
+export type Role = RolUsuario;
 
 export interface AuthUser {
   id: string;
@@ -11,32 +14,44 @@ export interface AuthUser {
   iniciales: string;
 }
 
-const DEMO_USERS: Record<string, AuthUser & { password: string }> = {
-  'admin@granory.bo':      { id: 'u1', nombre: 'Jovana', email: 'admin@granory.bo',      password: '123456', rol: 'administradora', iniciales: 'MF' },
-  'almacen@granory.bo':    { id: 'u2', nombre: 'Carlos Rojas',    email: 'almacen@granory.bo',    password: '123456', rol: 'almacenero',     iniciales: 'CR' },
-  'vendedor@granory.bo':   { id: 'u3', nombre: 'Ana Gutiérrez',   email: 'vendedor@granory.bo',   password: '123456', rol: 'vendedor',       iniciales: 'AG' },
-  'produccion@granory.bo': { id: 'u4', nombre: 'Luis Mamani',     email: 'produccion@granory.bo', password: '123456', rol: 'produccion',     iniciales: 'LM' },
-};
-
 interface AuthState {
   user: AuthUser | null;
+  accessToken: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+}
+
+function inicialesFromName(nombre: string): string {
+  const partes = nombre.trim().split(/\s+/);
+  if (partes.length === 0) return '?';
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
 }
 
 export const useAuth = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      accessToken: null,
       login: async (email, password) => {
-        await new Promise(r => setTimeout(r, 600));
-        const found = DEMO_USERS[email.toLowerCase()];
-        if (!found || found.password !== password) throw new Error('Credenciales incorrectas');
-        const { password: _, ...user } = found;
-        set({ user });
+        const { data } = await axios.post<LoginResponse>(
+          `${API_URL}/auth/login`,
+          { email, password },
+          { headers: { 'Content-Type': 'application/json' } },
+        );
+        set({
+          accessToken: data.access_token,
+          user: {
+            id: data.usuario.id,
+            nombre: data.usuario.nombre,
+            email: data.usuario.email,
+            rol: data.usuario.rol,
+            iniciales: inicialesFromName(data.usuario.nombre),
+          },
+        });
       },
-      logout: () => set({ user: null }),
+      logout: () => set({ user: null, accessToken: null }),
     }),
-    { name: 'gr-auth' }
-  )
+    { name: 'gr-auth' },
+  ),
 );
