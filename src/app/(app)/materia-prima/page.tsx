@@ -1,13 +1,13 @@
 'use client';
 import { useState } from 'react';
-import { useAppStore, type MateriaPrimaStock, type EntradaMPDTO } from '@/store/useAppStore';
+import { useMateriasPrimas, useCreateKardexMP } from '@/lib/api/materia-prima';
+import { useProveedores, useUnidades, useCategoriasMP, useSubtiposMP } from '@/lib/api/catalogos';
+import { TipoMovimientoMP, type MateriaPrima } from '@/lib/types';
+import { apiErrorMessage } from '@/lib/api';
 import { formatNum } from '@/lib/utils';
-import { Btn, Modal, FormField, Input, Select, Badge, useToast } from '@/components/ui';
-import { Wheat, Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
+import { Wheat, Plus } from 'lucide-react';
 
-const RESPONSABLES = ['Luis Mamani', 'Carlos Rojas', 'Silvana Montaño'];
-
-// ─── Semáforo ────────────────────────────────────────────────────────────────
 function StockDot({ value, min }: { value: number; min: number }) {
   const low  = min > 0 && value < min;
   const warn = !low && min > 0 && value < min * 1.5;
@@ -23,35 +23,42 @@ function StockDot({ value, min }: { value: number; min: number }) {
 
 export default function MateriaPrimaPage() {
   const toast = useToast(s => s.show);
-  const materiasPrimas   = useAppStore(s => s.materiasPrimas);
-  const categoriasMP     = useAppStore(s => s.categoriasMP);
-  const proveedores      = useAppStore(s => s.proveedores);
-  const registrarEntrada = useAppStore(s => s.registrarEntradaMP);
+  const mpQ          = useMateriasPrimas();
+  const categoriasQ  = useCategoriasMP();
+  const proveedoresQ = useProveedores();
+  const unidadesQ    = useUnidades();
 
-  const [entradaModal, setEntradaModal] = useState<MateriaPrimaStock | null>(null);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const materiasPrimas = mpQ.data ?? [];
+  const categorias     = categoriasQ.data ?? [];
+  const proveedores    = proveedoresQ.data ?? [];
+  const unidades       = unidadesQ.data ?? [];
 
-  function toggleRow(id: string) {
-    setExpandedRows(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
+  const [entradaModal, setEntradaModal] = useState<MateriaPrima | null>(null);
 
-  function handleEntrada(dto: EntradaMPDTO) {
-    registrarEntrada(dto);
-    setEntradaModal(null);
-    toast('Entrada registrada en inventario', 'success');
+  if (mpQ.isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Spinner size={28} color="var(--color-gr-primary)" />
+      </div>
+    );
   }
 
   // Group by category
-  const grouped = categoriasMP.map(cat => ({
+  const grouped = categorias.map(cat => ({
     ...cat,
-    items: materiasPrimas.filter(m => m.categoriaId === cat.id),
+    items: materiasPrimas.filter(m => m.categoria?.id === cat.id),
   })).filter(g => g.items.length > 0);
 
-  const totalGeneral = materiasPrimas.reduce((s, m) => s + m.stockTotal, 0);
+  const sinCategoria = materiasPrimas.filter(m => !m.categoria);
+  if (sinCategoria.length > 0) {
+    grouped.push({
+      id: 'none', nombre: 'Sin categoría', descripcion: null, tieneSubtipos: false,
+      createdAt: '', updatedAt: '', items: sinCategoria,
+    });
+  }
+
+  const totalGeneralKg = materiasPrimas.reduce((s, m) => s + Number(m.stockActualKg), 0);
+  const totalGeneralQQ = totalGeneralKg / 46;
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -65,8 +72,8 @@ export default function MateriaPrimaPage() {
       {/* Category summary cards */}
       <div className="grid sm:grid-cols-2 gap-4">
         {grouped.map(cat => {
-          const totalQQ = cat.items.reduce((s, m) => s + m.stockTotal, 0);
-          const anyLow  = cat.items.some(m => m.stockMinimo > 0 && m.stockTotal < m.stockMinimo);
+          const totalKg = cat.items.reduce((s, m) => s + Number(m.stockActualKg), 0);
+          const anyLow  = cat.items.some(m => Number(m.stockMinimoKg) > 0 && Number(m.stockActualKg) < Number(m.stockMinimoKg));
           return (
             <div key={cat.id} className="card border-t-4 text-center"
               style={{ borderTopColor: anyLow ? 'var(--color-gr-danger)' : 'var(--color-gr-success)' }}>
@@ -77,7 +84,7 @@ export default function MateriaPrimaPage() {
               <p className="font-800 text-[var(--color-gr-text)] text-[15px]">{cat.nombre}</p>
               <div className="flex items-baseline gap-1 justify-center mt-2">
                 <span className="text-[32px] font-900 text-[var(--color-gr-primary)] leading-none">
-                  {formatNum(totalQQ, 1)}
+                  {formatNum(totalKg / 46, 1)}
                 </span>
                 <span className="text-[13px] text-[var(--color-gr-muted)] font-500">QQ total</span>
               </div>
@@ -94,18 +101,17 @@ export default function MateriaPrimaPage() {
         })}
       </div>
 
-      {/* ── Tabla desktop / Lista mobile ── */}
+      {/* ── Tabla ── */}
       <div>
         <h2 className="text-[13px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide mb-3">
           Detalle por materia prima
         </h2>
 
-        {/* ── DESKTOP TABLE ── */}
-        <div className="card-no-pad hidden md:block overflow-x-auto">
+        <div className="card-no-pad overflow-x-auto">
           <table className="w-full text-left border-collapse" style={{ minWidth: 720 }}>
             <thead>
               <tr style={{ background: 'var(--color-gr-primary)' }}>
-                {['Categoría','Código','Nombre','QQ Entero','QQ P.Chico','QQ P.Grande','Total QQ','Mínimo','Estado','Acciones'].map(h => (
+                {['Categoría', 'Código', 'Nombre', 'Stock (kg)', 'Stock (QQ)', 'Mínimo (kg)', 'Estado', 'Acciones'].map(h => (
                   <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide whitespace-nowrap">
                     {h}
                   </th>
@@ -114,33 +120,26 @@ export default function MateriaPrimaPage() {
             </thead>
             <tbody>
               {materiasPrimas.map((mp, i) => {
-                const cat   = categoriasMP.find(c => c.id === mp.categoriaId);
-                const hasSub = mp.stockEntero !== undefined;
                 const isOdd  = i % 2 === 1;
+                const stockKg = Number(mp.stockActualKg);
                 return (
                   <tr key={mp.id}
                     style={{ background: isOdd ? 'var(--color-gr-border-lite)' : '#fff' }}
                     className="border-b border-[var(--color-gr-border-lite)] hover:bg-[var(--color-gr-primary-lite)] transition-colors">
-                    <td className="px-4 py-3 text-[12.5px] text-[var(--color-gr-muted)]">{cat?.nombre ?? '—'}</td>
+                    <td className="px-4 py-3 text-[12.5px] text-[var(--color-gr-muted)]">{mp.categoria?.nombre ?? '—'}</td>
                     <td className="px-4 py-3 text-[12px] font-700 font-mono text-[var(--color-gr-primary)]">{mp.codigo}</td>
                     <td className="px-4 py-3 font-700 text-[13.5px] text-[var(--color-gr-text)]">{mp.nombre}</td>
-                    <td className="px-4 py-3 text-right text-[13px] text-[var(--color-gr-text)]">
-                      {hasSub ? formatNum(mp.stockEntero ?? 0, 1) : <span className="text-[var(--color-gr-muted)]">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right text-[13px] text-[var(--color-gr-text)]">
-                      {hasSub ? formatNum(mp.stockParChico ?? 0, 1) : <span className="text-[var(--color-gr-muted)]">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right text-[13px] text-[var(--color-gr-text)]">
-                      {hasSub ? formatNum(mp.stockParGrande ?? 0, 1) : <span className="text-[var(--color-gr-muted)]">—</span>}
+                    <td className="px-4 py-3 text-right font-900 text-[14px] text-[var(--color-gr-text)]">
+                      {formatNum(stockKg, 1)}
                     </td>
                     <td className="px-4 py-3 text-right font-900 text-[14px] text-[var(--color-gr-primary)]">
-                      {formatNum(mp.stockTotal, 1)}
+                      {formatNum(stockKg / 46, 2)}
                     </td>
                     <td className="px-4 py-3 text-right text-[12.5px] text-[var(--color-gr-muted)]">
-                      {mp.stockMinimo}
+                      {formatNum(Number(mp.stockMinimoKg), 1)}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <StockDot value={mp.stockTotal} min={mp.stockMinimo} />
+                      <StockDot value={stockKg} min={Number(mp.stockMinimoKg)} />
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <Btn size="sm" variant="primary" onClick={() => setEntradaModal(mp)}>
@@ -153,97 +152,19 @@ export default function MateriaPrimaPage() {
             </tbody>
             <tfoot>
               <tr style={{ background: 'var(--color-gr-border-lite)', borderTop: '2px solid var(--color-gr-border)' }}>
-                <td colSpan={6} className="px-4 py-3 text-[12.5px] font-600 text-[var(--color-gr-muted)]">
+                <td colSpan={3} className="px-4 py-3 text-[12.5px] font-600 text-[var(--color-gr-muted)]">
                   {materiasPrimas.length} materias primas
                 </td>
+                <td className="px-4 py-3 text-right font-900 text-[14px] text-[var(--color-gr-text)]">
+                  {formatNum(totalGeneralKg, 1)} kg
+                </td>
                 <td className="px-4 py-3 text-right font-900 text-[14px] text-[var(--color-gr-primary)]">
-                  {formatNum(totalGeneral, 1)}
+                  {formatNum(totalGeneralQQ, 1)} QQ
                 </td>
                 <td colSpan={3} />
               </tr>
             </tfoot>
           </table>
-        </div>
-
-        {/* ── MOBILE LIST (collapsed by default, subtipos expand) ── */}
-        <div className="md:hidden card-no-pad">
-          {/* Mobile header */}
-          <div className="grid px-4 py-2.5 text-[11px] font-700 text-white uppercase tracking-wide border-b border-white/20"
-            style={{ gridTemplateColumns: '1fr auto auto auto', background: 'var(--color-gr-primary)' }}>
-            <span>Nombre</span>
-            <span className="text-right pr-3">Total QQ</span>
-            <span>Estado</span>
-            <span />
-          </div>
-
-          {materiasPrimas.map((mp, i) => {
-            const hasSub   = mp.stockEntero !== undefined;
-            const expanded = expandedRows.has(mp.id);
-            const isLast   = i === materiasPrimas.length - 1;
-            return (
-              <div key={mp.id}
-                className={isLast ? '' : 'border-b border-[var(--color-gr-border-lite)]'}>
-                {/* Collapsed row */}
-                <div className="grid px-4 py-3.5 items-center"
-                  style={{ gridTemplateColumns: '1fr auto auto auto' }}>
-                  <div className="min-w-0">
-                    <p className="font-700 text-[var(--color-gr-text)] text-[13.5px] truncate">{mp.nombre}</p>
-                    <p className="text-[11px] text-[var(--color-gr-muted)] mt-0.5">{mp.codigo}</p>
-                  </div>
-                  <span className="font-900 text-[15px] text-[var(--color-gr-primary)] pr-3 text-right">
-                    {formatNum(mp.stockTotal, 1)}
-                    <span className="text-[11px] font-500 text-[var(--color-gr-muted)] ml-1">{mp.unidad}</span>
-                  </span>
-                  <StockDot value={mp.stockTotal} min={mp.stockMinimo} />
-                  <button
-                    onClick={() => toggleRow(mp.id)}
-                    className="ml-2 p-1.5 rounded-[6px] text-[var(--color-gr-muted)]"
-                    style={{ background: 'var(--color-gr-border-lite)' }}
-                    title={hasSub ? 'Ver subtipos' : 'Ver detalle'}>
-                    {expanded
-                      ? <ChevronDown size={14} className="text-[var(--color-gr-primary)]" />
-                      : <ChevronRight size={14} />}
-                  </button>
-                </div>
-
-                {/* Expanded detail */}
-                {expanded && (
-                  <div className="px-4 pb-4 space-y-3" style={{ background: 'var(--color-gr-primary-lite)' }}>
-                    {hasSub ? (
-                      <div className="grid grid-cols-3 gap-3 pt-3">
-                        {[
-                          { label: 'QQ Entero',    value: mp.stockEntero   ?? 0 },
-                          { label: 'QQ P. Chico',  value: mp.stockParChico  ?? 0 },
-                          { label: 'QQ P. Grande', value: mp.stockParGrande ?? 0 },
-                        ].map(s => (
-                          <div key={s.label} className="text-center">
-                            <p className="text-[10px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">{s.label}</p>
-                            <p className="font-800 text-[var(--color-gr-text)] text-[15px]">{formatNum(s.value, 1)}</p>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-[12.5px] text-[var(--color-gr-muted)] pt-3">Sin desglose por subtipo</p>
-                    )}
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-[12px] text-[var(--color-gr-muted)]">Mínimo: {mp.stockMinimo} {mp.unidad}</span>
-                      <Btn size="sm" variant="primary" onClick={() => setEntradaModal(mp)}>
-                        <Plus size={12} /> Registrar entrada
-                      </Btn>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          <div className="px-4 py-3 flex items-center justify-between text-[12.5px] border-t border-[var(--color-gr-border)]"
-            style={{ background: 'var(--color-gr-border-lite)' }}>
-            <span className="text-[var(--color-gr-muted)]">{materiasPrimas.length} materias primas</span>
-            <span className="font-700 text-[var(--color-gr-primary)]">
-              Total: {formatNum(totalGeneral, 1)} QQ
-            </span>
-          </div>
         </div>
       </div>
 
@@ -251,141 +172,126 @@ export default function MateriaPrimaPage() {
         <EntradaModal
           mp={entradaModal}
           proveedores={proveedores}
+          unidades={unidades}
           onClose={() => setEntradaModal(null)}
-          onSave={handleEntrada}
+          onSaved={() => {
+            setEntradaModal(null);
+            toast('Entrada registrada en inventario', 'success');
+          }}
+          onError={(msg) => toast(msg, 'error')}
         />
       )}
     </div>
   );
 }
 
-// ─── Entrada Modal ─────────────────────────────────────────────────────────────
-function EntradaModal({ mp, proveedores, onClose, onSave }: {
-  mp: MateriaPrimaStock;
+// ─── Entrada Modal ─────────────────────────────────────────────────────────
+function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: {
+  mp: MateriaPrima;
   proveedores: { id: string; nombre: string }[];
+  unidades: { id: string; codigo: string; nombre: string; abreviatura?: string | null }[];
   onClose: () => void;
-  onSave: (dto: EntradaMPDTO) => void;
+  onSaved: () => void;
+  onError: (msg: string) => void;
 }) {
-  const hasSub = mp.stockEntero !== undefined;
-  const [entero,     setEntero]     = useState('');
-  const [parChico,   setParChico]   = useState('');
-  const [parGrande,  setParGrande]  = useState('');
-  const [totalSimple,setTotalSimple]= useState('');
-  const [costoBs,    setCostoBs]    = useState('');
-  const [proveedorId,setProvId]     = useState('');
-  const [lote,       setLote]       = useState('');
-  const [responsable,setResp]       = useState('');
-  const [fecha,      setFecha]      = useState(new Date().toISOString().slice(0, 10));
+  const createKardex = useCreateKardexMP();
+  const subtiposQ = useSubtiposMP(mp.categoria?.tieneSubtipos ? mp.categoria.id : undefined);
+  const subtipos = subtiposQ.data ?? [];
 
-  const totalCalc = hasSub
-    ? (parseFloat(entero) || 0) + (parseFloat(parChico) || 0) + (parseFloat(parGrande) || 0)
-    : parseFloat(totalSimple) || 0;
+  const [cantidad, setCantidad]       = useState('');
+  const [unidadId, setUnidadId]       = useState(mp.unidadMedida?.id ?? '');
+  const [subtipoId, setSubtipoId]     = useState('');
+  const [costoBs, setCostoBs]         = useState('');
+  const [proveedorId, setProvId]      = useState('');
+  const [numeroLote, setNumeroLote]   = useState('');
+  const [observaciones, setObs]       = useState('');
+  const [fecha, setFecha]             = useState(new Date().toISOString().slice(0, 10));
 
-  function handleSave() {
-    if (totalCalc <= 0 || !responsable) return;
-    const dto: EntradaMPDTO = {
-      mpId: mp.id,
-      totalQQ: totalCalc,
-      entero:    hasSub ? (parseFloat(entero)    || 0) : undefined,
-      parChico:  hasSub ? (parseFloat(parChico)  || 0) : undefined,
-      parGrande: hasSub ? (parseFloat(parGrande) || 0) : undefined,
-      costoBs: parseFloat(costoBs) || undefined,
-      proveedorId: proveedorId || undefined,
-      lote: parseInt(lote) || undefined,
-      responsable,
-      fecha,
-    };
-    onSave(dto);
+  const cantNum = parseFloat(cantidad) || 0;
+  const valid   = cantNum > 0 && !!unidadId;
+
+  async function handleSave() {
+    if (!valid) return;
+    try {
+      await createKardex.mutateAsync({
+        fecha,
+        tipoMovimiento: TipoMovimientoMP.INGRESO,
+        cantidad: cantNum,
+        materiaPrimaId: mp.id,
+        unidadId,
+        subtipoId: subtipoId || undefined,
+        proveedorId: proveedorId || undefined,
+        numeroLote: numeroLote ? parseInt(numeroLote) : undefined,
+        costoUnitarioBs: costoBs ? parseFloat(costoBs) : undefined,
+        observaciones: observaciones || undefined,
+      });
+      onSaved();
+    } catch (err) {
+      onError(apiErrorMessage(err, 'No se pudo registrar la entrada'));
+    }
   }
 
   return (
     <Modal open title={`Registrar entrada — ${mp.nombre}`} onClose={onClose}>
-      {/* Stock actual */}
       <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: 'var(--color-gr-primary-lite)' }}>
         <p className="font-600 text-[var(--color-gr-primary)]">
-          Stock actual: <strong>{formatNum(mp.stockTotal, 1)} {mp.unidad}</strong>
+          Stock actual: <strong>{formatNum(Number(mp.stockActualKg), 1)} kg</strong> ({formatNum(Number(mp.stockActualKg) / 46, 2)} QQ)
         </p>
-        {hasSub && (
-          <p className="text-[12px] text-[var(--color-gr-sub)] mt-0.5">
-            Entero: {formatNum(mp.stockEntero ?? 0, 1)} · P. Chico: {formatNum(mp.stockParChico ?? 0, 1)} · P. Grande: {formatNum(mp.stockParGrande ?? 0, 1)}
-          </p>
-        )}
       </div>
 
-      {/* Quantity inputs */}
-      {hasSub ? (
-        <div className="space-y-3">
-          <p className="text-[12.5px] font-600 text-[var(--color-gr-sub)]">
-            Cantidad por subtipo ({mp.unidad}) — la suma se calcula automáticamente
-          </p>
-          <div className="grid grid-cols-3 gap-3">
-            <FormField label="Entero">
-              <Input type="number" min="0" step="0.5" placeholder="0" value={entero} onChange={e => setEntero(e.target.value)} />
-            </FormField>
-            <FormField label="Partido chico">
-              <Input type="number" min="0" step="0.5" placeholder="0" value={parChico} onChange={e => setParChico(e.target.value)} />
-            </FormField>
-            <FormField label="Partido grande">
-              <Input type="number" min="0" step="0.5" placeholder="0" value={parGrande} onChange={e => setParGrande(e.target.value)} />
-            </FormField>
-          </div>
-          <div className="rounded-[10px] px-4 py-3 text-center border border-[var(--color-gr-border)]"
-            style={{ background: totalCalc > 0 ? 'var(--color-gr-primary-lite)' : 'var(--color-gr-border-lite)' }}>
-            <p className="text-[11px] text-[var(--color-gr-muted)] font-600 uppercase">Total entrada</p>
-            <p className="text-[28px] font-900 leading-tight"
-              style={{ color: totalCalc > 0 ? 'var(--color-gr-primary)' : 'var(--color-gr-muted)' }}>
-              {formatNum(totalCalc, 1)} <span className="text-[14px] font-500">{mp.unidad}</span>
-            </p>
-            {totalCalc > 0 && (
-              <p className="text-[12px] text-[var(--color-gr-sub)] mt-0.5">
-                Stock resultante: {formatNum(mp.stockTotal + totalCalc, 1)} {mp.unidad}
-              </p>
-            )}
-          </div>
-        </div>
-      ) : (
-        <FormField label={`Cantidad (${mp.unidad})`} required>
-          <Input type="number" min="0" step="1" placeholder="0" value={totalSimple}
-            onChange={e => setTotalSimple(e.target.value)} autoFocus />
-          {parseFloat(totalSimple) > 0 && (
-            <p className="text-[12px] text-[var(--color-gr-sub)] mt-1.5">
-              Stock resultante: <strong>{formatNum(mp.stockTotal + parseFloat(totalSimple), 1)} {mp.unidad}</strong>
-            </p>
-          )}
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Cantidad" required>
+          <Input type="number" min="0" step="0.01" placeholder="0" value={cantidad}
+            onChange={e => setCantidad(e.target.value)} autoFocus />
+        </FormField>
+        <FormField label="Unidad" required>
+          <Select value={unidadId} onChange={e => setUnidadId(e.target.value)}>
+            <option value="">— Seleccionar —</option>
+            {unidades.map(u => (
+              <option key={u.id} value={u.id}>{u.codigo} · {u.nombre}</option>
+            ))}
+          </Select>
+        </FormField>
+      </div>
+
+      {mp.categoria?.tieneSubtipos && subtipos.length > 0 && (
+        <FormField label="Subtipo">
+          <Select value={subtipoId} onChange={e => setSubtipoId(e.target.value)}>
+            <option value="">— Sin subtipo —</option>
+            {subtipos.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </Select>
         </FormField>
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <FormField label="Costo Bs (opcional)">
-          <Input type="number" min="0" placeholder="0.00" value={costoBs} onChange={e => setCostoBs(e.target.value)} />
+        <FormField label="Costo unitario (Bs)">
+          <Input type="number" min="0" step="0.01" placeholder="0" value={costoBs}
+            onChange={e => setCostoBs(e.target.value)} />
         </FormField>
         <FormField label="N° de lote">
-          <Input type="number" min="1" placeholder="Ej: 3" value={lote} onChange={e => setLote(e.target.value)} />
+          <Input type="number" min="1" placeholder="Opcional" value={numeroLote}
+            onChange={e => setNumeroLote(e.target.value)} />
         </FormField>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Proveedor">
-          <Select value={proveedorId} onChange={e => setProvId(e.target.value)}>
-            <option value="">— Sin proveedor —</option>
-            {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </Select>
-        </FormField>
-        <FormField label="Responsable" required>
-          <Select value={responsable} onChange={e => setResp(e.target.value)}>
-            <option value="">— Seleccionar —</option>
-            {RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}
-          </Select>
-        </FormField>
-      </div>
+      <FormField label="Proveedor">
+        <Select value={proveedorId} onChange={e => setProvId(e.target.value)}>
+          <option value="">— Sin proveedor —</option>
+          {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+        </Select>
+      </FormField>
 
       <FormField label="Fecha" required>
         <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
       </FormField>
 
+      <FormField label="Observaciones">
+        <Input placeholder="Notas..." value={observaciones} onChange={e => setObs(e.target.value)} />
+      </FormField>
+
       <div className="flex gap-3 justify-end">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-        <Btn onClick={handleSave} disabled={totalCalc <= 0 || !responsable}>
+        <Btn onClick={handleSave} disabled={!valid} loading={createKardex.isPending}>
           <Plus size={14} /> Registrar entrada
         </Btn>
       </div>

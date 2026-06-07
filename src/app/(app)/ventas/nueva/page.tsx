@@ -1,15 +1,24 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAppStore, type DetalleVenta, type TipoFlete, type VentaDTO } from '@/store/useAppStore';
+import { useClientes, useTransportistas } from '@/lib/api/catalogos';
+import { useProductos } from '@/lib/api/productos';
+import { useLotes } from '@/lib/api/produccion';
+import { useCreateVenta } from '@/lib/api/ventas';
+import { TipoFlete, type CreateVentaRequest, type LoteProduccion } from '@/lib/types';
+import { apiErrorMessage } from '@/lib/api';
 import { formatBs, formatNum } from '@/lib/utils';
-import { Btn, FormField, Input, Select, StepBar, SearchBox, Badge, useToast } from '@/components/ui';
+import { Btn, FormField, Input, Select, StepBar, SearchBox, Badge, Spinner, useToast } from '@/components/ui';
 import { Plus, Trash2, ChevronRight, AlertTriangle, Package, CheckCircle2, Truck } from 'lucide-react';
 
 type Step = 0 | 1 | 2;
 
 interface LineaDetalle {
-  key: string; productoId: string; loteId: string; cantidad: string; precioUnitario: string;
+  key: string;
+  productoId: string;
+  loteId: string;
+  cantidad: string;
+  precioUnitario: string;
 }
 
 function emptyLinea(): LineaDetalle {
@@ -17,37 +26,46 @@ function emptyLinea(): LineaDetalle {
 }
 
 const FLETE_OPCIONES: { value: TipoFlete; label: string; desc: string }[] = [
-  { value: 'sin_flete',            label: 'Sin flete',            desc: 'El cliente retira en planta'           },
-  { value: 'cliente_paga_directo', label: 'Cliente paga directo', desc: 'El cliente paga al transportista'      },
-  { value: 'incluido_en_venta',    label: 'Incluido en venta',    desc: 'El flete va en el total de la venta'   },
-  { value: 'grano_rey_paga',       label: 'Grano Rey paga',       desc: 'La empresa asume el costo del flete'  },
+  { value: TipoFlete.SIN_FLETE,            label: 'Sin flete',            desc: 'El cliente retira en planta'           },
+  { value: TipoFlete.CLIENTE_PAGA_DIRECTO, label: 'Cliente paga directo', desc: 'El cliente paga al transportista'      },
+  { value: TipoFlete.INCLUIDO_EN_VENTA,    label: 'Incluido en venta',    desc: 'El flete va en el total de la venta'   },
+  { value: TipoFlete.GRANO_REY_PAGA,       label: 'Grano Rey paga',       desc: 'La empresa asume el costo del flete'  },
 ];
 
 export default function NuevaVentaPage() {
-  const router  = useRouter();
-  const toast   = useToast(s => s.show);
+  const router = useRouter();
+  const toast  = useToast(s => s.show);
 
-  const clientes          = useAppStore(s => s.clientes);
-  const productos         = useAppStore(s => s.productos);
-  const transportistas    = useAppStore(s => s.transportistas);
-  const lotesParaProducto = useAppStore(s => s.lotesParaProducto);
-  const registrarVenta    = useAppStore(s => s.registrarVenta);
+  const clientesQ       = useClientes();
+  const productosQ      = useProductos();
+  const transportistasQ = useTransportistas();
+  const lotesQ          = useLotes();
+  const createVenta     = useCreateVenta();
+
+  const clientes       = clientesQ.data ?? [];
+  const productos      = productosQ.data ?? [];
+  const transportistas = transportistasQ.data ?? [];
+  const lotes          = lotesQ.data ?? [];
+
+  const lotesParaProducto = (productoId: string): LoteProduccion[] =>
+    lotes
+      .filter(l => l.producto?.id === productoId && Number(l.stockRestante) > 0)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
 
   const [step, setStep]             = useState<Step>(0);
   const [clienteId, setClienteId]   = useState('');
   const [search, setSearch]         = useState('');
   const [lineas, setLineas]         = useState<LineaDetalle[]>([emptyLinea()]);
   const [descuento, setDescuento]   = useState('0');
-  const [tipoFlete, setTipoFlete]   = useState<TipoFlete>('sin_flete');
+  const [tipoFlete, setTipoFlete]   = useState<TipoFlete>(TipoFlete.SIN_FLETE);
   const [fleteBs, setFleteBs]       = useState('');
   const [fleteUnidad, setFleteUni]  = useState<'bs' | 'bs_qq'>('bs');
   const [transportistaId, setTransp]= useState('');
   const [observaciones, setObs]     = useState('');
   const [fecha, setFecha]           = useState(new Date().toISOString().slice(0, 10));
-  const [guardando, setGuardando]   = useState(false);
 
   const clientesFiltrados = clientes.filter(c =>
-    !search || c.nombre.toLowerCase().includes(search.toLowerCase()) || c.ciudad?.toLowerCase().includes(search.toLowerCase())
+    !search || c.nombre.toLowerCase().includes(search.toLowerCase()) || (c.ciudad ?? '').toLowerCase().includes(search.toLowerCase()),
   );
   const clienteSel       = clientes.find(c => c.id === clienteId);
   const transportistaSel = transportistas.find(t => t.id === transportistaId);
@@ -60,8 +78,8 @@ export default function NuevaVentaPage() {
         const prod = productos.find(p => p.id === val);
         if (prod) {
           updated.precioUnitario = String(prod.precioUnitarioBs);
-          const lotes = lotesParaProducto(prod.id);
-          updated.loteId = lotes[0]?.id || '';
+          const ls = lotesParaProducto(prod.id);
+          updated.loteId = ls[0]?.id ?? '';
         } else {
           updated.loteId = ''; updated.precioUnitario = '';
         }
@@ -71,7 +89,7 @@ export default function NuevaVentaPage() {
   }
 
   const lineasValidas = lineas.filter(l =>
-    l.productoId && l.loteId && parseFloat(l.cantidad) > 0 && parseFloat(l.precioUnitario) >= 0
+    l.productoId && parseFloat(l.cantidad) > 0 && parseFloat(l.precioUnitario) >= 0,
   );
 
   const subtotal = lineasValidas.reduce((s, l) => s + parseFloat(l.cantidad) * parseFloat(l.precioUnitario), 0);
@@ -79,50 +97,70 @@ export default function NuevaVentaPage() {
 
   const totalQQ = lineasValidas.reduce((s, l) => {
     const prod = productos.find(p => p.id === l.productoId);
-    return s + (parseFloat(l.cantidad) || 0) * (prod?.kgPorBolsa || 0) / 46;
+    return s + (parseFloat(l.cantidad) || 0) * (Number(prod?.pesoKgPorUnidad) || 0) / 46;
   }, 0);
 
-  const fleteConMonto = tipoFlete === 'incluido_en_venta' || tipoFlete === 'grano_rey_paga';
+  const fleteConMonto = tipoFlete === TipoFlete.INCLUIDO_EN_VENTA || tipoFlete === TipoFlete.GRANO_REY_PAGA;
   const fleteNum = fleteConMonto
     ? (fleteUnidad === 'bs_qq' ? (parseFloat(fleteBs) || 0) * totalQQ : (parseFloat(fleteBs) || 0))
     : 0;
 
-  const totalSinDesc = subtotal + (tipoFlete === 'incluido_en_venta' ? fleteNum : 0);
+  const totalSinDesc = subtotal + (tipoFlete === TipoFlete.INCLUIDO_EN_VENTA ? fleteNum : 0);
   const totalFinal   = Math.max(0, totalSinDesc - descNum);
 
-  const detallesConfirm: DetalleVenta[] = useMemo(() => lineasValidas.map(l => {
+  const detallesUI = useMemo(() => lineasValidas.map(l => {
     const prod  = productos.find(p => p.id === l.productoId)!;
-    const lotes = lotesParaProducto(prod.id);
-    const lote  = lotes.find(lt => lt.id === l.loteId) || lotes[0];
-    const cant  = parseFloat(l.cantidad);
+    const lt    = lotesParaProducto(prod.id).find(x => x.id === l.loteId) ?? lotesParaProducto(prod.id)[0];
+    const cant   = parseFloat(l.cantidad);
     const precio = parseFloat(l.precioUnitario);
     return {
-      productoId: prod.id, productoNombre: prod.nombre,
-      cantidad: cant, unidad: 'BOL', precioUnitario: precio,
-      loteId: lote?.id || '', loteNum: lote?.numero || 0,
+      key: l.key,
+      productoId: prod.id,
+      productoNombre: prod.nombre,
+      cantidad: cant,
+      unidadId: prod.unidadVenta?.id ?? '',
+      unidadLabel: prod.unidadVenta?.abreviatura ?? prod.unidadVenta?.codigo ?? 'bol',
+      precioUnitario: precio,
+      lote: lt,
       totalBs: cant * precio,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [lineasValidas]);
+  }), [lineas, productos, lotes]);
 
-  function guardar() {
-    setGuardando(true);
-    const dto: VentaDTO = {
-      clienteId,
-      clienteNombre: clienteSel!.nombre,
-      detalles: detallesConfirm,
-      subtotalBs: subtotal,
-      descuentoBs: descNum,
-      totalBs: totalFinal,
+  async function guardar() {
+    if (!clienteSel) return;
+    const dto: CreateVentaRequest = {
+      fecha,
+      clienteId: clienteSel.id,
       transportistaId: transportistaId || undefined,
+      descuentoBs: descNum || undefined,
       tipoFlete,
       fleteBs: fleteConMonto ? fleteNum : undefined,
       observaciones: observaciones || undefined,
-      fecha,
+      detalles: detallesUI.map(d => ({
+        productoId: d.productoId,
+        unidadId: d.unidadId,
+        loteId: d.lote?.id,
+        cantidad: d.cantidad,
+        precioUnitarioBs: d.precioUnitario,
+      })),
     };
-    registrarVenta(dto);
-    toast('¡Venta registrada! La remisión está lista.', 'success');
-    router.push('/despachos');
+    try {
+      await createVenta.mutateAsync(dto);
+      toast('¡Venta registrada! La remisión está lista.', 'success');
+      router.push('/despachos');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'No se pudo registrar la venta'), 'error');
+    }
+  }
+
+  const loading = clientesQ.isLoading || productosQ.isLoading || transportistasQ.isLoading || lotesQ.isLoading;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Spinner size={28} color="var(--color-gr-primary)" />
+      </div>
+    );
   }
 
   return (
@@ -186,12 +224,12 @@ export default function NuevaVentaPage() {
             <div className="space-y-3">
               {lineas.map(l => {
                 const prod      = productos.find(p => p.id === l.productoId);
-                const lotes     = prod ? lotesParaProducto(prod.id) : [];
-                const lotesSel  = lotes.find(lt => lt.id === l.loteId);
+                const lotesProd = prod ? lotesParaProducto(prod.id) : [];
+                const lotesSel  = lotesProd.find(lt => lt.id === l.loteId);
                 const cant      = parseFloat(l.cantidad) || 0;
                 const precio    = parseFloat(l.precioUnitario) || 0;
                 const subLin    = cant * precio;
-                const stockInsuf = prod && cant > 0 && cant > prod.stockActual;
+                const stockInsuf = prod && cant > 0 && cant > Number(prod.stockActual);
 
                 return (
                   <div key={l.key} className="border rounded-[12px] p-4 space-y-3"
@@ -207,11 +245,11 @@ export default function NuevaVentaPage() {
                       </FormField>
                       <FormField label="Lote (FIFO sugerido)">
                         <Select value={l.loteId} onChange={e => setLinea(l.key, 'loteId', e.target.value)}
-                          disabled={lotes.length === 0}>
-                          <option value="">— Auto —</option>
-                          {lotes.map(lt => (
+                          disabled={lotesProd.length === 0}>
+                          <option value="">— Sin asignar —</option>
+                          {lotesProd.map(lt => (
                             <option key={lt.id} value={lt.id}>
-                              Lote #{String(lt.numero).padStart(3, '0')} · {lt.cantidadActual} bol · {lt.fecha}
+                              {lt.codigoLote} · {Number(lt.stockRestante)} disponibles · {lt.fecha}
                             </option>
                           ))}
                         </Select>
@@ -219,18 +257,19 @@ export default function NuevaVentaPage() {
                     </div>
 
                     {lotesSel && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <Badge color="gray">
-                          Lote #{String(lotesSel.numero).padStart(3, '0')} · {lotesSel.cantidadActual} bolsas disponibles
+                          {lotesSel.codigoLote} · {Number(lotesSel.stockRestante)} disp.
                         </Badge>
-                        {lotesSel.cantidadActual < 100 && (
-                          <Badge color="yellow">Stock bajo en este lote</Badge>
+                        <Badge color="blue">Vence: {lotesSel.fechaVencimiento}</Badge>
+                        {cant > Number(lotesSel.stockRestante) && (
+                          <Badge color="red">Cantidad supera stock del lote</Badge>
                         )}
                       </div>
                     )}
 
                     <div className="grid grid-cols-3 gap-3">
-                      <FormField label="Cantidad (bol)">
+                      <FormField label="Cantidad">
                         <Input type="number" min="1" placeholder="0" value={l.cantidad}
                           onChange={e => setLinea(l.key, 'cantidad', e.target.value)} />
                       </FormField>
@@ -255,10 +294,10 @@ export default function NuevaVentaPage() {
                           : <Package size={13} className="text-[var(--color-gr-muted)] shrink-0 mt-0.5" />}
                         <div>
                           {stockInsuf
-                            ? <span className="font-600 text-[var(--color-gr-danger)]">Solo quedan <strong>{formatNum(prod.stockActual, 0)} bolsas</strong> disponibles</span>
+                            ? <span className="font-600 text-[var(--color-gr-danger)]">Solo quedan <strong>{formatNum(Number(prod.stockActual), 0)} unidades</strong> disponibles</span>
                             : <span className="text-[var(--color-gr-muted)]">
-                                Disponible: <strong className="text-[var(--color-gr-text)]">{formatNum(prod.stockActual, 0)} bol</strong>
-                                {' '}· {formatNum(cant * prod.kgPorBolsa, 1)} kg · {formatNum(cant * prod.kgPorBolsa / 46, 2)} QQ
+                                Disponible: <strong className="text-[var(--color-gr-text)]">{formatNum(Number(prod.stockActual), 0)} {prod.unidadVenta?.abreviatura ?? ''}</strong>
+                                {' '}· {formatNum(cant * Number(prod.pesoKgPorUnidad), 1)} kg · {formatNum(cant * Number(prod.pesoKgPorUnidad) / 46, 2)} QQ
                               </span>}
                         </div>
                       </div>
@@ -333,12 +372,12 @@ export default function NuevaVentaPage() {
                   )}
                 </div>
 
-                {tipoFlete === 'incluido_en_venta' && fleteNum > 0 && (
+                {tipoFlete === TipoFlete.INCLUIDO_EN_VENTA && fleteNum > 0 && (
                   <p className="text-[12px] text-[var(--color-gr-info)] bg-[var(--color-gr-info-bg)] rounded-[8px] px-3 py-2">
                     El flete de <strong>{formatBs(fleteNum)}</strong> se suma al total de la venta
                   </p>
                 )}
-                {tipoFlete === 'grano_rey_paga' && fleteNum > 0 && (
+                {tipoFlete === TipoFlete.GRANO_REY_PAGA && fleteNum > 0 && (
                   <p className="text-[12px] text-[var(--color-gr-warning)] bg-[var(--color-gr-warning-bg)] rounded-[8px] px-3 py-2">
                     Grano Rey asumirá <strong>{formatBs(fleteNum)}</strong> como egreso de transporte
                   </p>
@@ -346,7 +385,7 @@ export default function NuevaVentaPage() {
               </div>
             )}
 
-            {tipoFlete === 'cliente_paga_directo' && (
+            {tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
               <div className="rounded-[10px] px-4 py-3 text-[13px] flex items-center gap-2"
                 style={{ background: 'var(--color-gr-info-bg)', color: 'var(--color-gr-info)' }}>
                 <Truck size={14} className="shrink-0" />
@@ -358,7 +397,11 @@ export default function NuevaVentaPage() {
               <Select value={transportistaId} onChange={e => setTransp(e.target.value)}>
                 <option value="">— Sin asignar —</option>
                 {transportistas.map(t => (
-                  <option key={t.id} value={t.id}>{t.nombre} · {t.placa} · {t.marca}</option>
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
+                    {t.placa ? ` · ${t.placa}` : ''}
+                    {t.marca ? ` · ${t.marca}` : ''}
+                  </option>
                 ))}
               </Select>
             </FormField>
@@ -373,7 +416,7 @@ export default function NuevaVentaPage() {
             <Btn variant="ghost" onClick={() => setStep(0)}>← Volver</Btn>
             <Btn onClick={() => setStep(2)} disabled={lineasValidas.length === 0 || lineasValidas.some(l => {
               const prod = productos.find(p => p.id === l.productoId);
-              return prod && parseFloat(l.cantidad) > prod.stockActual;
+              return prod && parseFloat(l.cantidad) > Number(prod.stockActual);
             })}>
               Continuar <ChevronRight size={15} />
             </Btn>
@@ -400,8 +443,8 @@ export default function NuevaVentaPage() {
             </div>
 
             <div className="border border-[var(--color-gr-border)] rounded-[10px] overflow-hidden mb-4">
-              {detallesConfirm.map((d, i) => (
-                <div key={i} className={`flex items-center gap-4 px-4 py-3 ${i < detallesConfirm.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
+              {detallesUI.map((d, i) => (
+                <div key={d.key} className={`flex items-center gap-4 px-4 py-3 ${i < detallesUI.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
                   <div className="w-8 h-8 rounded-[8px] flex items-center justify-center shrink-0"
                     style={{ background: 'var(--color-gr-primary-lite)' }}>
                     <Package size={14} className="text-[var(--color-gr-primary)]" />
@@ -409,7 +452,7 @@ export default function NuevaVentaPage() {
                   <div className="flex-1">
                     <p className="font-600 text-[var(--color-gr-text)] text-[13.5px]">{d.productoNombre}</p>
                     <p className="text-[11.5px] text-[var(--color-gr-muted)]">
-                      {d.cantidad} bol · Lote #{String(d.loteNum).padStart(3, '0')} · {formatBs(d.precioUnitario)}/bol
+                      {d.cantidad} {d.unidadLabel} {d.lote ? `· ${d.lote.codigoLote}` : ''} · {formatBs(d.precioUnitario)}/u
                     </p>
                   </div>
                   <span className="font-800 text-[var(--color-gr-primary)] text-[14px]">{formatBs(d.totalBs)}</span>
@@ -421,19 +464,19 @@ export default function NuevaVentaPage() {
               <div className="flex justify-between text-[var(--color-gr-sub)]">
                 <span>Subtotal productos</span><span>{formatBs(subtotal)}</span>
               </div>
-              {tipoFlete === 'incluido_en_venta' && fleteNum > 0 && (
+              {tipoFlete === TipoFlete.INCLUIDO_EN_VENTA && fleteNum > 0 && (
                 <div className="flex justify-between text-[var(--color-gr-info)]">
                   <span className="flex items-center gap-1"><Truck size={13} /> Flete incluido</span>
                   <span>+{formatBs(fleteNum)}</span>
                 </div>
               )}
-              {tipoFlete === 'cliente_paga_directo' && (
+              {tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
                 <div className="flex items-center gap-2 text-[var(--color-gr-info)] text-[12.5px]">
                   <Truck size={13} />
                   <span>Cliente paga flete al transportista — no incluido en el total</span>
                 </div>
               )}
-              {tipoFlete === 'grano_rey_paga' && fleteNum > 0 && (
+              {tipoFlete === TipoFlete.GRANO_REY_PAGA && fleteNum > 0 && (
                 <div className="flex justify-between text-[var(--color-gr-warning)]">
                   <span className="flex items-center gap-1"><Truck size={13} /> Flete Grano Rey</span>
                   <span>{formatBs(fleteNum)} (egreso)</span>
@@ -453,7 +496,11 @@ export default function NuevaVentaPage() {
               <div className="mt-4 rounded-[10px] px-4 py-3 text-[12.5px] space-y-0.5"
                 style={{ background: 'var(--color-gr-border-lite)' }}>
                 <p className="font-700 text-[var(--color-gr-sub)] mb-1">Transportista asignado</p>
-                <p>{transportistaSel.nombre} · {transportistaSel.marca} · {transportistaSel.placa}</p>
+                <p>
+                  {transportistaSel.nombre}
+                  {transportistaSel.marca ? ` · ${transportistaSel.marca}` : ''}
+                  {transportistaSel.placa ? ` · ${transportistaSel.placa}` : ''}
+                </p>
               </div>
             )}
           </div>
@@ -472,8 +519,8 @@ export default function NuevaVentaPage() {
           <div className="flex gap-3 justify-between">
             <Btn variant="ghost" onClick={() => setStep(1)}>← Volver</Btn>
             <div className="flex gap-2">
-              <Btn variant="secondary" onClick={guardar} loading={guardando}>Guardar venta</Btn>
-              <Btn variant="gold" onClick={guardar} loading={guardando}>Guardar y ver remisión</Btn>
+              <Btn variant="secondary" onClick={guardar} loading={createVenta.isPending}>Guardar venta</Btn>
+              <Btn variant="gold" onClick={guardar} loading={createVenta.isPending}>Guardar y ver remisión</Btn>
             </div>
           </div>
         </div>
@@ -492,7 +539,7 @@ export default function NuevaVentaPage() {
                 {fleteConMonto && fleteNum > 0 && (
                   <div>
                     <p className="text-[10.5px] text-[var(--color-gr-muted)] font-600 uppercase">Flete</p>
-                    <p className="font-700 text-[13px]" style={{ color: tipoFlete === 'incluido_en_venta' ? 'var(--color-gr-info)' : 'var(--color-gr-warning)' }}>
+                    <p className="font-700 text-[13px]" style={{ color: tipoFlete === TipoFlete.INCLUIDO_EN_VENTA ? 'var(--color-gr-info)' : 'var(--color-gr-warning)' }}>
                       {formatBs(fleteNum)}
                     </p>
                   </div>

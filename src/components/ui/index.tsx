@@ -105,8 +105,11 @@ export function Badge({ color, children, className }: { color: BadgeColor; child
 const estadoMap: Record<string, { color: BadgeColor; label: string }> = {
   pendiente:  { color: 'yellow', label: 'Pendiente' },
   despachado: { color: 'blue',   label: 'Despachado' },
+  despachada: { color: 'blue',   label: 'Despachada' },
   entregado:  { color: 'green',  label: 'Entregado' },
+  entregada:  { color: 'green',  label: 'Entregada' },
   cancelado:  { color: 'red',    label: 'Cancelado' },
+  cancelada:  { color: 'red',    label: 'Cancelada' },
 };
 export function EstadoBadge({ estado }: { estado: string }) {
   const m = estadoMap[estado] || { color: 'gray', label: estado };

@@ -1,32 +1,48 @@
 'use client';
 import { useState } from 'react';
-import { useAppStore, type Venta, type Transportista, type Cliente } from '@/store/useAppStore';
+import { useVentas, useCambiarEstadoVenta } from '@/lib/api/ventas';
+import { type NotaVenta, EstadoVenta, TipoFlete } from '@/lib/types';
+import { apiErrorMessage } from '@/lib/api';
 import { formatBs } from '@/lib/utils';
-import { Btn, Modal, EstadoBadge, Badge, useToast } from '@/components/ui';
+import { Btn, Modal, EstadoBadge, Badge, Spinner, useToast } from '@/components/ui';
 import { Truck, CheckCircle2, Clock, Printer, ArrowRight, Package, Zap } from 'lucide-react';
 import Image from 'next/image';
 
 export default function DespachosPage() {
   const toast              = useToast(s => s.show);
-  const ventas             = useAppStore(s => s.ventas);
-  const transportistas     = useAppStore(s => s.transportistas);
-  const clientes           = useAppStore(s => s.clientes);
-  const cambiarEstadoVenta = useAppStore(s => s.cambiarEstadoVenta);
-  const [remisionModal, setRemisionModal] = useState<Venta | null>(null);
+  const ventasQ            = useVentas();
+  const cambiarEstadoMut   = useCambiarEstadoVenta();
+  const ventas             = ventasQ.data ?? [];
+  const [remisionModal, setRemisionModal] = useState<NotaVenta | null>(null);
 
-  const pendientes  = ventas.filter(v => v.estado === 'pendiente');
-  const despachadas = ventas.filter(v => v.estado === 'despachado');
-  const entregadas  = ventas.filter(v => v.estado === 'entregado');
+  const pendientes  = ventas.filter(v => v.estado === EstadoVenta.PENDIENTE);
+  const despachadas = ventas.filter(v => v.estado === EstadoVenta.DESPACHADA);
+  const entregadas  = ventas.filter(v => v.estado === EstadoVenta.ENTREGADA);
+
+  async function marcarEstado(id: string, estado: EstadoVenta, msg: string) {
+    try {
+      await cambiarEstadoMut.mutateAsync({ id, estado });
+      toast(msg, 'success');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'No se pudo cambiar el estado'), 'error');
+    }
+  }
 
   function marcarDespachado(id: string) {
-    cambiarEstadoVenta(id, 'despachado');
-    toast('Venta marcada como despachada', 'success');
+    marcarEstado(id, EstadoVenta.DESPACHADA, 'Venta marcada como despachada');
     setRemisionModal(null);
   }
 
   function marcarEntregado(id: string) {
-    cambiarEstadoVenta(id, 'entregado');
-    toast('Venta marcada como entregada', 'success');
+    marcarEstado(id, EstadoVenta.ENTREGADA, 'Venta marcada como entregada');
+  }
+
+  if (ventasQ.isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Spinner size={28} color="var(--color-gr-primary)" />
+      </div>
+    );
   }
 
   return (
@@ -78,7 +94,7 @@ export default function DespachosPage() {
           </div>
           <div className="space-y-3">
             {pendientes.map(v => (
-              <RemisionCard key={v.id} venta={v} transportistas={transportistas}
+              <RemisionCard key={v.id} venta={v}
                 onVerRemision={() => setRemisionModal(v)}
                 onDespachar={() => marcarDespachado(v.id)} />
             ))}
@@ -95,7 +111,7 @@ export default function DespachosPage() {
           </div>
           <div className="space-y-3">
             {despachadas.map(v => {
-              const transp = transportistas.find(t => t.id === v.transportistaId);
+              const transp = v.transportista;
               return (
                 <div key={v.id} className="card flex items-center gap-4">
                   <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0"
@@ -104,9 +120,12 @@ export default function DespachosPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-700 text-[var(--color-gr-text)]">NV-{v.numero} · G-{v.numeroGuia}</p>
+                      <p className="font-700 text-[var(--color-gr-text)]">
+                        NV-{v.numeroNota}
+                        {v.numeroGuia ? ` · G-${v.numeroGuia}` : ''}
+                      </p>
                       <EstadoBadge estado={v.estado} />
-                      {v.tipoFlete === 'cliente_paga_directo' && (
+                      {v.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
                         <span className="text-[11px] font-600 px-2 py-0.5 rounded-full"
                           style={{ background: 'var(--color-gr-info-bg)', color: 'var(--color-gr-info)' }}>
                           Cliente paga flete
@@ -114,7 +133,7 @@ export default function DespachosPage() {
                       )}
                     </div>
                     <p className="text-[12px] text-[var(--color-gr-muted)]">
-                      {v.clienteNombre} · {v.fecha} · {formatBs(v.totalBs)}
+                      {v.cliente?.nombre ?? '—'} · {v.fecha} · {formatBs(Number(v.totalBs))}
                       {transp && ` · ${transp.nombre}`}
                     </p>
                   </div>
@@ -143,11 +162,9 @@ export default function DespachosPage() {
       {remisionModal && (
         <RemisionModal
           venta={remisionModal}
-          transportistas={transportistas}
-          clientes={clientes}
           onClose={() => setRemisionModal(null)}
           onDespachar={(id) => {
-            if (remisionModal.estado === 'pendiente') marcarDespachado(id);
+            if (remisionModal.estado === EstadoVenta.PENDIENTE) marcarDespachado(id);
             else marcarEntregado(id);
           }}
         />
@@ -156,47 +173,50 @@ export default function DespachosPage() {
   );
 }
 
-// ─── RemisionCard ─────────────────────────────────────────────────────────────
-function RemisionCard({ venta: v, transportistas, onVerRemision, onDespachar }: {
-  venta: Venta; transportistas: Transportista[]; onVerRemision: () => void; onDespachar: () => void;
+// ─── RemisionCard ──────────────────────────────────────────────────────────
+function RemisionCard({ venta: v, onVerRemision, onDespachar }: {
+  venta: NotaVenta; onVerRemision: () => void; onDespachar: () => void;
 }) {
-  const transp = transportistas.find(t => t.id === v.transportistaId);
+  const transp = v.transportista;
   return (
     <div className="card border-l-4 space-y-3"
       style={{ borderLeftColor: 'var(--color-gr-warning)' }}>
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <p className="font-800 text-[var(--color-gr-text)] text-[15px]">NV-{v.numero}</p>
-            <Badge color="gray">G-{v.numeroGuia}</Badge>
+            <p className="font-800 text-[var(--color-gr-text)] text-[15px]">NV-{v.numeroNota}</p>
+            {v.numeroGuia && <Badge color="gray">G-{v.numeroGuia}</Badge>}
             <EstadoBadge estado={v.estado} />
-            {v.tipoFlete === 'cliente_paga_directo' && (
+            {v.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
               <span className="inline-flex items-center gap-1 text-[11px] font-600 px-2 py-0.5 rounded-full"
                 style={{ background: 'var(--color-gr-info-bg)', color: 'var(--color-gr-info)' }}>
                 <Truck size={10} /> Cliente paga flete al transportista
               </span>
             )}
           </div>
-          <p className="text-[13px] text-[var(--color-gr-sub)]">{v.clienteNombre} · {v.fecha}</p>
+          <p className="text-[13px] text-[var(--color-gr-sub)]">{v.cliente?.nombre ?? '—'} · {v.fecha}</p>
         </div>
-        <p className="font-900 text-[var(--color-gr-primary)] text-[18px]">{formatBs(v.totalBs)}</p>
+        <p className="font-900 text-[var(--color-gr-primary)] text-[18px]">{formatBs(Number(v.totalBs))}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         {v.detalles.map((d, i) => (
-          <div key={i} className="flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12px]"
+          <div key={d.id ?? i} className="flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12px]"
             style={{ background: 'var(--color-gr-border-lite)' }}>
             <Package size={12} className="text-[var(--color-gr-primary)]" />
-            <span className="font-600">{d.cantidad} bol</span>
-            <span className="text-[var(--color-gr-muted)]">{d.productoNombre.split(' ').slice(0, 3).join(' ')}</span>
-            <span className="text-[var(--color-gr-muted)]">· L#{String(d.loteNum).padStart(3, '0')}</span>
+            <span className="font-600">{Number(d.cantidad)} {d.unidad?.abreviatura ?? ''}</span>
+            <span className="text-[var(--color-gr-muted)]">{(d.producto?.nombre ?? '').split(' ').slice(0, 3).join(' ')}</span>
+            {d.lote && <span className="text-[var(--color-gr-muted)]">· {d.lote.codigoLote}</span>}
           </div>
         ))}
       </div>
 
       {transp && (
         <p className="text-[12.5px] text-[var(--color-gr-muted)]">
-          <Truck size={12} className="inline mr-1" />{transp.nombre} · {transp.placa} · {transp.marca}
+          <Truck size={12} className="inline mr-1" />
+          {transp.nombre}
+          {transp.placa ? ` · ${transp.placa}` : ''}
+          {transp.marca ? ` · ${transp.marca}` : ''}
         </p>
       )}
 
@@ -210,15 +230,14 @@ function RemisionCard({ venta: v, transportistas, onVerRemision, onDespachar }: 
   );
 }
 
-// ─── RemisionModal ────────────────────────────────────────────────────────────
-function RemisionModal({ venta: v, transportistas, clientes, onClose, onDespachar }: {
-  venta: Venta; transportistas: Transportista[]; clientes: Cliente[];
-  onClose: () => void; onDespachar: (id: string) => void;
+// ─── RemisionModal ─────────────────────────────────────────────────────────
+function RemisionModal({ venta: v, onClose, onDespachar }: {
+  venta: NotaVenta; onClose: () => void; onDespachar: (id: string) => void;
 }) {
-  const transp  = transportistas.find(t => t.id === v.transportistaId);
-  const cliente = clientes.find(c => c.id === v.clienteId);
+  const transp = v.transportista;
+  const cliente = v.cliente;
   return (
-    <Modal open title={`Remisión — NV-${v.numero}`} onClose={onClose} wide>
+    <Modal open title={`Remisión — NV-${v.numeroNota}`} onClose={onClose} wide>
       <div className="flex items-center gap-2 rounded-[10px] px-4 py-2.5 mb-2"
         style={{ background: 'var(--color-gr-success-bg)' }}>
         <Zap size={14} style={{ color: 'var(--color-gr-success)' }} />
@@ -228,7 +247,7 @@ function RemisionModal({ venta: v, transportistas, clientes, onClose, onDespacha
         <span className="ml-auto"><EstadoBadge estado={v.estado} /></span>
       </div>
 
-      {v.tipoFlete === 'cliente_paga_directo' && (
+      {v.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
         <div className="flex items-center gap-2 rounded-[10px] px-4 py-2.5 mb-2"
           style={{ background: 'var(--color-gr-info-bg)' }}>
           <Truck size={14} style={{ color: 'var(--color-gr-info)' }} />
@@ -251,7 +270,7 @@ function RemisionModal({ venta: v, transportistas, clientes, onClose, onDespacha
           </div>
           <div className="text-right">
             <p className="text-[var(--color-gr-gold)] font-700 text-[12px]">N° GUÍA</p>
-            <p className="text-white font-900 text-[28px]">G-{v.numeroGuia}</p>
+            <p className="text-white font-900 text-[28px]">{v.numeroGuia ? `G-${v.numeroGuia}` : '—'}</p>
             <p className="text-white/60 text-[12px]">{v.fecha}</p>
           </div>
         </div>
@@ -260,15 +279,17 @@ function RemisionModal({ venta: v, transportistas, clientes, onClose, onDespacha
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1.5">Cliente / Destinatario</p>
-              <p className="font-800 text-[var(--color-gr-text)] text-[15px]">{v.clienteNombre}</p>
-              <p className="text-[12.5px] text-[var(--color-gr-muted)]">{cliente?.ciudad}</p>
+              <p className="font-800 text-[var(--color-gr-text)] text-[15px]">{cliente?.nombre ?? '—'}</p>
+              <p className="text-[12.5px] text-[var(--color-gr-muted)]">{cliente?.ciudad ?? ''}</p>
             </div>
             <div>
               <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1.5">Transportista</p>
               {transp ? (
                 <>
                   <p className="font-800 text-[var(--color-gr-text)]">{transp.nombre}</p>
-                  <p className="text-[12.5px] text-[var(--color-gr-muted)]">{transp.marca} · Placa: <strong>{transp.placa}</strong></p>
+                  <p className="text-[12.5px] text-[var(--color-gr-muted)]">
+                    {transp.marca ?? ''}{transp.placa ? ` · Placa: ` : ''}{transp.placa && <strong>{transp.placa}</strong>}
+                  </p>
                 </>
               ) : <p className="text-[var(--color-gr-muted)] text-[13px]">Sin asignar</p>}
             </div>
@@ -280,23 +301,23 @@ function RemisionModal({ venta: v, transportistas, clientes, onClose, onDespacha
               <span>Producto</span><span>Lote</span><span>Cantidad</span><span>Total Bs</span>
             </div>
             {v.detalles.map((d, i) => (
-              <div key={i} className={`grid grid-cols-[1fr_auto_auto_auto] px-4 py-3 gap-3 text-[13px] ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
-                <span className="font-600">{d.productoNombre}</span>
-                <span className="text-[var(--color-gr-muted)]">#{String(d.loteNum).padStart(3, '0')}</span>
-                <span className="font-700">{d.cantidad} bol</span>
-                <span className="font-800 text-[var(--color-gr-primary)]">{formatBs(d.totalBs)}</span>
+              <div key={d.id ?? i} className={`grid grid-cols-[1fr_auto_auto_auto] px-4 py-3 gap-3 text-[13px] ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
+                <span className="font-600">{d.producto?.nombre ?? '—'}</span>
+                <span className="text-[var(--color-gr-muted)]">{d.lote?.codigoLote ?? '—'}</span>
+                <span className="font-700">{Number(d.cantidad)} {d.unidad?.abreviatura ?? ''}</span>
+                <span className="font-800 text-[var(--color-gr-primary)]">{formatBs(Number(d.valorTotalBs))}</span>
               </div>
             ))}
           </div>
 
-          {v.tipoFlete === 'incluido_en_venta' && v.fleteBs && (
+          {v.tipoFlete === TipoFlete.INCLUIDO_EN_VENTA && Number(v.fleteBs) > 0 && (
             <div className="flex justify-between text-[13px] text-[var(--color-gr-info)]">
-              <span>Flete incluido</span><span>+{formatBs(v.fleteBs)}</span>
+              <span>Flete incluido</span><span>+{formatBs(Number(v.fleteBs))}</span>
             </div>
           )}
 
           <div className="flex justify-between font-900 text-[18px] text-[var(--color-gr-primary)] border-t border-[var(--color-gr-border)] pt-3">
-            <span>TOTAL</span><span>{formatBs(v.totalBs)}</span>
+            <span>TOTAL</span><span>{formatBs(Number(v.totalBs))}</span>
           </div>
 
           <div className="grid grid-cols-2 gap-4 pt-2">
@@ -327,12 +348,12 @@ function RemisionModal({ venta: v, transportistas, clientes, onClose, onDespacha
       <div className="flex gap-3 justify-end">
         <Btn variant="ghost" onClick={onClose}>Cerrar</Btn>
         <Btn variant="secondary" onClick={() => window.print()}><Printer size={14} /> Imprimir</Btn>
-        {v.estado === 'pendiente' && (
+        {v.estado === EstadoVenta.PENDIENTE && (
           <Btn onClick={() => onDespachar(v.id)}>
             <Truck size={14} /> Marcar despachado
           </Btn>
         )}
-        {v.estado === 'despachado' && (
+        {v.estado === EstadoVenta.DESPACHADA && (
           <Btn variant="primary" onClick={() => { onDespachar(v.id); onClose(); }}>
             <CheckCircle2 size={14} /> Confirmar entregado
           </Btn>
