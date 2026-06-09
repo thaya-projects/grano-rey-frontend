@@ -25,19 +25,19 @@ export function Header() {
 
   return (
     <header
-      className="sticky top-0 z-10 flex items-center justify-between px-6 py-3.5 border-b border-[var(--color-gr-border)] bg-[var(--color-gr-surface)]"
+      className="sticky top-0 z-10 flex items-center justify-between px-6 py-3.5 border-b border-gr-border bg-gr-surface"
       style={{ minHeight: '56px' }}>
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-[13.5px]">
-        <span className="text-[var(--color-gr-muted)] font-500">Grano Rey</span>
-        <ChevronRight size={13} className="text-[var(--color-gr-muted)]" />
-        <span className="font-700 text-[var(--color-gr-text)]">{pageName}</span>
+        <span className="text-gr-muted font-500">Grano Rey</span>
+        <ChevronRight size={13} className="text-gr-muted" />
+        <span className="font-700 text-gr-text">{pageName}</span>
       </div>
 
       {/* Right side */}
       <div className="flex items-center gap-4">
-        <span className="text-[13px] text-[var(--color-gr-muted)] hidden sm:block">
+        <span className="text-[13px] text-gr-muted hidden sm:block">
           {formatDateEs(new Date())}
         </span>
         {user && (
