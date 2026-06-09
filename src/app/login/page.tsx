@@ -1,14 +1,13 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-store';
+import { signIn } from 'next-auth/react';
 import { apiErrorMessage } from '@/lib/api';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import Image from 'next/image';
 
 export default function LoginPage() {
-  const { login } = useAuth();
   const router = useRouter();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
@@ -19,10 +18,14 @@ export default function LoginPage() {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
-      await login(email, password);
-      router.replace('/dashboard');
+      const res = await signIn('credentials', { email, password, redirect: false });
+      if (res?.error) {
+        setError('Credenciales inválidas. Verifica tu correo y contraseña.');
+      } else {
+        router.replace('/dashboard');
+      }
     } catch (err) {
-      setError(apiErrorMessage(err, 'Credenciales inválidas'));
+      setError(apiErrorMessage(err, 'Error de conexión. Intenta de nuevo.'));
     } finally {
       setLoading(false);
     }
@@ -36,14 +39,14 @@ export default function LoginPage() {
       <div className="absolute inset-0 opacity-[0.04] pointer-events-none"
         style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '28px 28px' }} />
 
-      <div className="relative w-full max-w-[400px]">
+      <div className="relative w-full max-w-100">
         {/* Card */}
-        <div className="bg-white rounded-[24px] shadow-2xl overflow-hidden">
+        <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
 
           {/* Logo section */}
           <div className="flex flex-col items-center pt-10 pb-6 px-8 border-b"
             style={{ borderColor: '#EAF0EB' }}>
-            <div className="relative w-[200px] h-[120px]">
+            <div className="relative w-50 h-30">
               <Image
                 src="/logo-grano-rey.webp"
                 alt="Grano Rey"
