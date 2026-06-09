@@ -5,18 +5,7 @@ import type { LoginResponse, RolUsuario } from '@/lib/types';
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') ?? 'http://localhost:3001/api/v1';
 
-const APP_ROUTES = [
-  '/dashboard',
-  '/stock',
-  '/materia-prima',
-  '/ventas',
-  '/despachos',
-  '/reportes',
-  '/configuracion',
-];
-
-// Cookie de NextAuth dura 8 horas — tiempo de jornada laboral
-const SESSION_MAX_AGE = 8 * 60 * 60;
+const SESSION_MAX_AGE = 8 * 60 * 60; // 8 horas — igual que el backend
 
 function iniciales(nombre: string): string {
   const p = nombre.trim().split(/\s+/);
@@ -25,10 +14,12 @@ function iniciales(nombre: string): string {
   return (p[0][0] + p[p.length - 1][0]).toUpperCase();
 }
 
-// Decodifica el exp del JWT del backend sin librería externa (Edge-safe)
+// JWT usa base64url (RFC 4648 §5): - en lugar de + y _ en lugar de /
+// atob solo entiende base64 estándar → hay que convertir primero
 function getTokenExpiry(accessToken: string): number | undefined {
   try {
-    const payload = JSON.parse(atob(accessToken.split('.')[1]));
+    const b64     = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64)) as Record<string, unknown>;
     return typeof payload.exp === 'number' ? payload.exp * 1000 : undefined;
   } catch {
     return undefined;
@@ -73,27 +64,17 @@ export const authConfig: NextAuthConfig = {
   ],
 
   callbacks: {
-    // Middleware usa este callback: si el accessToken expiró, redirige a login
-    authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user && !auth.error;
-      const isAppRoute = APP_ROUTES.some(r => nextUrl.pathname.startsWith(r));
-      if (isAppRoute) return isLoggedIn;
-      return true;
-    },
-
     jwt({ token, user }) {
-      // Solo en el login (user está presente)
       if (user) {
-        token.id                = user.id;
-        token.nombre            = user.nombre;
-        token.rol               = user.rol;
-        token.iniciales         = user.iniciales;
-        token.accessToken       = user.accessToken;
+        token.id                 = user.id;
+        token.nombre             = user.nombre;
+        token.rol                = user.rol;
+        token.iniciales          = user.iniciales;
+        token.accessToken        = user.accessToken;
         token.accessTokenExpires = getTokenExpiry(user.accessToken);
         delete token.error;
       }
 
-      // En cada request: verificar si el accessToken del backend ya expiró
       if (
         typeof token.accessTokenExpires === 'number' &&
         Date.now() > token.accessTokenExpires
