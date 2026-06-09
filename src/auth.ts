@@ -64,35 +64,34 @@ export const authConfig: NextAuthConfig = {
   ],
 
   callbacks: {
+    // jwt: llamado en login (user presente) y en cada request (solo token).
+    // Nunca retornar null ni lanzar excepción — eso borra el cookie de sesión.
     jwt({ token, user }) {
       if (user) {
+        token.sub                = user.id; // sub es el identificador estándar de NextAuth
         token.id                 = user.id;
         token.nombre             = user.nombre;
         token.rol                = user.rol;
         token.iniciales          = user.iniciales;
         token.accessToken        = user.accessToken;
         token.accessTokenExpires = getTokenExpiry(user.accessToken);
-        delete token.error;
       }
-
-      if (
-        typeof token.accessTokenExpires === 'number' &&
-        Date.now() > token.accessTokenExpires
-      ) {
-        return { ...token, error: 'AccessTokenExpired' as const };
-      }
-
       return token;
     },
 
+    // session: construir objeto nuevo con spread para evitar mutar el original.
     session({ session, token }) {
-      session.user.id          = token.id          as string;
-      session.user.nombre      = token.nombre      as string;
-      session.user.rol         = token.rol         as RolUsuario;
-      session.user.iniciales   = token.iniciales   as string;
-      session.user.accessToken = token.accessToken as string;
-      if (token.error) session.error = token.error;
-      return session;
+      return {
+        ...session,
+        user: {
+          ...session.user,
+          id:          (token.id ?? token.sub) as string,
+          nombre:      token.nombre            as string,
+          rol:         token.rol               as RolUsuario,
+          iniciales:   token.iniciales         as string,
+          accessToken: token.accessToken       as string,
+        },
+      };
     },
   },
 };

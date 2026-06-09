@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
 import { setAccessToken } from '@/lib/auth-store';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
@@ -10,13 +10,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
 
   useEffect(() => {
-    // Sincroniza el token al interceptor de axios
+    // Sincroniza el access token al interceptor de axios
     setAccessToken(session?.user?.accessToken ?? null);
-
-    // Si el backend JWT expiró, cierra sesión automáticamente
-    if (session?.error === 'AccessTokenExpired') {
-      signOut({ callbackUrl: '/login' });
-    }
   }, [session]);
 
   return (
