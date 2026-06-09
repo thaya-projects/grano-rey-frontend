@@ -10,7 +10,6 @@ declare module 'next-auth' {
     accessToken: string;
   }
   interface Session {
-    error?: 'AccessTokenExpired';
     user: {
       id: string;
       nombre: string;
@@ -24,11 +23,11 @@ declare module 'next-auth' {
 
 declare module 'next-auth/jwt' {
   interface JWT {
+    id?: string;
     nombre: string;
     rol: RolUsuario;
     iniciales: string;
     accessToken: string;
     accessTokenExpires?: number;
-    error?: 'AccessTokenExpired';
   }
 }
