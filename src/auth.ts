@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import axios from 'axios';
+import { authConfig } from './auth.config';
 import type { LoginResponse } from '@/lib/types';
 
 const API_BASE =
@@ -14,6 +15,7 @@ function iniciales(nombre: string): string {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       authorize: async (credentials) => {
@@ -42,28 +44,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-
-  callbacks: {
-    jwt({ token, user }) {
-      if (user) {
-        token.id          = user.id;
-        token.nombre      = user.nombre;
-        token.rol         = user.rol;
-        token.iniciales   = user.iniciales;
-        token.accessToken = user.accessToken;
-      }
-      return token;
-    },
-    session({ session, token }) {
-      session.user.id          = token.id as string;
-      session.user.nombre      = token.nombre;
-      session.user.rol         = token.rol;
-      session.user.iniciales   = token.iniciales;
-      session.user.accessToken = token.accessToken;
-      return session;
-    },
-  },
-
-  pages:   { signIn: '/login' },
-  session: { strategy: 'jwt' },
 });
