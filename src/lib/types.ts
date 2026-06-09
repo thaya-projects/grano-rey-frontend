@@ -275,6 +275,17 @@ export interface ActualizarConfiguracionRequest {
   registroSanitario?: string;
 }
 
+export interface ActualizarEmpresaRequest {
+  nombre?: string;
+  rubro?: string;
+  nit?: string;
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  ciudad?: string;
+  logoUrl?: string;
+}
+
 export interface CreateClienteRequest {
   nombre: string;
   telefono?: string;
