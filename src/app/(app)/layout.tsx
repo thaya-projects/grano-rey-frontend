@@ -1,27 +1,18 @@
 'use client';
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth-store';
+import { useSession } from 'next-auth/react';
+import { setAccessToken } from '@/lib/auth-store';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { MobileNav } from '@/components/layout/MobileNav';
-import { Spinner } from '@/components/ui';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  const router = useRouter();
+  const { data: session } = useSession();
 
+  // Sync the NextAuth token into the axios interceptor (in-memory only)
   useEffect(() => {
-    if (user === null) router.replace('/login');
-  }, [user, router]);
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--color-gr-primary-dark)]">
-        <Spinner size={36} color="var(--color-gr-gold)" />
-      </div>
-    );
-  }
+    setAccessToken(session?.user?.accessToken ?? null);
+  }, [session?.user?.accessToken]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -31,12 +22,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-[var(--color-gr-bg)]">
+      <div className="flex-1 flex flex-col overflow-hidden bg-gr-bg">
         <div className="hidden md:block">
           <Header />
         </div>
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[1200px] mx-auto p-6 pb-24 md:pb-8">
+          <div className="max-w-300 mx-auto p-6 pb-24 md:pb-8">
             {children}
           </div>
         </main>

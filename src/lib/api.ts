@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import { useAuth } from './auth-store';
+import { getAccessToken, setAccessToken } from './auth-store';
 
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, '') ?? 'http://localhost:3001/api/v1';
@@ -10,18 +10,18 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = useAuth.getState().accessToken;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  const token = getAccessToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
 api.interceptors.response.use(
   (res) => res,
-  (error: AxiosError<{ message?: string | string[] }>) => {
+  async (error: AxiosError<{ message?: string | string[] }>) => {
     if (error.response?.status === 401) {
-      useAuth.getState().logout();
+      setAccessToken(null);
+      const { signOut } = await import('next-auth/react');
+      signOut({ callbackUrl: '/login' });
     }
     return Promise.reject(error);
   },
