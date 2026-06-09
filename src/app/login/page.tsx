@@ -1,7 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { signIn, useSession } from 'next-auth/react';
 import { apiErrorMessage } from '@/lib/api';
 import { Mail, Lock, AlertCircle } from 'lucide-react';
 import { Spinner } from '@/components/ui';
@@ -9,10 +9,16 @@ import Image from 'next/image';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { status } = useSession();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+
+  // Si ya tiene sesión válida, ir directo al dashboard
+  useEffect(() => {
+    if (status === 'authenticated') router.replace('/dashboard');
+  }, [status, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
