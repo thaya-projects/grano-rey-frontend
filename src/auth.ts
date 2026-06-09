@@ -64,6 +64,14 @@ export const authConfig: NextAuthConfig = {
   ],
 
   callbacks: {
+    // authorized: se ejecuta en el proxy (edge) para proteger rutas.
+    authorized({ auth, request: { nextUrl } }) {
+      const APP_ROUTES = ['/dashboard','/stock','/materia-prima','/ventas','/despachos','/reportes','/configuracion'];
+      const isAppRoute = APP_ROUTES.some(r => nextUrl.pathname.startsWith(r));
+      if (isAppRoute && !auth) return false; // sin sesión → NextAuth redirige a pages.signIn
+      return true;
+    },
+
     // jwt: llamado en login (user presente) y en cada request (solo token).
     // Nunca retornar null ni lanzar excepción — eso borra el cookie de sesión.
     jwt({ token, user }) {
