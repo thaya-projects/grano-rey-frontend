@@ -19,12 +19,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="hidden md:flex">
         <Sidebar />
       </div>
-      <div className="flex-1 flex flex-col overflow-hidden bg-[var(--color-gr-bg)]">
+      <div className="flex-1 flex flex-col overflow-hidden bg-gr-bg">
         <div className="hidden md:block">
           <Header />
         </div>
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[1200px] mx-auto p-6 pb-24 md:pb-8">
+          <div className="max-w-300 mx-auto p-6 pb-24 md:pb-8">
             {children}
           </div>
         </main>
