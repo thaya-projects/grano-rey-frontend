@@ -19,9 +19,14 @@ api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError<{ message?: string | string[] }>) => {
     if (error.response?.status === 401) {
+      const hadToken = getAccessToken() !== null;
       setAccessToken(null);
-      const { signOut } = await import('next-auth/react');
-      signOut({ callbackUrl: '/login' });
+      // Solo cerrar sesión si teníamos un token válido que fue rechazado.
+      // Si hadToken es false, la sesión aún está cargando — no destruir el cookie.
+      if (hadToken) {
+        const { signOut } = await import('next-auth/react');
+        signOut({ callbackUrl: '/login' });
+      }
     }
     return Promise.reject(error);
   },

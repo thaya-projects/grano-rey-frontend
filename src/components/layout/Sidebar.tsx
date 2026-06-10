@@ -25,11 +25,11 @@ export function Sidebar() {
   const allowed = NAV.filter(n => user && n.roles.includes(user.rol));
 
   return (
-    <aside className="w-[240px] shrink-0 bg-[var(--color-gr-primary-dark)] flex flex-col h-screen sticky top-0 overflow-hidden">
+    <aside className="w-60 shrink-0 bg-gr-primary-dark flex flex-col h-screen sticky top-0 overflow-hidden">
       {/* Logo */}
       <div className="flex items-center justify-center px-5 py-4 border-b border-white/10">
         <div className="bg-white rounded-[12px] px-3 py-2">
-          <div className="relative w-[130px] h-[60px]">
+          <div className="relative w-32.5 h-15">
             <Image
               src="/logo-grano-rey.webp"
               alt="Grano Rey"
@@ -47,11 +47,11 @@ export function Sidebar() {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
           return (
             <Link key={href} href={href}
-              className={cn('flex items-center gap-3 px-3 py-2.5 rounded-[10px] text-[14px] font-600 transition-all duration-150 group',
+              className={cn('flex items-center gap-3 px-3 py-2.5 rounded-md text-[14px] font-600 transition-all duration-150 group',
                 active
                   ? 'bg-white/15 text-white'
                   : 'text-white/65 hover:bg-white/8 hover:text-white/90')}>
-              <Icon size={18} className={cn('shrink-0', active ? 'text-[var(--color-gr-gold)]' : 'text-white/50 group-hover:text-white/70')} />
+              <Icon size={18} className={cn('shrink-0', active ? 'text-gr-gold' : 'text-white/50 group-hover:text-white/70')} />
               <span className="flex-1">{label}</span>
               {active && <ChevronRight size={14} className="text-white/40" />}
             </Link>
@@ -63,7 +63,7 @@ export function Sidebar() {
       {user && (
         <div className="border-t border-white/10 p-4">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-full bg-[var(--color-gr-gold)] flex items-center justify-center text-[12px] font-800 text-[#1a0e00] shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gr-gold flex items-center justify-center text-[12px] font-800 text-[#1a0e00] shrink-0">
               {user.iniciales}
             </div>
             <div className="min-w-0">
