@@ -17,7 +17,7 @@ import { useEmpresa, useActualizarConfiguracion, useActualizarEmpresa } from '@/
 import { apiErrorMessage } from '@/lib/api';
 import { formatBs } from '@/lib/utils';
 import type { Producto } from '@/lib/types';
-import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
+import { Btn, Modal, FormField, Input, PhoneInput, normalizePhone, Select, Spinner, useToast } from '@/components/ui';
 import { Package, Users, Truck, Wheat, Plus, Pencil, Building2, ShieldCheck, Tag } from 'lucide-react';
 
 type Tab = 'empresa' | 'productos' | 'mp' | 'clientes' | 'transportistas' | 'proveedores';
@@ -43,13 +43,15 @@ export default function ConfiguracionPage() {
         </p>
       </div>
 
-      <div className="flex gap-0 border-b-2 border-[var(--color-gr-border)] overflow-x-auto">
+      {/* Mobile: grid 3×2 sin scroll · Desktop: flex con underline */}
+      <div className="grid grid-cols-3 gap-1 md:flex md:gap-0 md:border-b-2 md:border-[var(--color-gr-border)]">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-5 py-3 font-700 text-[13.5px] border-b-2 -mb-[2px] whitespace-nowrap transition-colors
+            className={`flex flex-col items-center gap-1 px-2 py-2.5 rounded-[10px] font-700 text-[11px] leading-tight text-center transition-colors
+              md:flex-row md:gap-2 md:px-5 md:py-3 md:rounded-none md:text-[13.5px] md:leading-normal md:border-b-2 md:-mb-[2px] md:whitespace-nowrap
               ${tab === t.id
-                ? 'border-[var(--color-gr-primary)] text-[var(--color-gr-primary)]'
-                : 'border-transparent text-[var(--color-gr-muted)] hover:text-[var(--color-gr-text)]'}`}>
+                ? 'bg-[var(--color-gr-primary-lite)] text-[var(--color-gr-primary)] md:bg-transparent md:border-[var(--color-gr-primary)]'
+                : 'text-[var(--color-gr-muted)] hover:text-[var(--color-gr-text)] md:border-transparent'}`}>
             {t.icon} {t.label}
           </button>
         ))}
@@ -93,7 +95,7 @@ function TabEmpresa() {
     setNombre(empresa.nombre ?? '');
     setNit(empresa.nit ?? '');
     setRubro(empresa.rubro ?? '');
-    setTelefono(empresa.telefono ?? '');
+    setTelefono(normalizePhone(empresa.telefono ?? ''));
     setEmail(empresa.email ?? '');
     setDireccion(empresa.direccion ?? '');
     setCiudad(empresa.ciudad ?? '');
@@ -110,7 +112,7 @@ function TabEmpresa() {
     nombre    !== (empresa?.nombre    ?? '') ||
     nit       !== (empresa?.nit       ?? '') ||
     rubro     !== (empresa?.rubro     ?? '') ||
-    telefono  !== (empresa?.telefono  ?? '') ||
+    telefono  !== normalizePhone(empresa?.telefono  ?? '') ||
     email     !== (empresa?.email     ?? '') ||
     direccion !== (empresa?.direccion ?? '') ||
     ciudad    !== (empresa?.ciudad    ?? '') ||
@@ -172,7 +174,7 @@ function TabEmpresa() {
 
         <div className="grid grid-cols-2 gap-3">
           <FormField label="Teléfono">
-            <Input value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="76012345" />
+            <PhoneInput value={telefono} onChange={setTelefono} />
           </FormField>
           <FormField label="Email">
             <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="contacto@empresa.bo" />
@@ -322,6 +324,7 @@ function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: 
   const [stockMinimo, setStockMin] = useState(String(producto?.stockMinimo ?? '0'));
   const [vidaUtil, setVidaUtil] = useState(String(producto?.vidaUtilMeses ?? '12'));
   const [unidadId, setUnidadId] = useState(producto?.unidadVenta?.id ?? '');
+  const [activo, setActivo]     = useState(producto?.activo ?? true);
 
   const pesoNum   = parseFloat(pesoKg) || 0;
   const precioNum = parseFloat(precio) || 0;
@@ -342,6 +345,7 @@ function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: 
           stockMinimo: stockMin || undefined,
           unidadVentaId: unidadId,
           vidaUtilMeses: vidaNum,
+          activo,
         });
       } else if (producto) {
         await update.mutateAsync({
@@ -352,6 +356,7 @@ function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: 
             precioUnitarioBs: precioNum,
             stockMinimo: stockMin || undefined,
             vidaUtilMeses: vidaNum,
+            activo,
           },
         });
       }
@@ -364,10 +369,10 @@ function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: 
   return (
     <Modal open title={mode === 'create' ? 'Nuevo producto' : `Editar — ${producto?.nombre}`} onClose={onClose}>
       <div className="grid grid-cols-2 gap-3">
-        <FormField label="Código" required>
+        <FormField label="Código" required hint="Obligatorio">
           <Input value={codigo} onChange={e => setCodigo(e.target.value)} disabled={mode === 'edit'} placeholder="HMAP-06" />
         </FormField>
-        <FormField label="Unidad de venta" required>
+        <FormField label="Unidad de venta" required hint="Obligatorio">
           <Select value={unidadId} onChange={e => setUnidadId(e.target.value)} disabled={mode === 'edit'}>
             <option value="">— Seleccionar —</option>
             {unidades.map(u => <option key={u.id} value={u.id}>{u.codigo} · {u.nombre}</option>)}
@@ -375,29 +380,41 @@ function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: 
         </FormField>
       </div>
 
-      <FormField label="Nombre" required>
+      <FormField label="Nombre" required hint="Obligatorio">
         <Input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Harina de Maíz Amarillo" />
       </FormField>
 
-      <FormField label="Descripción">
+      <FormField label="Descripción" hint="Opcional">
         <Input value={descripcion ?? ''} onChange={e => setDesc(e.target.value)} />
       </FormField>
 
-      <div className="grid grid-cols-3 gap-3">
-        <FormField label="Kg por unidad" required>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Kg por unidad" required hint="Obligatorio">
           <Input type="number" min="0.001" step="0.01" value={pesoKg} onChange={e => setPesoKg(e.target.value)} />
         </FormField>
-        <FormField label="Precio (Bs)" required>
+        <FormField label="Precio (Bs)" required hint="Obligatorio">
           <Input type="number" min="0" step="0.5" value={precio} onChange={e => setPrecio(e.target.value)} />
-        </FormField>
-        <FormField label="Stock mínimo">
-          <Input type="number" min="0" step="1" value={stockMinimo} onChange={e => setStockMin(e.target.value)} />
         </FormField>
       </div>
 
-      <FormField label="Vida útil (meses)" required>
-        <Input type="number" min="1" step="1" value={vidaUtil} onChange={e => setVidaUtil(e.target.value)} />
-      </FormField>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Stock mínimo" hint="Opcional">
+          <Input type="number" min="0" step="1" value={stockMinimo} onChange={e => setStockMin(e.target.value)} />
+        </FormField>
+        <FormField label="Vida útil (meses)" hint="Opcional">
+          <Input type="number" min="1" step="1" value={vidaUtil} onChange={e => setVidaUtil(e.target.value)} />
+        </FormField>
+      </div>
+
+      <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActivo(v => !v)}>
+        <div className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${activo ? 'bg-gr-primary' : 'bg-gr-border'}`}>
+          <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
+        </div>
+        <span className="text-[13.5px] font-semibold text-[var(--color-gr-text)]">
+          Activo
+          <span className="ml-1 text-[12px] font-normal text-[var(--color-gr-muted)]">(Opcional · por defecto activo)</span>
+        </span>
+      </div>
 
       <div className="flex gap-3 justify-end">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
@@ -585,15 +602,20 @@ function TabClientes() {
   const [direccion, setDir] = useState('');
   const [ciudad, setCiudad] = useState('');
   const [nit, setNit] = useState('');
+  const [activo, setActivo] = useState(true);
 
   async function handleSave() {
     if (!nombre) return;
     try {
       await create.mutateAsync({
-        nombre, telefono: telefono || undefined, direccion: direccion || undefined,
-        ciudad: ciudad || undefined, nit: nit || undefined,
+        nombre,
+        telefono: telefono || undefined,
+        direccion: direccion || undefined,
+        ciudad: ciudad || undefined,
+        nit: nit || undefined,
+        activo,
       });
-      setOpen(false); setNombre(''); setTel(''); setDir(''); setCiudad(''); setNit('');
+      setOpen(false); setNombre(''); setTel(''); setDir(''); setCiudad(''); setNit(''); setActivo(true);
       toast('Cliente creado', 'success');
     } catch (err) { toast(apiErrorMessage(err, 'No se pudo crear'), 'error'); }
   }
@@ -630,13 +652,22 @@ function TabClientes() {
       </div>
       {open && (
         <Modal open title="Nuevo cliente" onClose={() => setOpen(false)}>
-          <FormField label="Nombre" required><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
+          <FormField label="Nombre" required hint="Obligatorio"><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Teléfono"><Input value={telefono} onChange={e => setTel(e.target.value)} /></FormField>
-            <FormField label="Ciudad"><Input value={ciudad} onChange={e => setCiudad(e.target.value)} /></FormField>
+            <FormField label="Teléfono" hint="Opcional"><PhoneInput value={telefono} onChange={setTel} /></FormField>
+            <FormField label="Ciudad" hint="Opcional"><Input value={ciudad} onChange={e => setCiudad(e.target.value)} /></FormField>
           </div>
-          <FormField label="Dirección"><Input value={direccion} onChange={e => setDir(e.target.value)} /></FormField>
-          <FormField label="NIT"><Input value={nit} onChange={e => setNit(e.target.value)} /></FormField>
+          <FormField label="Dirección" hint="Opcional"><Input value={direccion} onChange={e => setDir(e.target.value)} /></FormField>
+          <FormField label="NIT" hint="Opcional"><Input value={nit} onChange={e => setNit(e.target.value)} /></FormField>
+          <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActivo(v => !v)}>
+            <div className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${activo ? 'bg-gr-primary' : 'bg-gr-border'}`}>
+              <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
+            </div>
+            <span className="text-[13.5px] font-semibold text-gr-text">
+              Activo
+              <span className="ml-1 text-[12px] font-normal text-gr-muted">(Opcional · por defecto activo)</span>
+            </span>
+          </div>
           <div className="flex gap-3 justify-end">
             <Btn variant="ghost" onClick={() => setOpen(false)}>Cancelar</Btn>
             <Btn onClick={handleSave} disabled={!nombre} loading={create.isPending}>Crear</Btn>
@@ -659,16 +690,26 @@ function TabTransportistas() {
   const [empresa, setEmpresa] = useState('');
   const [placa, setPlaca] = useState('');
   const [marca, setMarca] = useState('');
+  const [color, setColor] = useState('');
+  const [destinoHabitual, setDestino] = useState('');
+  const [activo, setActivo] = useState(true);
   const [ci, setCi] = useState('');
 
   async function handleSave() {
     if (!nombre) return;
     try {
       await create.mutateAsync({
-        nombre, telefono: telefono || undefined, empresa: empresa || undefined,
-        placa: placa || undefined, marca: marca || undefined, ci: ci || undefined,
+        nombre,
+        ci: ci || undefined,
+        empresa: empresa || undefined,
+        telefono: telefono || undefined,
+        placa: placa || undefined,
+        marca: marca || undefined,
+        color: color || undefined,
+        destinoHabitual: destinoHabitual || undefined,
+        activo,
       });
-      setOpen(false); setNombre(''); setTel(''); setEmpresa(''); setPlaca(''); setMarca(''); setCi('');
+      setOpen(false); setNombre(''); setTel(''); setEmpresa(''); setPlaca(''); setMarca(''); setColor(''); setDestino(''); setActivo(true); setCi('');
       toast('Transportista creado', 'success');
     } catch (err) { toast(apiErrorMessage(err, 'No se pudo crear'), 'error'); }
   }
@@ -706,15 +747,26 @@ function TabTransportistas() {
       </div>
       {open && (
         <Modal open title="Nuevo transportista" onClose={() => setOpen(false)}>
-          <FormField label="Nombre" required><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
+          <FormField label="Nombre" required hint="Obligatorio"><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="CI"><Input value={ci} onChange={e => setCi(e.target.value)} /></FormField>
-            <FormField label="Teléfono"><Input value={telefono} onChange={e => setTel(e.target.value)} /></FormField>
+            <FormField label="CI" hint="Opcional"><Input value={ci} onChange={e => setCi(e.target.value)} /></FormField>
+            <FormField label="Teléfono" hint="Opcional"><PhoneInput value={telefono} onChange={setTel} /></FormField>
           </div>
-          <FormField label="Empresa"><Input value={empresa} onChange={e => setEmpresa(e.target.value)} /></FormField>
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Placa"><Input value={placa} onChange={e => setPlaca(e.target.value)} /></FormField>
-            <FormField label="Marca"><Input value={marca} onChange={e => setMarca(e.target.value)} /></FormField>
+          <FormField label="Empresa" hint="Opcional"><Input value={empresa} onChange={e => setEmpresa(e.target.value)} /></FormField>
+          <div className="grid grid-cols-3 gap-3">
+            <FormField label="Placa" hint="Opcional"><Input value={placa} onChange={e => setPlaca(e.target.value)} /></FormField>
+            <FormField label="Marca" hint="Opcional"><Input value={marca} onChange={e => setMarca(e.target.value)} /></FormField>
+            <FormField label="Color" hint="Opcional"><Input value={color} onChange={e => setColor(e.target.value)} placeholder="Blanco" /></FormField>
+          </div>
+          <FormField label="Destino habitual" hint="Opcional"><Input value={destinoHabitual} onChange={e => setDestino(e.target.value)} placeholder="Ej. Santa Cruz - Cochabamba" /></FormField>
+          <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActivo(v => !v)}>
+            <div className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${activo ? 'bg-gr-primary' : 'bg-gr-border'}`}>
+              <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
+            </div>
+            <span className="text-[13.5px] font-semibold text-gr-text">
+              Activo
+              <span className="ml-1 text-[12px] font-normal text-gr-muted">(Opcional · por defecto activo)</span>
+            </span>
           </div>
           <div className="flex gap-3 justify-end">
             <Btn variant="ghost" onClick={() => setOpen(false)}>Cancelar</Btn>
@@ -738,15 +790,20 @@ function TabProveedores() {
   const [ciudad, setCiudad] = useState('');
   const [contacto, setContacto] = useState('');
   const [nit, setNit] = useState('');
+  const [activo, setActivo] = useState(true);
 
   async function handleSave() {
     if (!nombre) return;
     try {
       await create.mutateAsync({
-        nombre, telefono: telefono || undefined, ciudad: ciudad || undefined,
-        contacto: contacto || undefined, nit: nit || undefined,
+        nombre,
+        contacto: contacto || undefined,
+        telefono: telefono || undefined,
+        ciudad: ciudad || undefined,
+        nit: nit || undefined,
+        activo,
       });
-      setOpen(false); setNombre(''); setTel(''); setCiudad(''); setContacto(''); setNit('');
+      setOpen(false); setNombre(''); setTel(''); setCiudad(''); setContacto(''); setNit(''); setActivo(true);
       toast('Proveedor creado', 'success');
     } catch (err) { toast(apiErrorMessage(err, 'No se pudo crear'), 'error'); }
   }
@@ -784,13 +841,22 @@ function TabProveedores() {
       </div>
       {open && (
         <Modal open title="Nuevo proveedor" onClose={() => setOpen(false)}>
-          <FormField label="Nombre" required><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
-          <FormField label="Contacto"><Input value={contacto} onChange={e => setContacto(e.target.value)} /></FormField>
+          <FormField label="Nombre" required hint="Obligatorio"><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
+          <FormField label="Contacto" hint="Opcional"><Input value={contacto} onChange={e => setContacto(e.target.value)} /></FormField>
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Ciudad"><Input value={ciudad} onChange={e => setCiudad(e.target.value)} /></FormField>
-            <FormField label="Teléfono"><Input value={telefono} onChange={e => setTel(e.target.value)} /></FormField>
+            <FormField label="Ciudad" hint="Opcional"><Input value={ciudad} onChange={e => setCiudad(e.target.value)} /></FormField>
+            <FormField label="Teléfono" hint="Opcional"><PhoneInput value={telefono} onChange={setTel} /></FormField>
           </div>
-          <FormField label="NIT"><Input value={nit} onChange={e => setNit(e.target.value)} /></FormField>
+          <FormField label="NIT" hint="Opcional"><Input value={nit} onChange={e => setNit(e.target.value)} /></FormField>
+          <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActivo(v => !v)}>
+            <div className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${activo ? 'bg-gr-primary' : 'bg-gr-border'}`}>
+              <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
+            </div>
+            <span className="text-[13.5px] font-semibold text-gr-text">
+              Activo
+              <span className="ml-1 text-[12px] font-normal text-gr-muted">(Opcional · por defecto activo)</span>
+            </span>
+          </div>
           <div className="flex gap-3 justify-end">
             <Btn variant="ghost" onClick={() => setOpen(false)}>Cancelar</Btn>
             <Btn onClick={handleSave} disabled={!nombre} loading={create.isPending}>Crear</Btn>

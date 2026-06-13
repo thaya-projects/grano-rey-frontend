@@ -41,6 +41,65 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className
 ));
 Input.displayName = 'Input';
 
+// ─── Phone input ──────────────────────────────────────────────────────────────
+const PAISES_TEL = [
+  { code: '+591', label: 'BO +591' },
+  { code: '+54',  label: 'AR +54'  },
+  { code: '+55',  label: 'BR +55'  },
+  { code: '+56',  label: 'CL +56'  },
+  { code: '+57',  label: 'CO +57'  },
+  { code: '+593', label: 'EC +593' },
+  { code: '+595', label: 'PY +595' },
+  { code: '+51',  label: 'PE +51'  },
+  { code: '+598', label: 'UY +598' },
+  { code: '+34',  label: 'ES +34'  },
+  { code: '+1',   label: 'US +1'   },
+];
+
+export function normalizePhone(raw: string): string {
+  if (!raw) return '';
+  if (PAISES_TEL.some(p => raw.startsWith(p.code + ' '))) return raw;
+  return '+591 ' + raw;
+}
+
+function parsePhone(v: string) {
+  const p = PAISES_TEL.find(p => v.startsWith(p.code + ' '));
+  if (p) return { code: p.code, number: v.slice(p.code.length + 1) };
+  return { code: '+591', number: v };
+}
+
+interface PhoneInputProps { value?: string; onChange?: (v: string) => void; disabled?: boolean; }
+export function PhoneInput({ value = '', onChange, disabled }: PhoneInputProps) {
+  const { code, number } = parsePhone(value);
+  function emit(newCode: string, newNumber: string) {
+    onChange?.(newNumber ? `${newCode} ${newNumber}` : '');
+  }
+  return (
+    <div className={cn(
+      'flex h-10 rounded-[10px] border bg-white overflow-hidden transition-all duration-150',
+      'focus-within:border-[var(--color-gr-primary)] focus-within:ring-2 focus-within:ring-[var(--color-gr-primary)]/15',
+      'border-[var(--color-gr-border)]',
+    )}>
+      <select
+        value={code}
+        onChange={e => emit(e.target.value, number)}
+        disabled={disabled}
+        className="h-full bg-[var(--color-gr-border-lite)] border-r border-[var(--color-gr-border)] px-2 text-[13px] font-semibold text-[var(--color-gr-sub)] outline-none cursor-pointer shrink-0 disabled:opacity-50">
+        {PAISES_TEL.map(p => (
+          <option key={p.code} value={p.code}>{p.label}</option>
+        ))}
+      </select>
+      <input
+        type="tel"
+        value={number}
+        onChange={e => emit(code, e.target.value)}
+        disabled={disabled}
+        placeholder="76012345"
+        className="flex-1 min-w-0 px-3 text-[14px] text-[var(--color-gr-text)] placeholder:text-[var(--color-gr-muted)] outline-none bg-transparent disabled:opacity-50" />
+    </div>
+  );
+}
+
 // ─── Select ───────────────────────────────────────────────────────────────────
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> { error?: boolean; }
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(({ className, error, children, ...rest }, ref) => (
@@ -61,10 +120,14 @@ export function Label({ children, required, className }: { children: React.React
     </label>
   );
 }
-export function FormField({ label, required, error, children, className }: { label?: string; required?: boolean; error?: string; children: React.ReactNode; className?: string }) {
+export function FormField({ label, required, error, children, className, hint }: { label?: string; required?: boolean; error?: string; children: React.ReactNode; className?: string; hint?: string }) {
   return (
     <div className={cn('flex flex-col gap-0', className)}>
-      {label && <Label required={required}>{label}</Label>}
+      {label && (
+        <Label required={required}>
+          {label}{hint && <span className="font-normal text-[var(--color-gr-muted)] ml-1">({hint})</span>}
+        </Label>
+      )}
       {children}
       {error && <p className="text-[12px] text-[var(--color-gr-danger)] mt-1">{error}</p>}
     </div>
