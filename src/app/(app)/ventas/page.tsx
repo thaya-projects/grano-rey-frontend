@@ -1,25 +1,49 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { useVentas, useCambiarEstadoVenta } from '@/lib/api/ventas';
+import { useVentas, useCambiarEstadoVenta, useCobrarVenta } from '@/lib/api/ventas';
 import type { NotaVenta } from '@/lib/types';
-import { EstadoVenta } from '@/lib/types';
+import { EstadoVenta, EstadoPagoVenta, MetodoPago } from '@/lib/types';
 import { formatBs } from '@/lib/utils';
-import { EstadoBadge, Btn, Modal, SearchBox, Spinner, useToast } from '@/components/ui';
-import { Plus, ShoppingCart, Printer, Eye } from 'lucide-react';
+import { EstadoBadge, Btn, Modal, SearchBox, Spinner, FormField, Select, Input, useToast } from '@/components/ui';
+import { Plus, ShoppingCart, Printer, Eye, CheckCircle, Banknote } from 'lucide-react';
 import { apiErrorMessage } from '@/lib/api';
 import Image from 'next/image';
 
 const FILTROS = ['Hoy', 'Esta semana', 'Este mes', 'Todos'] as const;
+
+const METODO_LABEL: Record<string, string> = {
+  efectivo:      'Efectivo',
+  qr:            'QR',
+  transferencia: 'Transferencia',
+};
+
+function PagoBadge({ estado, metodo }: { estado: EstadoPagoVenta; metodo?: string | null }) {
+  if (estado === EstadoPagoVenta.COBRADO) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-700 px-2 py-0.5 rounded-full"
+        style={{ background: 'var(--color-gr-success)18', color: 'var(--color-gr-success)' }}>
+        <CheckCircle size={10} /> {metodo ? METODO_LABEL[metodo] ?? metodo : 'Cobrado'}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-700 px-2 py-0.5 rounded-full"
+      style={{ background: '#ff980018', color: '#e67e00' }}>
+      <Banknote size={10} /> Por cobrar
+    </span>
+  );
+}
 
 export default function VentasPage() {
   const toast              = useToast(s => s.show);
   const ventasQ            = useVentas();
   const cambiarEstadoMut   = useCambiarEstadoVenta();
   const ventas             = ventasQ.data ?? [];
-  const [filtro, setFiltro]           = useState<typeof FILTROS[number]>('Todos');
-  const [search, setSearch]           = useState('');
+  const [filtro, setFiltro]             = useState<typeof FILTROS[number]>('Todos');
+  const [search, setSearch]             = useState('');
   const [detalleVenta, setDetalleVenta] = useState<NotaVenta | null>(null);
+  const [cobrarVenta, setCobrarVenta]   = useState<NotaVenta | null>(null);
 
   const ahora    = new Date();
   const hoy      = ahora.toISOString().slice(0, 10);
@@ -40,7 +64,11 @@ export default function VentasPage() {
     return matchFiltro && matchSearch;
   });
 
-  const totalMostrado = filtradas.reduce((s, v) => s + Number(v.totalBs), 0);
+  const totalMostrado   = filtradas.reduce((s, v) => s + Number(v.totalBs), 0);
+  const porCobrarCount  = ventas.filter(v => v.estadoPago === EstadoPagoVenta.PENDIENTE).length;
+  const porCobrarTotal  = ventas
+    .filter(v => v.estadoPago === EstadoPagoVenta.PENDIENTE)
+    .reduce((s, v) => s + Number(v.totalBs), 0);
 
   async function cambiarEstado(id: string) {
     const venta = ventas.find(v => v.id === id);
@@ -81,8 +109,8 @@ export default function VentasPage() {
         </Link>
       </div>
 
-      {/* Stats quick */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Pendientes',  value: ventas.filter(v => v.estado === EstadoVenta.PENDIENTE).length,  color: 'text-[var(--color-gr-warning)]' },
           { label: 'Despachadas', value: ventas.filter(v => v.estado === EstadoVenta.DESPACHADA).length, color: 'text-[var(--color-gr-info)]'    },
@@ -93,6 +121,14 @@ export default function VentasPage() {
             <p className="text-[12px] text-[var(--color-gr-muted)] font-500">{s.label}</p>
           </div>
         ))}
+        {/* Por cobrar — destacado */}
+        <div className="card text-center border-l-4" style={{ borderLeftColor: '#e67e00' }}>
+          <p className="text-[28px] font-900" style={{ color: '#e67e00' }}>{porCobrarCount}</p>
+          <p className="text-[12px] text-[var(--color-gr-muted)] font-500">Por cobrar</p>
+          {porCobrarCount > 0 && (
+            <p className="text-[11px] font-700 mt-0.5" style={{ color: '#e67e00' }}>{formatBs(porCobrarTotal)}</p>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -117,52 +153,135 @@ export default function VentasPage() {
       </div>
 
       {/* Table */}
-      <div className="card-no-pad">
-        <div className="hidden md:grid grid-cols-[auto_1fr_1fr_auto_auto_auto] gap-4 px-5 py-3 bg-[var(--color-gr-border-lite)] border-b border-[var(--color-gr-border)] text-[11.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">
-          <span>Nota</span><span>Cliente</span><span>Producto(s)</span><span>Total</span><span>Estado</span><span></span>
-        </div>
-
-        {filtradas.length === 0 ? (
-          <div className="py-16 text-center text-[var(--color-gr-muted)] text-[14px]">Sin resultados para este filtro</div>
-        ) : (
-          filtradas.map((v, i) => (
-            <div key={v.id}
-              className={`flex flex-col md:grid md:grid-cols-[auto_1fr_1fr_auto_auto_auto] gap-3 md:gap-4 px-5 py-4 items-start md:items-center cursor-pointer hover:bg-[var(--color-gr-border-lite)] transition-colors ${i < filtradas.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}
-              onClick={() => setDetalleVenta(v)}>
-              <span className="font-800 text-[var(--color-gr-text)] text-[13px]">NV-{v.numeroNota}</span>
-              <div>
-                <p className="font-600 text-[var(--color-gr-text)] text-[13.5px]">{v.cliente?.nombre ?? '—'}</p>
-                <p className="text-[12px] text-[var(--color-gr-muted)]">{v.fecha}</p>
-              </div>
-              <div>
-                <p className="text-[13px] text-[var(--color-gr-sub)]">
+      <div className="rounded-[16px] border border-[var(--color-gr-border)] overflow-x-auto bg-white">
+        <table className="w-full text-[13px]" style={{ minWidth: 680 }}>
+          <thead>
+            <tr style={{ background: 'var(--color-gr-primary)' }}>
+              {['Nota', 'Cliente', 'Producto(s)', 'Total', 'Estado', 'Cobro', ''].map(h => (
+                <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtradas.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="py-16 text-center text-[var(--color-gr-muted)]">Sin resultados para este filtro</td>
+              </tr>
+            ) : filtradas.map((v, i) => (
+              <tr key={v.id}
+                className="cursor-pointer hover:bg-[var(--color-gr-primary-lite)] transition-colors border-b border-[var(--color-gr-border-lite)]"
+                style={{ background: i % 2 === 1 ? 'var(--color-gr-border-lite)' : '#fff' }}
+                onClick={() => setDetalleVenta(v)}>
+                <td className="px-4 py-3 font-800 whitespace-nowrap">NV-{v.numeroNota}</td>
+                <td className="px-4 py-3">
+                  <p className="font-600 text-[var(--color-gr-text)] whitespace-nowrap">{v.cliente?.nombre ?? '—'}</p>
+                  <p className="text-[11.5px] text-[var(--color-gr-muted)]">{v.fecha}</p>
+                </td>
+                <td className="px-4 py-3 text-[var(--color-gr-sub)] whitespace-nowrap">
                   {v.detalles[0]?.producto?.nombre ?? '—'}
                   {v.detalles.length > 1 && <span className="text-[var(--color-gr-muted)]"> +{v.detalles.length - 1}</span>}
-                </p>
-              </div>
-              <span className="font-800 text-[var(--color-gr-primary)] text-[14px]">{formatBs(Number(v.totalBs))}</span>
-              <EstadoBadge estado={v.estado} />
-              <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
-                <Btn size="sm" variant="ghost" className="px-2.5" onClick={() => setDetalleVenta(v)}>
-                  <Eye size={13} />
-                </Btn>
-                <Btn size="sm" variant="secondary" className="px-2.5" onClick={() => cambiarEstado(v.id)}>
-                  <ShoppingCart size={13} />
-                </Btn>
-              </div>
-            </div>
-          ))
-        )}
+                </td>
+                <td className="px-4 py-3 font-800 text-[var(--color-gr-primary)] whitespace-nowrap text-right">
+                  {formatBs(Number(v.totalBs))}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap"><EstadoBadge estado={v.estado} /></td>
+                <td className="px-4 py-3 whitespace-nowrap"><PagoBadge estado={v.estadoPago} metodo={v.metodoPago} /></td>
+                <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                  <div className="flex gap-1.5 justify-end">
+                    <Btn size="sm" variant="ghost" className="px-2.5" onClick={() => setDetalleVenta(v)}>
+                      <Eye size={13} />
+                    </Btn>
+                    <Btn size="sm" variant="secondary" className="px-2.5" onClick={() => cambiarEstado(v.id)}>
+                      <ShoppingCart size={13} />
+                    </Btn>
+                    {v.estadoPago === EstadoPagoVenta.PENDIENTE && (
+                      <Btn size="sm" variant="ghost" className="px-2.5" title="Registrar cobro"
+                        onClick={() => setCobrarVenta(v)}>
+                        <Banknote size={13} className="text-[#e67e00]" />
+                      </Btn>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {detalleVenta && (
-        <DetalleModal venta={detalleVenta} onClose={() => setDetalleVenta(null)} onCambiarEstado={cambiarEstado} />
+        <DetalleModal
+          venta={detalleVenta}
+          onClose={() => setDetalleVenta(null)}
+          onCambiarEstado={cambiarEstado}
+          onCobrar={(v) => { setDetalleVenta(null); setCobrarVenta(v); }}
+        />
+      )}
+
+      {cobrarVenta && (
+        <CobrarModal
+          venta={cobrarVenta}
+          onClose={() => setCobrarVenta(null)}
+          onCobrada={() => { setCobrarVenta(null); toast('Cobro registrado', 'success'); }}
+        />
       )}
     </div>
   );
 }
 
-function DetalleModal({ venta: v, onClose, onCambiarEstado }: { venta: NotaVenta; onClose: () => void; onCambiarEstado: (id: string) => void }) {
+// ─── Cobrar Modal ──────────────────────────────────────────────────────────
+function CobrarModal({ venta, onClose, onCobrada }: {
+  venta: NotaVenta;
+  onClose: () => void;
+  onCobrada: () => void;
+}) {
+  const cobrar = useCobrarVenta();
+  const toast  = useToast(s => s.show);
+  const [metodo, setMetodo] = useState<MetodoPago>(MetodoPago.EFECTIVO);
+  const [fecha, setFecha]   = useState(new Date().toISOString().slice(0, 10));
+
+  async function handleCobrar() {
+    try {
+      await cobrar.mutateAsync({ id: venta.id, metodoPago: metodo, fechaCobro: fecha });
+      onCobrada();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'No se pudo registrar el cobro'), 'error');
+    }
+  }
+
+  return (
+    <Modal open title={`Registrar cobro — NV-${venta.numeroNota}`} onClose={onClose}
+      footer={<>
+        <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
+        <Btn onClick={handleCobrar} loading={cobrar.isPending} variant="green">
+          <CheckCircle size={14} /> Confirmar cobro
+        </Btn>
+      </>}>
+      <div className="rounded-[10px] px-4 py-3 text-[13.5px]" style={{ background: 'var(--color-gr-primary-lite)' }}>
+        <p className="text-[var(--color-gr-muted)]">Cliente</p>
+        <p className="font-800 text-[var(--color-gr-text)]">{venta.cliente?.nombre}</p>
+        <p className="text-[22px] font-900 text-[var(--color-gr-primary)] mt-1">{formatBs(Number(venta.totalBs))}</p>
+      </div>
+      <FormField label="Método de pago" required>
+        <Select value={metodo} onChange={e => setMetodo(e.target.value as MetodoPago)}>
+          <option value={MetodoPago.EFECTIVO}>Efectivo</option>
+          <option value={MetodoPago.QR}>QR</option>
+          <option value={MetodoPago.TRANSFERENCIA}>Transferencia bancaria</option>
+        </Select>
+      </FormField>
+      <FormField label="Fecha de cobro" required>
+        <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+      </FormField>
+    </Modal>
+  );
+}
+
+// ─── Detalle Modal ─────────────────────────────────────────────────────────
+function DetalleModal({ venta: v, onClose, onCambiarEstado, onCobrar }: {
+  venta: NotaVenta;
+  onClose: () => void;
+  onCambiarEstado: (id: string) => void;
+  onCobrar: (v: NotaVenta) => void;
+}) {
   const transportista = v.transportista;
   return (
     <Modal open title={`Nota de Venta NV-${v.numeroNota}`} onClose={onClose} wide>
@@ -241,20 +360,25 @@ function DetalleModal({ venta: v, onClose, onCambiarEstado }: { venta: NotaVenta
             </div>
           )}
 
-          <div className="flex items-center justify-between pt-1 border-t border-[var(--color-gr-border-lite)]">
-            <EstadoBadge estado={v.estado} />
-            <div className="flex items-center gap-2 opacity-70">
-              <span className="text-[10px] text-[var(--color-gr-muted)] uppercase tracking-wide">Producto</span>
-              <div className="relative w-[80px] h-[36px]">
-                <Image src="/logo-reynales.webp" alt="Reynales" fill className="object-contain" />
-              </div>
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--color-gr-border-lite)]">
+            <div className="flex items-center gap-2">
+              <EstadoBadge estado={v.estado} />
+              <PagoBadge estado={v.estadoPago} metodo={v.metodoPago} />
             </div>
+            {v.estadoPago === EstadoPagoVenta.COBRADO && v.fechaCobro && (
+              <p className="text-[11.5px] text-[var(--color-gr-muted)]">Cobrado el {v.fechaCobro}</p>
+            )}
           </div>
         </div>
       </div>
 
       <div className="flex gap-3 justify-end">
         <Btn variant="ghost" onClick={onClose}>Cerrar</Btn>
+        {v.estadoPago === EstadoPagoVenta.PENDIENTE && (
+          <Btn variant="green" onClick={() => onCobrar(v)}>
+            <Banknote size={14} /> Cobrar
+          </Btn>
+        )}
         <Btn variant="secondary" onClick={() => { onCambiarEstado(v.id); onClose(); }}>
           <ShoppingCart size={14} /> Cambiar estado
         </Btn>

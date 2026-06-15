@@ -53,6 +53,25 @@ export const EstadoRemision = {
 } as const;
 export type EstadoRemision = (typeof EstadoRemision)[keyof typeof EstadoRemision];
 
+export const EstadoPagoVenta = {
+  PENDIENTE: 'pendiente',
+  COBRADO:   'cobrado',
+} as const;
+export type EstadoPagoVenta = (typeof EstadoPagoVenta)[keyof typeof EstadoPagoVenta];
+
+export const MetodoPago = {
+  EFECTIVO:      'efectivo',
+  QR:            'qr',
+  TRANSFERENCIA: 'transferencia',
+} as const;
+export type MetodoPago = (typeof MetodoPago)[keyof typeof MetodoPago];
+
+export const EstadoPagoMP = {
+  PENDIENTE: 'pendiente',
+  PAGADO:    'pagado',
+} as const;
+export type EstadoPagoMP = (typeof EstadoPagoMP)[keyof typeof EstadoPagoMP];
+
 export const CategoriaGasto = {
   TRANSPORTE: 'transporte',
   SERVICIOS: 'servicios',
@@ -163,11 +182,23 @@ export interface KardexMP extends AuditFields {
   costoUnitarioBs?: number | null;
   costoTotalBs?: number | null;
   observaciones?: string | null;
+  estadoPago: EstadoPagoMP;
+  fechaPago?: string | null;
   materiaPrima: MateriaPrima;
   subtipo?: SubtipoMP | null;
   proveedor?: Proveedor | null;
   unidad: UnidadMedida;
   responsable?: Usuario;
+}
+
+export interface ProductoImagen {
+  id: string;
+  url: string;
+  esPrincipal: boolean;
+  orden: number;
+  productoId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Producto extends AuditFields {
@@ -181,6 +212,8 @@ export interface Producto extends AuditFields {
   vidaUtilMeses: number;
   activo: boolean;
   unidadVenta: UnidadMedida;
+  fotoPrincipal?: string | null;
+  imagenes?: ProductoImagen[];
 }
 
 export interface LoteProduccion extends AuditFields {
@@ -233,6 +266,9 @@ export interface NotaVenta extends AuditFields {
   fleteBs: number;
   numeroGuia?: number | null;
   observaciones?: string | null;
+  estadoPago: EstadoPagoVenta;
+  metodoPago?: MetodoPago | null;
+  fechaCobro?: string | null;
   cliente: Cliente;
   vendedor?: Usuario;
   transportista?: Transportista | null;
@@ -292,6 +328,7 @@ export interface CreateClienteRequest {
   direccion?: string;
   ciudad?: string;
   nit?: string;
+  activo?: boolean;
 }
 
 export interface CreateProveedorRequest {
@@ -300,6 +337,7 @@ export interface CreateProveedorRequest {
   telefono?: string;
   ciudad?: string;
   nit?: string;
+  activo?: boolean;
 }
 
 export interface CreateTransportistaRequest {
@@ -311,6 +349,7 @@ export interface CreateTransportistaRequest {
   marca?: string;
   color?: string;
   destinoHabitual?: string;
+  activo?: boolean;
 }
 
 export interface CreateCategoriaMPRequest {
@@ -328,6 +367,7 @@ export interface CreateProductoRequest {
   stockMinimo?: number;
   unidadVentaId: string;
   vidaUtilMeses?: number;
+  activo?: boolean;
 }
 
 export interface UpdateProductoRequest {
@@ -336,6 +376,7 @@ export interface UpdateProductoRequest {
   precioUnitarioBs?: number;
   stockMinimo?: number;
   vidaUtilMeses?: number;
+  activo?: boolean;
 }
 
 export interface CreateMateriaPrimaRequest {
@@ -345,6 +386,11 @@ export interface CreateMateriaPrimaRequest {
   stockMinimoKg?: number;
   categoriaId: string;
   unidadMedidaId: string;
+}
+
+export interface CobrarVentaRequest {
+  metodoPago: MetodoPago;
+  fechaCobro?: string;
 }
 
 export interface CreateKardexMPRequest {
