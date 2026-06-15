@@ -12,11 +12,11 @@ import { Badge, SearchBox, Spinner } from '@/components/ui';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
-import { TrendingUp, ShoppingCart, Boxes, Layers, ChevronDown, ChevronUp, Zap } from 'lucide-react';
+import { TrendingUp, ShoppingCart, Boxes, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 
-type ReporteId = 'financiero' | 'ventas' | 'movimientos_mp' | 'stock';
-type Periodo   = 'mes_actual' | 'mes_anterior';
-type StockTab  = 'productos' | 'mp';
+type ReporteId      = 'financiero' | 'ventas' | 'movimientos_mp' | 'stock';
+type AgrupacionTipo = 'semana' | 'mes' | 'año';
+type StockTab       = 'productos' | 'mp';
 
 // ── Dynamic PDF imports ────────────────────────────────────────────────────
 const ResumenFinancieroPDFLink = dynamic(
@@ -53,33 +53,127 @@ function KPICard({ label, value, color }: { label: string; value: string; color:
   );
 }
 
-function PeriodoToggle({ value, onChange }: { value: Periodo; onChange: (p: Periodo) => void }) {
+const MESES      = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const DIAS_SEM    = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+
+function getWeekBounds(anchor: Date): { start: string; end: string } {
+  const d   = new Date(anchor);
+  const day = d.getDay();
+  const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const fmt = (dt: Date) =>
+    `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  return { start: fmt(mon), end: fmt(sun) };
+}
+
+function navigateAnchor(anchor: Date, tipo: AgrupacionTipo, dir: -1 | 1): Date {
+  const d = new Date(anchor);
+  if      (tipo === 'semana') d.setDate(d.getDate() + dir * 7);
+  else if (tipo === 'mes')   d.setMonth(d.getMonth() + dir);
+  else                       d.setFullYear(d.getFullYear() + dir);
+  return d;
+}
+
+function getPeriodLabel(anchor: Date, tipo: AgrupacionTipo): string {
+  if (tipo === 'año') return String(anchor.getFullYear());
+  if (tipo === 'mes') {
+    const m = MESES[anchor.getMonth()];
+    return `${m[0].toUpperCase()}${m.slice(1)} ${anchor.getFullYear()}`;
+  }
+  const { start, end } = getWeekBounds(anchor);
+  const [,sm,sd] = start.split('-').map(Number);
+  const [ey,em,ed] = end.split('-').map(Number);
+  return `${sd} ${MESES[sm-1].slice(0,3)} – ${ed} ${MESES[em-1].slice(0,3)} ${ey}`;
+}
+
+function filterByPeriod<T extends { fecha: string }>(items: T[], anchor: Date, tipo: AgrupacionTipo): T[] {
+  if (tipo === 'año') {
+    const prefix = String(anchor.getFullYear());
+    return items.filter(it => it.fecha.startsWith(prefix));
+  }
+  if (tipo === 'mes') {
+    const prefix = `${anchor.getFullYear()}-${String(anchor.getMonth()+1).padStart(2,'0')}`;
+    return items.filter(it => it.fecha.startsWith(prefix));
+  }
+  const { start, end } = getWeekBounds(anchor);
+  return items.filter(it => it.fecha >= start && it.fecha <= end);
+}
+
+function buildChartData(
+  ventas: { fecha: string; totalBs: string | number }[],
+  gastos: { fecha: string; montoBs: string | number }[],
+  anchor: Date,
+  tipo: AgrupacionTipo,
+): { label: string; ingresos: number; egresos: number }[] {
+  if (tipo === 'semana') {
+    const { start } = getWeekBounds(anchor);
+    const [sy,sm,sd] = start.split('-').map(Number);
+    return DIAS_SEM.map((label, i) => {
+      const dt  = new Date(sy, sm-1, sd+i);
+      const key = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+      return {
+        label,
+        ingresos: ventas.filter(v => v.fecha === key).reduce((s,v) => s + Number(v.totalBs), 0),
+        egresos:  gastos.filter(g => g.fecha === key).reduce((s,g) => s + Number(g.montoBs), 0),
+      };
+    });
+  }
+  if (tipo === 'mes') {
+    const prefix = `${anchor.getFullYear()}-${String(anchor.getMonth()+1).padStart(2,'0')}`;
+    return ['Sem 1','Sem 2','Sem 3','Sem 4'].map((label, i) => {
+      const d1 = i*7+1; const d2 = d1+6;
+      return {
+        label,
+        ingresos: ventas.filter(v => v.fecha.startsWith(prefix) && +v.fecha.slice(8) >= d1 && +v.fecha.slice(8) <= d2).reduce((s,v) => s + Number(v.totalBs), 0),
+        egresos:  gastos.filter(g => g.fecha.startsWith(prefix) && +g.fecha.slice(8) >= d1 && +g.fecha.slice(8) <= d2).reduce((s,g) => s + Number(g.montoBs), 0),
+      };
+    });
+  }
+  const year = anchor.getFullYear();
+  return MESES_CORTO.map((label, i) => {
+    const prefix = `${year}-${String(i+1).padStart(2,'0')}`;
+    return {
+      label,
+      ingresos: ventas.filter(v => v.fecha.startsWith(prefix)).reduce((s,v) => s + Number(v.totalBs), 0),
+      egresos:  gastos.filter(g => g.fecha.startsWith(prefix)).reduce((s,g) => s + Number(g.montoBs), 0),
+    };
+  });
+}
+
+function AgrupacionSelector({ tipo, setTipo, anchor, setAnchor }: {
+  tipo: AgrupacionTipo; setTipo: (t: AgrupacionTipo) => void;
+  anchor: Date; setAnchor: (d: Date) => void;
+}) {
+  const labels: Record<AgrupacionTipo, string> = { semana: 'Semana', mes: 'Mes', año: 'Año' };
   return (
-    <div className="flex rounded-[8px] overflow-hidden border border-[var(--color-gr-border)]">
-      {(['mes_actual', 'mes_anterior'] as Periodo[]).map(p => (
-        <button key={p} onClick={() => onChange(p)}
-          className="px-3 py-1.5 text-[12px] font-600 transition-colors"
-          style={value === p
-            ? { background: 'var(--color-gr-primary)', color: '#fff' }
-            : { background: '#fff', color: 'var(--color-gr-muted)' }}>
-          {p === 'mes_actual' ? 'Este mes' : 'Mes anterior'}
+    <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex rounded-[8px] overflow-hidden border border-[var(--color-gr-border)]">
+        {(['semana','mes','año'] as AgrupacionTipo[]).map(t => (
+          <button key={t} onClick={() => setTipo(t)}
+            className="px-3 py-1.5 text-[12px] font-600 transition-colors"
+            style={tipo === t
+              ? { background: 'var(--color-gr-primary)', color: '#fff' }
+              : { background: '#fff', color: 'var(--color-gr-muted)' }}>
+            {labels[t]}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-1">
+        <button onClick={() => setAnchor(navigateAnchor(anchor, tipo, -1))}
+          className="w-7 h-7 flex items-center justify-center rounded-[6px] transition-colors hover:bg-[var(--color-gr-border-lite)]">
+          <ChevronLeft size={14} color="var(--color-gr-muted)" />
         </button>
-      ))}
+        <span className="text-[13px] font-700 text-[var(--color-gr-text)] min-w-[160px] text-center">
+          {getPeriodLabel(anchor, tipo)}
+        </span>
+        <button onClick={() => setAnchor(navigateAnchor(anchor, tipo, 1))}
+          className="w-7 h-7 flex items-center justify-center rounded-[6px] transition-colors hover:bg-[var(--color-gr-border-lite)]">
+          <ChevronRight size={14} color="var(--color-gr-muted)" />
+        </button>
+      </div>
     </div>
   );
-}
-
-function periodoKey(periodo: Periodo): string {
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() - (periodo === 'mes_actual' ? 0 : 1), 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function periodoLabel(periodo: Periodo): string {
-  const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  const now = new Date();
-  const d = new Date(now.getFullYear(), now.getMonth() - (periodo === 'mes_actual' ? 0 : 1), 1);
-  return `${meses[d.getMonth()][0].toUpperCase()}${meses[d.getMonth()].slice(1)} ${d.getFullYear()}`;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -132,22 +226,22 @@ export default function ReportesPage() {
 
 // ── Report 1: Resumen Financiero ──────────────────────────────────────────
 function ReporteFinanciero() {
-  const [periodo, setPeriodo] = useState<Periodo>('mes_actual');
+  const [tipo, setTipo]     = useState<AgrupacionTipo>('mes');
+  const [anchor, setAnchor] = useState(() => new Date());
   const ventasQ = useVentas();
   const gastosQ = useGastos();
 
-  const key = periodoKey(periodo);
   const ventas = ventasQ.data ?? [];
   const gastos = gastosQ.data ?? [];
 
-  const ventasPeriodo = ventas.filter(v => v.fecha.startsWith(key));
-  const gastosPeriodo = gastos.filter(g => g.fecha.startsWith(key));
+  const ventasPeriodo = filterByPeriod(ventas, anchor, tipo);
+  const gastosPeriodo = filterByPeriod(gastos, anchor, tipo);
 
   const ingresosBs = ventasPeriodo.reduce((s, v) => s + Number(v.totalBs), 0);
   const egresosBs  = gastosPeriodo.reduce((s, g) => s + Number(g.montoBs), 0);
   const utilidadBs = ingresosBs - egresosBs;
   const margenPct  = ingresosBs > 0 ? (utilidadBs / ingresosBs) * 100 : 0;
-  const resumen = { ingresosBs, egresosBs, utilidadBs, margenPct };
+  const resumen    = { ingresosBs, egresosBs, utilidadBs, margenPct };
 
   const LABELS: Record<string, string> = {
     [CategoriaGasto.MATERIA_PRIMA]:  'Materia Prima',
@@ -158,7 +252,7 @@ function ReporteFinanciero() {
     [CategoriaGasto.ADMINISTRATIVO]: 'Administrativo',
     [CategoriaGasto.OTROS]:          'Otros',
   };
-  const total = gastosPeriodo.reduce((s, g) => s + Number(g.montoBs), 0);
+  const totalEgresos = gastosPeriodo.reduce((s, g) => s + Number(g.montoBs), 0);
   const gastosCat = Object.entries(
     gastosPeriodo.reduce<Record<string, number>>((acc, g) => {
       acc[g.categoria] = (acc[g.categoria] || 0) + Number(g.montoBs);
@@ -168,23 +262,14 @@ function ReporteFinanciero() {
     .map(([cat, monto]) => ({
       label: LABELS[cat] ?? cat,
       monto,
-      pct: total > 0 ? (monto / total) * 100 : 0,
+      pct: totalEgresos > 0 ? (monto / totalEgresos) * 100 : 0,
       esAutomatico: false,
     }))
     .sort((a, b) => b.monto - a.monto);
 
-  const semanales = ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'].map((sem, i) => {
-    const d1 = i * 7 + 1; const d2 = d1 + 6;
-    const inRange = (fecha: string) => {
-      const day = parseInt(fecha.slice(8, 10));
-      return fecha.startsWith(key) && day >= d1 && day <= d2;
-    };
-    return {
-      sem,
-      ingresos: ventasPeriodo.filter(v => inRange(v.fecha)).reduce((s, v) => s + Number(v.totalBs), 0),
-      egresos:  gastosPeriodo.filter(g => inRange(g.fecha)).reduce((s, g) => s + Number(g.montoBs), 0),
-    };
-  });
+  const chartData  = buildChartData(ventas, gastos, anchor, tipo);
+  const semanales  = chartData.map(d => ({ sem: d.label, ingresos: d.ingresos, egresos: d.egresos }));
+  const chartLabel = tipo === 'semana' ? 'por día' : tipo === 'mes' ? 'por semana' : 'por mes';
 
   if (ventasQ.isLoading || gastosQ.isLoading) {
     return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
@@ -195,11 +280,11 @@ function ReporteFinanciero() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-900 text-[16px] text-[var(--color-gr-text)]">Resumen Financiero</h2>
-          <p className="text-[12.5px] text-[var(--color-gr-muted)]">{periodoLabel(periodo)}</p>
+          <p className="text-[12.5px] text-[var(--color-gr-muted)]">{getPeriodLabel(anchor, tipo)}</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <PeriodoToggle value={periodo} onChange={setPeriodo} />
-          <ResumenFinancieroPDFLink data={{ resumen, gastosCat, semanales, periodo: periodoLabel(periodo) }} />
+          <AgrupacionSelector tipo={tipo} setTipo={setTipo} anchor={anchor} setAnchor={setAnchor} />
+          <ResumenFinancieroPDFLink data={{ resumen, gastosCat, semanales, periodo: getPeriodLabel(anchor, tipo) }} />
         </div>
       </div>
 
@@ -214,13 +299,13 @@ function ReporteFinanciero() {
       <div className="grid lg:grid-cols-2 gap-4">
         <div className="card-no-pad">
           <div className="px-5 py-3.5 border-b border-[var(--color-gr-border)]">
-            <p className="font-800 text-[14px] text-[var(--color-gr-text)]">Ingresos vs Egresos por semana</p>
+            <p className="font-800 text-[14px] text-[var(--color-gr-text)]">Ingresos vs Egresos {chartLabel}</p>
           </div>
           <div className="p-4">
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={semanales} barCategoryGap="30%">
+              <BarChart data={chartData} barCategoryGap="30%">
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-gr-border)" vertical={false} />
-                <XAxis dataKey="sem" tick={{ fontSize: 11, fill: 'var(--color-gr-muted)' }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--color-gr-muted)' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: 'var(--color-gr-muted)' }} axisLine={false} tickLine={false}
                   tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
                 <Tooltip formatter={(v) => [formatBs(v as number)]} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
@@ -256,7 +341,7 @@ function ReporteFinanciero() {
               style={{ background: 'var(--color-gr-border-lite)' }}>
               <span className="text-[13px] font-700 text-[var(--color-gr-text)]">Total egresos</span>
               <span className="font-900 text-[14px]" style={{ color: 'var(--color-gr-danger)' }}>
-                {formatBs(total)}
+                {formatBs(totalEgresos)}
               </span>
             </div>
           </div>
@@ -270,9 +355,9 @@ function ReporteFinanciero() {
 function ReporteVentas() {
   const ventasQ = useVentas();
   const ventas  = ventasQ.data ?? [];
-  const [search, setSearch] = useState('');
+  const [search, setSearch]           = useState('');
   const [filterCliente, setFilterCliente] = useState('');
-  const [filterEstado, setFilterEstado] = useState('');
+  const [filterEstado, setFilterEstado]   = useState('');
 
   const clientes = useMemo(() => [...new Set(ventas.map(v => v.cliente?.nombre ?? '—'))].sort(), [ventas]);
 
@@ -293,32 +378,42 @@ function ReporteVentas() {
 
   const totalFiltered = filtered.reduce((s, v) => s + Number(v.totalBs), 0);
 
+  // Top clientes por monto total
+  const topClientes = useMemo(() => {
+    const acc: Record<string, { nombre: string; total: number; pedidos: number }> = {};
+    filtered.forEach(v => {
+      const id     = v.cliente?.id ?? 'sin';
+      const nombre = v.cliente?.nombre ?? 'Sin cliente';
+      if (!acc[id]) acc[id] = { nombre, total: 0, pedidos: 0 };
+      acc[id].total   += Number(v.totalBs);
+      acc[id].pedidos += 1;
+    });
+    return Object.values(acc).sort((a, b) => b.total - a.total).slice(0, 5);
+  }, [filtered]);
+
+  const maxTotal = topClientes[0]?.total ?? 1;
+
   const ESTADO_COLORS: Record<string, 'green' | 'yellow' | 'blue' | 'red'> = {
-    [EstadoVenta.ENTREGADA]: 'green',
+    [EstadoVenta.ENTREGADA]:  'green',
     [EstadoVenta.DESPACHADA]: 'blue',
-    [EstadoVenta.PENDIENTE]: 'yellow',
-    [EstadoVenta.CANCELADA]: 'red',
+    [EstadoVenta.PENDIENTE]:  'yellow',
+    [EstadoVenta.CANCELADA]:  'red',
   };
   const ESTADO_LABELS: Record<string, string> = {
-    [EstadoVenta.ENTREGADA]: 'Entregada',
+    [EstadoVenta.ENTREGADA]:  'Entregada',
     [EstadoVenta.DESPACHADA]: 'Despachada',
-    [EstadoVenta.PENDIENTE]: 'Pendiente',
-    [EstadoVenta.CANCELADA]: 'Cancelada',
+    [EstadoVenta.PENDIENTE]:  'Pendiente',
+    [EstadoVenta.CANCELADA]:  'Cancelada',
   };
 
-  // Adaptador para PDF legacy shape
   const ventasLegacy = filtered.map(v => ({
-    id: v.id,
-    numero: v.numeroNota,
-    fecha: v.fecha,
+    id: v.id, numero: v.numeroNota, fecha: v.fecha,
     clienteNombre: v.cliente?.nombre ?? '—',
-    totalBs: Number(v.totalBs),
-    estado: v.estado,
-    detalles: v.detalles.map(d => ({
-      productoNombre: d.producto?.nombre ?? '—',
-      cantidad: Number(d.cantidad),
-    })),
+    totalBs: Number(v.totalBs), estado: v.estado,
+    detalles: v.detalles.map(d => ({ productoNombre: d.producto?.nombre ?? '—', cantidad: Number(d.cantidad) })),
   }));
+
+  const MEDALS = ['🥇','🥈','🥉'];
 
   if (ventasQ.isLoading) {
     return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
@@ -328,27 +423,57 @@ function ReporteVentas() {
     <div className="space-y-4 animate-fade-up">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="font-900 text-[16px] text-[var(--color-gr-text)]">Ventas por período</h2>
-          <p className="text-[12.5px] text-[var(--color-gr-muted)]">
-            {filtered.length} ventas · {formatBs(totalFiltered)}
-          </p>
+          <h2 className="font-900 text-[16px] text-gr-text">Ventas</h2>
+          <p className="text-[12.5px] text-gr-muted">{filtered.length} ventas · {formatBs(totalFiltered)}</p>
         </div>
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <VentasPDFLink data={{ ventas: ventasLegacy as any, total: totalFiltered }} />
       </div>
 
+      {/* Top clientes */}
+      {topClientes.length > 0 && (
+        <div className="card-no-pad">
+          <div className="px-5 py-3.5 border-b border-gr-border flex items-center gap-2">
+            <Trophy size={15} color="var(--color-gr-gold)" />
+            <p className="font-800 text-[14px] text-gr-text">Top clientes</p>
+            <span className="text-[12px] text-gr-muted ml-1">por monto total en la selección actual</span>
+          </div>
+          <div className="divide-y divide-gr-border-lite">
+            {topClientes.map((c, i) => (
+              <div key={c.nombre} className="px-5 py-3 flex items-center gap-3">
+                <span className="text-[18px] w-7 shrink-0">{MEDALS[i] ?? `${i+1}.`}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-700 text-[13.5px] text-gr-text truncate">{c.nombre}</p>
+                  <div className="mt-1 h-1.5 rounded-full bg-gr-border-lite overflow-hidden">
+                    <div className="h-full rounded-full" style={{
+                      width: `${(c.total / maxTotal) * 100}%`,
+                      background: i === 0 ? 'var(--color-gr-gold)' : 'var(--color-gr-primary)',
+                    }} />
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="font-800 text-[14px] text-gr-text">{formatBs(c.total)}</p>
+                  <p className="text-[11.5px] text-gr-muted">{c.pedidos} {c.pedidos === 1 ? 'pedido' : 'pedidos'}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Filtros */}
       <div className="card flex flex-wrap gap-3 py-3">
         <div className="flex-1 min-w-[180px]">
           <SearchBox value={search} onChange={setSearch} placeholder="Buscar nota, cliente, producto…" />
         </div>
         <select value={filterCliente} onChange={e => setFilterCliente(e.target.value)}
-          className="border border-[var(--color-gr-border)] rounded-[8px] px-3 py-2 text-[13px] bg-white min-w-[160px]"
+          className="border border-gr-border rounded-[8px] px-3 py-2 text-[13px] bg-white min-w-[160px]"
           style={{ color: 'var(--color-gr-text)' }}>
           <option value="">Todos los clientes</option>
           {clientes.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <select value={filterEstado} onChange={e => setFilterEstado(e.target.value)}
-          className="border border-[var(--color-gr-border)] rounded-[8px] px-3 py-2 text-[13px] bg-white"
+          className="border border-gr-border rounded-[8px] px-3 py-2 text-[13px] bg-white"
           style={{ color: 'var(--color-gr-text)' }}>
           <option value="">Todos los estados</option>
           <option value={EstadoVenta.PENDIENTE}>Pendiente</option>
@@ -358,48 +483,43 @@ function ReporteVentas() {
         </select>
       </div>
 
+      {/* Tabla */}
       <div className="card-no-pad">
-        <div className="hidden md:grid gap-3 px-5 py-3 text-[11px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide border-b border-[var(--color-gr-border)]"
-          style={{ gridTemplateColumns: '60px 1fr 1.5fr 90px 90px 80px', background: 'var(--color-gr-border-lite)' }}>
-          <span>N°</span>
-          <span>Cliente</span>
-          <span>Productos</span>
-          <span className="text-right">Total</span>
-          <span>Estado</span>
-          <span>Fecha</span>
-        </div>
-        {filtered.map((v, i) => (
-          <div key={v.id}
-            className={`px-5 py-3.5 ${i < filtered.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
-            <div className="md:hidden flex items-start justify-between gap-2">
-              <div>
-                <p className="font-700 text-[var(--color-gr-text)] text-[13.5px]">N°{v.numeroNota} · {v.cliente?.nombre ?? '—'}</p>
-                <p className="text-[12px] text-[var(--color-gr-muted)] mt-0.5">
-                  {v.detalles.map(d => d.producto?.nombre ?? '').join(', ')} · {v.fecha}
-                </p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="font-800 text-[var(--color-gr-text)] text-[13.5px]">{formatBs(Number(v.totalBs))}</p>
-                <Badge color={ESTADO_COLORS[v.estado] ?? 'gray'}>{ESTADO_LABELS[v.estado] ?? v.estado}</Badge>
-              </div>
-            </div>
-            <div className="hidden md:grid gap-3 items-center"
-              style={{ gridTemplateColumns: '60px 1fr 1.5fr 90px 90px 80px' }}>
-              <span className="font-700 text-[var(--color-gr-text)] text-[13px]">N°{v.numeroNota}</span>
-              <span className="text-[13px] text-[var(--color-gr-text)]">{v.cliente?.nombre ?? '—'}</span>
-              <span className="text-[12.5px] text-[var(--color-gr-muted)] truncate">
-                {v.detalles.map(d => `${d.producto?.nombre ?? ''} ×${Number(d.cantidad)}`).join(' · ')}
-              </span>
-              <span className="text-right font-700 text-[var(--color-gr-text)] text-[13.5px]">{formatBs(Number(v.totalBs))}</span>
-              <Badge color={ESTADO_COLORS[v.estado] ?? 'gray'}>{ESTADO_LABELS[v.estado] ?? v.estado}</Badge>
-              <span className="text-[12px] text-[var(--color-gr-muted)]">{v.fecha}</span>
-            </div>
-          </div>
-        ))}
-        <div className="px-5 py-3 flex items-center justify-between border-t border-[var(--color-gr-border)]"
-          style={{ background: 'var(--color-gr-border-lite)' }}>
-          <span className="text-[13px] text-[var(--color-gr-muted)]">{filtered.length} ventas</span>
-          <span className="font-900 text-[14px] text-[var(--color-gr-primary)]">Total: {formatBs(totalFiltered)}</span>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px] border-collapse" style={{ minWidth: 580 }}>
+            <thead>
+              <tr style={{ background: 'var(--color-gr-border-lite)' }}>
+                {['N°', 'Cliente', 'Productos', 'Total', 'Estado', 'Fecha'].map(h => (
+                  <th key={h} className="px-4 py-3 text-[11px] font-700 text-gr-muted uppercase tracking-wide text-left whitespace-nowrap border-b border-gr-border">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((v, i) => (
+                <tr key={v.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
+                  className="border-b border-gr-border-lite">
+                  <td className="px-4 py-3 font-700 text-gr-primary whitespace-nowrap">N°{v.numeroNota}</td>
+                  <td className="px-4 py-3 font-700 whitespace-nowrap">{v.cliente?.nombre ?? '—'}</td>
+                  <td className="px-4 py-3 text-gr-muted text-[12px]">
+                    {v.detalles.map(d => `${d.producto?.nombre ?? ''} ×${Number(d.cantidad)}`).join(' · ')}
+                  </td>
+                  <td className="px-4 py-3 text-right font-700 whitespace-nowrap">{formatBs(Number(v.totalBs))}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <Badge color={ESTADO_COLORS[v.estado] ?? 'gray'}>{ESTADO_LABELS[v.estado] ?? v.estado}</Badge>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gr-muted">{v.fecha}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: 'var(--color-gr-border-lite)', borderTop: '2px solid var(--color-gr-border)' }}>
+                <td colSpan={3} className="px-4 py-3 text-[12.5px] text-gr-muted">{filtered.length} ventas</td>
+                <td colSpan={3} className="px-4 py-3 text-right font-900 text-[14px] text-gr-primary">
+                  Total: {formatBs(totalFiltered)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
     </div>
@@ -466,62 +586,42 @@ function ReporteMovimientosMP() {
       </div>
 
       <div className="card-no-pad">
-        <div className="hidden md:grid gap-3 px-5 py-3 text-[11px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide border-b border-[var(--color-gr-border)]"
-          style={{ gridTemplateColumns: '80px 1fr 90px 90px 60px 90px 1fr', background: 'var(--color-gr-border-lite)' }}>
-          <span>Tipo</span>
-          <span>Materia Prima</span>
-          <span className="text-right">QQ</span>
-          <span className="text-right">Costo Bs</span>
-          <span className="text-right">Lote</span>
-          <span>Fecha</span>
-          <span>Responsable</span>
-        </div>
-        {filtered.map((m, i) => (
-          <div key={m.id}
-            className={`px-5 py-3.5 ${i < filtered.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
-            <div className="md:hidden flex items-start justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <Badge color={m.tipoMovimiento === TipoMovimientoMP.INGRESO ? 'green' : 'red'}>
-                    {m.tipoMovimiento === TipoMovimientoMP.INGRESO ? '↑ Ingreso' : '↓ Salida'}
-                  </Badge>
-                  <span className="font-600 text-[var(--color-gr-text)] text-[13px]">{m.materiaPrima?.nombre ?? '—'}</span>
-                </div>
-                <p className="text-[12px] text-[var(--color-gr-muted)]">
-                  {m.fecha} · {m.responsable?.nombre ?? '—'}{m.numeroLote ? ` · Lote #${m.numeroLote}` : ''}
-                </p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className="font-800 text-[var(--color-gr-text)]">{formatNum(Number(m.cantidadKg) / 46, 2)} QQ</p>
-                {m.costoTotalBs != null && <p className="text-[12px] text-[var(--color-gr-muted)]">{formatBs(Number(m.costoTotalBs))}</p>}
-              </div>
-            </div>
-            <div className="hidden md:grid gap-3 items-center"
-              style={{ gridTemplateColumns: '80px 1fr 90px 90px 60px 90px 1fr' }}>
-              <Badge color={m.tipoMovimiento === TipoMovimientoMP.INGRESO ? 'green' : 'red'}>
-                {m.tipoMovimiento === TipoMovimientoMP.INGRESO ? '↑ Ingreso' : '↓ Salida'}
-              </Badge>
-              <span className="font-700 text-[var(--color-gr-text)] text-[13px]">{m.materiaPrima?.nombre ?? '—'}</span>
-              <span className="text-right font-700 text-[var(--color-gr-text)] text-[13.5px]">
-                {formatNum(Number(m.cantidadKg) / 46, 2)}
-              </span>
-              <span className="text-right text-[13px] text-[var(--color-gr-text)]">
-                {m.costoTotalBs != null ? formatBs(Number(m.costoTotalBs)) : '—'}
-              </span>
-              <span className="text-right text-[13px] text-[var(--color-gr-muted)]">
-                {m.numeroLote ? `#${m.numeroLote}` : '—'}
-              </span>
-              <span className="text-[12px] text-[var(--color-gr-muted)]">{m.fecha}</span>
-              <span className="text-[12.5px] text-[var(--color-gr-text)]">{m.responsable?.nombre ?? '—'}</span>
-            </div>
-          </div>
-        ))}
-        <div className="px-5 py-3 flex items-center justify-between border-t border-[var(--color-gr-border)]"
-          style={{ background: 'var(--color-gr-border-lite)' }}>
-          <span className="text-[13px] text-[var(--color-gr-muted)]">{filtered.length} movimientos</span>
-          <span className="font-900 text-[13.5px] text-[var(--color-gr-primary)]">
-            {formatNum(filtered.reduce((s, m) => s + Number(m.cantidadKg) / 46, 0), 2)} QQ totales
-          </span>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[13px] border-collapse" style={{ minWidth: 660 }}>
+            <thead>
+              <tr style={{ background: 'var(--color-gr-border-lite)' }}>
+                {['Tipo', 'Materia Prima', 'QQ', 'Costo Bs', 'Lote', 'Fecha', 'Responsable'].map(h => (
+                  <th key={h} className="px-4 py-3 text-[11px] font-700 text-gr-muted uppercase tracking-wide text-left whitespace-nowrap border-b border-gr-border">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((m, i) => (
+                <tr key={m.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
+                  className="border-b border-gr-border-lite">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <Badge color={m.tipoMovimiento === TipoMovimientoMP.INGRESO ? 'green' : 'red'}>
+                      {m.tipoMovimiento === TipoMovimientoMP.INGRESO ? '↑ Ingreso' : '↓ Salida'}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 font-700 whitespace-nowrap">{m.materiaPrima?.nombre ?? '—'}</td>
+                  <td className="px-4 py-3 text-right font-700">{formatNum(Number(m.cantidadKg) / 46, 2)}</td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">{m.costoTotalBs != null ? formatBs(Number(m.costoTotalBs)) : '—'}</td>
+                  <td className="px-4 py-3 text-right text-gr-muted">{m.numeroLote ? `#${m.numeroLote}` : '—'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gr-muted">{m.fecha}</td>
+                  <td className="px-4 py-3 whitespace-nowrap">{m.responsable?.nombre ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: 'var(--color-gr-border-lite)', borderTop: '2px solid var(--color-gr-border)' }}>
+                <td colSpan={2} className="px-4 py-3 text-[12.5px] text-gr-muted">{filtered.length} movimientos</td>
+                <td colSpan={5} className="px-4 py-3 text-right font-900 text-[13.5px] text-gr-primary">
+                  {formatNum(filtered.reduce((s, m) => s + Number(m.cantidadKg) / 46, 0), 2)} QQ totales
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
     </div>
@@ -589,6 +689,8 @@ function ReporteStock() {
 
       {tab === 'productos' && (
         <div className="card-no-pad">
+          <div className="overflow-x-auto">
+          <div style={{ minWidth: 540 }}>
           <div className="hidden md:grid gap-3 px-5 py-3 text-[11px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide border-b border-[var(--color-gr-border)]"
             style={{ gridTemplateColumns: '80px 1fr 90px 80px 80px 70px', background: 'var(--color-gr-border-lite)' }}>
             <span>Código</span><span>Producto</span><span className="text-right">Bolsas</span><span className="text-right">QQ equiv.</span><span className="text-right">Precio/u</span><span>Estado</span>
@@ -636,11 +738,15 @@ function ReporteStock() {
               {formatNum(productos.reduce((s, p) => s + Number(p.stockActual), 0), 0)} unidades totales
             </span>
           </div>
+          </div>
+          </div>
         </div>
       )}
 
       {tab === 'mp' && (
         <div className="card-no-pad">
+          <div className="overflow-x-auto">
+          <div style={{ minWidth: 490 }}>
           <div className="hidden md:grid gap-3 px-5 py-3 text-[11px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide border-b border-[var(--color-gr-border)]"
             style={{ gridTemplateColumns: '1fr 110px 110px 90px 80px', background: 'var(--color-gr-border-lite)' }}>
             <span>Materia Prima</span><span className="text-right">Stock (kg)</span><span className="text-right">Stock (QQ)</span><span className="text-right">Mínimo</span><span>Estado</span>
@@ -685,6 +791,8 @@ function ReporteStock() {
             <span className="font-900 text-[14px] text-[var(--color-gr-primary)]">
               {formatNum(materiaPrima.reduce((s, m) => s + Number(m.stockActualKg), 0), 1)} kg totales
             </span>
+          </div>
+          </div>
           </div>
         </div>
       )}

@@ -1,12 +1,12 @@
 'use client';
 import { useState } from 'react';
-import { useMateriasPrimas, useCreateKardexMP } from '@/lib/api/materia-prima';
+import { useMateriasPrimas, useCreateKardexMP, useKardexMPPendientesPago, usePagarKardexMP } from '@/lib/api/materia-prima';
 import { useProveedores, useUnidades, useCategoriasMP, useSubtiposMP } from '@/lib/api/catalogos';
 import { TipoMovimientoMP, type MateriaPrima } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
-import { formatNum } from '@/lib/utils';
+import { formatNum, formatBs } from '@/lib/utils';
 import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
-import { Wheat, Plus } from 'lucide-react';
+import { Wheat, Plus, CheckCircle } from 'lucide-react';
 
 function StockDot({ value, min }: { value: number; min: number }) {
   const low  = min > 0 && value < min;
@@ -23,17 +23,29 @@ function StockDot({ value, min }: { value: number; min: number }) {
 
 export default function MateriaPrimaPage() {
   const toast = useToast(s => s.show);
-  const mpQ          = useMateriasPrimas();
-  const categoriasQ  = useCategoriasMP();
-  const proveedoresQ = useProveedores();
-  const unidadesQ    = useUnidades();
+  const mpQ              = useMateriasPrimas();
+  const categoriasQ      = useCategoriasMP();
+  const proveedoresQ     = useProveedores();
+  const unidadesQ        = useUnidades();
+  const pendientesPagoQ  = useKardexMPPendientesPago();
+  const pagarMut         = usePagarKardexMP();
 
-  const materiasPrimas = mpQ.data ?? [];
-  const categorias     = categoriasQ.data ?? [];
-  const proveedores    = proveedoresQ.data ?? [];
-  const unidades       = unidadesQ.data ?? [];
+  const materiasPrimas   = mpQ.data ?? [];
+  const categorias       = categoriasQ.data ?? [];
+  const proveedores      = proveedoresQ.data ?? [];
+  const unidades         = unidadesQ.data ?? [];
+  const pendientesPago   = pendientesPagoQ.data ?? [];
 
   const [entradaModal, setEntradaModal] = useState<MateriaPrima | null>(null);
+
+  async function handlePagar(id: string) {
+    try {
+      await pagarMut.mutateAsync(id);
+      toast('Compra marcada como pagada', 'success');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'No se pudo registrar el pago'), 'error');
+    }
+  }
 
   if (mpQ.isLoading) {
     return (
@@ -68,6 +80,43 @@ export default function MateriaPrimaPage() {
           Inventario por categoría · {materiasPrimas.length} ítems
         </p>
       </div>
+
+      {/* Compras pendientes de pago */}
+      {pendientesPago.length > 0 && (
+        <div className="card border-l-4" style={{ borderLeftColor: '#e67e00' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="font-800 text-[var(--color-gr-text)] text-[14px]">Compras por pagar</p>
+              <p className="text-[12px] text-gr-muted mt-0.5">
+                {pendientesPago.length} compra{pendientesPago.length !== 1 ? 's' : ''} pendientes de pago ·{' '}
+                <span className="font-700" style={{ color: '#e67e00' }}>
+                  {formatBs(pendientesPago.reduce((s, k) => s + Number(k.costoTotalBs ?? 0), 0))} total
+                </span>
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {pendientesPago.map(k => (
+              <div key={k.id} className="flex items-center gap-3 py-2.5 px-3 rounded-md"
+                style={{ background: 'var(--color-gr-border-lite)' }}>
+                <div className="flex-1 min-w-0">
+                  <p className="font-700 text-[13.5px] text-gr-text truncate">{k.materiaPrima?.nombre ?? '—'}</p>
+                  <p className="text-[12px] text-[var(--color-gr-muted)]">
+                    {k.fecha} · {k.cantidad} {k.unidad?.codigo ?? ''}
+                    {k.proveedor && ` · ${k.proveedor.nombre}`}
+                  </p>
+                </div>
+                <p className="font-800 text-[14px] shrink-0" style={{ color: '#e67e00' }}>
+                  {k.costoTotalBs ? formatBs(Number(k.costoTotalBs)) : '—'}
+                </p>
+                <Btn size="sm" variant="green" onClick={() => handlePagar(k.id)} loading={pagarMut.isPending}>
+                  <CheckCircle size={12} /> Pagar
+                </Btn>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Category summary cards */}
       <div className="grid sm:grid-cols-2 gap-4">
@@ -107,7 +156,8 @@ export default function MateriaPrimaPage() {
           Detalle por materia prima
         </h2>
 
-        <div className="card-no-pad overflow-x-auto">
+        <div className="card-no-pad">
+          <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse" style={{ minWidth: 720 }}>
             <thead>
               <tr style={{ background: 'var(--color-gr-primary)' }}>
@@ -165,6 +215,7 @@ export default function MateriaPrimaPage() {
               </tr>
             </tfoot>
           </table>
+          </div>
         </div>
       </div>
 

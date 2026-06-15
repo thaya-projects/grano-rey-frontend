@@ -28,16 +28,15 @@ export function Sidebar() {
     <aside className="w-60 shrink-0 bg-gr-primary-dark flex flex-col h-screen sticky top-0 overflow-hidden">
       {/* Logo */}
       <div className="flex items-center justify-center px-5 py-4 border-b border-white/10">
-        <div className="bg-white rounded-[12px] px-3 py-2">
-          <div className="relative w-32.5 h-15">
-            <Image
-              src="/logo-grano-rey.webp"
-              alt="Grano Rey"
-              fill
-              className="object-contain"
-              priority
-            />
-          </div>
+        <div className="relative w-32.5 h-15">
+          <Image
+            src="/logo-grano-rey.webp"
+            alt="Grano Rey"
+            fill
+            sizes="130px"
+            className="object-contain"
+            priority
+          />
         </div>
       </div>
 

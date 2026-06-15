@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import type { NotaVenta, EstadoVenta, CreateVentaRequest } from '../types';
+import type { NotaVenta, EstadoVenta, CreateVentaRequest, CobrarVentaRequest } from '../types';
 import { productosKeys } from './productos';
 import { lotesKeys } from './produccion';
 
 export const ventasKeys = {
   all: ['ventas'] as const,
   detail: (id: string) => ['ventas', id] as const,
+  pendientesCobro: ['ventas', 'pendientes-cobro'] as const,
 };
 
 export function useVentas() {
@@ -44,5 +45,24 @@ export function useCambiarEstadoVenta() {
     mutationFn: async ({ id, estado }: { id: string; estado: EstadoVenta }) =>
       (await api.patch<NotaVenta>(`/ventas/${id}/estado`, { estado })).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ventasKeys.all }),
+  });
+}
+
+export function useVentasPendientesCobro() {
+  return useQuery({
+    queryKey: ventasKeys.pendientesCobro,
+    queryFn: async () => (await api.get<NotaVenta[]>('/ventas/pendientes-cobro')).data,
+  });
+}
+
+export function useCobrarVenta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...dto }: { id: string } & CobrarVentaRequest) =>
+      (await api.patch<NotaVenta>(`/ventas/${id}/cobrar`, dto)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ventasKeys.all });
+      qc.invalidateQueries({ queryKey: ventasKeys.pendientesCobro });
+    },
   });
 }

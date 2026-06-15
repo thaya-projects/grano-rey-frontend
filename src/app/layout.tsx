@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   description: 'Sistema de gestión de inventario, ventas y despachos para Grano Rey. Control de stock, materia prima y notas de venta en un solo lugar.',
   keywords: ['Grano Rey', 'sistema de gestión', 'inventario', 'ventas', 'Bolivia'],
   authors: [{ name: 'Grano Rey' }],
+  icons: {
+    icon: '/logo-reynales.webp',
+    apple: '/logo-reynales.webp',
+  },
   openGraph: {
     title: 'Grano Rey — Sistema de Gestión',
     description: 'Control de inventario, ventas y despachos para Grano Rey.',

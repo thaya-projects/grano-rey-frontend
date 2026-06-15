@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import type {
   Producto,
+  ProductoImagen,
   KardexProducto,
   CreateProductoRequest,
   UpdateProductoRequest,
@@ -57,6 +58,49 @@ export function useKardexProductos(productoId?: string) {
           params: productoId ? { productoId } : undefined,
         })
       ).data,
+  });
+}
+
+export function useUploadProductoImagenes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ productoId, files }: { productoId: string; files: File[] }) => {
+      const formData = new FormData();
+      files.forEach(f => formData.append('imagenes', f));
+      return (await api.post<ProductoImagen[]>(
+        `/productos/${productoId}/imagenes/upload`,
+        formData,
+        { headers: { 'Content-Type': null } },
+      )).data;
+    },
+    onSuccess: (_, { productoId }) => {
+      qc.invalidateQueries({ queryKey: productosKeys.all });
+      qc.invalidateQueries({ queryKey: productosKeys.detail(productoId) });
+    },
+  });
+}
+
+export function useSetPrincipalImagen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ productoId, imagenId }: { productoId: string; imagenId: string }) =>
+      (await api.patch(`/productos/${productoId}/imagenes/${imagenId}/principal`, {})).data,
+    onSuccess: (_, { productoId }) => {
+      qc.invalidateQueries({ queryKey: productosKeys.all });
+      qc.invalidateQueries({ queryKey: productosKeys.detail(productoId) });
+    },
+  });
+}
+
+export function useDeleteProductoImagen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ productoId, imagenId }: { productoId: string; imagenId: string }) =>
+      (await api.delete(`/productos/${productoId}/imagenes/${imagenId}`)).data,
+    onSuccess: (_, { productoId }) => {
+      qc.invalidateQueries({ queryKey: productosKeys.all });
+      qc.invalidateQueries({ queryKey: productosKeys.detail(productoId) });
+    },
   });
 }
 

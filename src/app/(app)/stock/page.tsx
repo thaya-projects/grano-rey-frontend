@@ -102,6 +102,8 @@ export default function StockPage() {
           Lotes activos · trazabilidad SENASAG
         </h2>
         <div className="card-no-pad">
+          <div className="overflow-x-auto">
+          <div style={{ minWidth: 620 }}>
           <div className="hidden md:grid gap-4 px-5 py-3 text-[11.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide border-b border-[var(--color-gr-border)]"
             style={{ gridTemplateColumns: '180px 1fr auto auto auto auto', background: 'var(--color-gr-border-lite)' }}>
             <span>Código Lote</span><span>Producto</span><span className="text-right">Disponible</span><span>Producido</span><span>Vence</span><span>Estado</span>
@@ -166,6 +168,8 @@ export default function StockPage() {
             <span className="font-700 text-[var(--color-gr-text)]">
               Valor inventario: {formatBs(productos.reduce((s, p) => s + Number(p.stockActual) * Number(p.precioUnitarioBs), 0))}
             </span>
+          </div>
+          </div>
           </div>
         </div>
       </div>
