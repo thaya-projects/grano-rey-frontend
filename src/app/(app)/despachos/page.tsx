@@ -181,8 +181,8 @@ function RemisionCard({ venta: v, onVerRemision, onDespachar }: {
   return (
     <div className="card border-l-4 space-y-3"
       style={{ borderLeftColor: 'var(--color-gr-warning)' }}>
-      <div className="flex items-start justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <p className="font-800 text-[var(--color-gr-text)] text-[15px]">NV-{v.numeroNota}</p>
             {v.numeroGuia && <Badge color="gray">G-{v.numeroGuia}</Badge>}
@@ -190,13 +190,14 @@ function RemisionCard({ venta: v, onVerRemision, onDespachar }: {
             {v.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
               <span className="inline-flex items-center gap-1 text-[11px] font-600 px-2 py-0.5 rounded-full"
                 style={{ background: 'var(--color-gr-info-bg)', color: 'var(--color-gr-info)' }}>
-                <Truck size={10} /> Cliente paga flete al transportista
+                <Truck size={10} /> Cliente paga flete
               </span>
             )}
           </div>
-          <p className="text-[13px] text-[var(--color-gr-sub)]">{v.cliente?.nombre ?? '—'} · {v.fecha}</p>
+          <p className="font-600 text-gr-text text-[13.5px] truncate">{v.cliente?.nombre ?? '—'}</p>
+          <p className="text-[12px] text-gr-muted">{v.fecha}</p>
         </div>
-        <p className="font-900 text-[var(--color-gr-primary)] text-[18px]">{formatBs(Number(v.totalBs))}</p>
+        <p className="font-900 text-[var(--color-gr-primary)] text-[18px] whitespace-nowrap shrink-0">{formatBs(Number(v.totalBs))}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">

@@ -8,7 +8,7 @@ type BtnVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'gold' | 'green
 interface BtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: BtnVariant; size?: 'sm' | 'md' | 'lg'; loading?: boolean;
 }
-const btnBase = 'inline-flex items-center justify-center gap-2 font-semibold rounded-[10px] transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none';
+const btnBase = 'inline-flex items-center justify-center gap-2 font-semibold rounded-[10px] transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none whitespace-nowrap';
 const btnVariants: Record<BtnVariant, string> = {
   primary:   'bg-[var(--color-gr-primary)] text-white hover:bg-[var(--color-gr-primary-mid)]',
   secondary: 'bg-[var(--color-gr-border)] text-[var(--color-gr-text)] hover:bg-[var(--color-gr-border-lite)]',
@@ -70,7 +70,14 @@ function parsePhone(v: string) {
 
 interface PhoneInputProps { value?: string; onChange?: (v: string) => void; disabled?: boolean; }
 export function PhoneInput({ value = '', onChange, disabled }: PhoneInputProps) {
-  const { code, number } = parsePhone(value);
+  const { code: parsedCode, number } = parsePhone(value);
+  const [localCode, setLocalCode] = useState(parsedCode);
+
+  // Si el padre carga un valor con prefijo diferente, sincronizar
+  useEffect(() => {
+    if (value && parsedCode !== localCode) setLocalCode(parsedCode);
+  }, [value]);
+
   function emit(newCode: string, newNumber: string) {
     onChange?.(newNumber ? `${newCode} ${newNumber}` : '');
   }
@@ -81,8 +88,8 @@ export function PhoneInput({ value = '', onChange, disabled }: PhoneInputProps) 
       'border-[var(--color-gr-border)]',
     )}>
       <select
-        value={code}
-        onChange={e => emit(e.target.value, number)}
+        value={localCode}
+        onChange={e => { setLocalCode(e.target.value); emit(e.target.value, number); }}
         disabled={disabled}
         className="h-full bg-[var(--color-gr-border-lite)] border-r border-[var(--color-gr-border)] px-2 text-[13px] font-semibold text-[var(--color-gr-sub)] outline-none cursor-pointer shrink-0 disabled:opacity-50">
         {PAISES_TEL.map(p => (
@@ -92,7 +99,7 @@ export function PhoneInput({ value = '', onChange, disabled }: PhoneInputProps) 
       <input
         type="tel"
         value={number}
-        onChange={e => emit(code, e.target.value)}
+        onChange={e => emit(localCode, e.target.value)}
         disabled={disabled}
         placeholder="76012345"
         className="flex-1 min-w-0 px-3 text-[14px] text-[var(--color-gr-text)] placeholder:text-[var(--color-gr-muted)] outline-none bg-transparent disabled:opacity-50" />
@@ -198,8 +205,8 @@ export function StockBar({ value, min, className }: { value: number; min: number
 }
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
-interface ModalProps { open: boolean; onClose: () => void; title: string; children: React.ReactNode; wide?: boolean; className?: string; }
-export function Modal({ open, onClose, title, children, wide, className }: ModalProps) {
+interface ModalProps { open: boolean; onClose: () => void; title: string; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean; className?: string; }
+export function Modal({ open, onClose, title, children, footer, wide, className }: ModalProps) {
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
@@ -210,15 +217,23 @@ export function Modal({ open, onClose, title, children, wide, className }: Modal
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
       <div onClick={e => e.stopPropagation()}
-        className={cn('relative bg-white rounded-[16px] shadow-2xl w-full max-h-[90vh] overflow-y-auto animate-fade-up',
+        className={cn('relative bg-white rounded-[16px] shadow-2xl w-full max-h-[90vh] flex flex-col animate-fade-up',
           wide ? 'max-w-2xl' : 'max-w-lg', className)}>
-        <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-6 py-4 border-b border-[var(--color-gr-border)]">
+        {/* Header fijo */}
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-[var(--color-gr-border)]">
           <h2 className="text-[16px] font-800 text-[var(--color-gr-text)]">{title}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[var(--color-gr-border)] transition-colors">
             <X size={16} className="text-[var(--color-gr-muted)]" />
           </button>
         </div>
-        <div className="px-6 py-5 space-y-4">{children}</div>
+        {/* Contenido scrollable */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">{children}</div>
+        {/* Footer fijo */}
+        {footer && (
+          <div className="shrink-0 flex gap-3 justify-end px-6 py-4 border-t border-[var(--color-gr-border)] bg-white rounded-b-[16px]">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -263,12 +278,12 @@ export function ToastContainer() {
 // ─── Confirm modal ────────────────────────────────────────────────────────────
 export function ConfirmModal({ open, onClose, onConfirm, title, message, danger }: { open: boolean; onClose: () => void; onConfirm: () => void; title: string; message?: string; danger?: boolean; }) {
   return (
-    <Modal open={open} onClose={onClose} title={title}>
-      {message && <p className="text-[14px] text-[var(--color-gr-sub)]">{message}</p>}
-      <div className="flex gap-3 justify-end pt-2">
+    <Modal open={open} onClose={onClose} title={title}
+      footer={<>
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
         <Btn variant={danger ? 'danger' : 'primary'} onClick={() => { onConfirm(); onClose(); }}>Confirmar</Btn>
-      </div>
+      </>}>
+      {message && <p className="text-[14px] text-[var(--color-gr-sub)]">{message}</p>}
     </Modal>
   );
 }
