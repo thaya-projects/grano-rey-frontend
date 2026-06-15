@@ -1,25 +1,23 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import type { Producto } from '@/lib/types';
+import { getPublicEmpresa, getPublicProductos } from '@/lib/api/public';
 import { formatBs } from '@/lib/utils';
-import { ShieldCheck, Wheat, Truck, Star, ArrowRight, MapPin, Phone } from 'lucide-react';
+import { ShieldCheck, Wheat, Truck, ArrowRight, MapPin, Phone } from 'lucide-react';
+import { SiteFooter } from '@/components/SiteFooter';
 
-async function getProductos(): Promise<Producto[]> {
-  try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/productos`,
-      { next: { revalidate: 60 } },
-    );
-    if (!res.ok) return [];
-    return res.json();
-  } catch {
-    return [];
-  }
-}
+export const dynamic = 'force-dynamic';
 
 export default async function LandingPage() {
-  const productos = await getProductos();
-  const activos = productos.filter(p => p.activo);
+  const [empresa, productos] = await Promise.all([
+    getPublicEmpresa(),
+    getPublicProductos(),
+  ]);
+
+  const preview = productos.slice(0, 4);
+
+  const tel    = empresa?.telefono ?? '+591 76012345';
+  const ciudad = empresa?.ciudad   ?? 'Monteagudo, Chuquisaca';
+  const nombre = empresa?.nombre   ?? 'Grano Rey';
 
   return (
     <>
@@ -85,10 +83,10 @@ export default async function LandingPage() {
       <div className="min-h-screen bg-white overflow-x-hidden">
 
         {/* ── Navbar ─────────────────────────────────────────── */}
-        <header className="fixed top-0 inset-x-0 z-50 bg-[#2E4434]/90 backdrop-blur-md border-b border-white/10">
+        <header className="fixed top-0 inset-x-0 z-50 bg-gr-primary-dark/90 backdrop-blur-md border-b border-white/10">
           <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
             <div className="relative w-28 h-9">
-              <Image src="/logo-grano-rey.webp" alt="Grano Rey" fill sizes="112px" className="object-contain" priority />
+              <Image src="/logo-grano-rey.webp" alt={nombre} fill sizes="112px" className="object-contain" priority />
             </div>
             <nav className="hidden md:flex items-center gap-6 text-[13.5px] font-600 text-white/60">
               <a href="#productos" className="hover:text-white transition-colors">Productos</a>
@@ -103,17 +101,13 @@ export default async function LandingPage() {
         </header>
 
         {/* ── Hero ───────────────────────────────────────────── */}
-        <section className="relative min-h-screen flex items-center bg-[#2E4434] overflow-hidden pt-16">
-
-          {/* Fondo con gradiente radial */}
+        <section className="relative min-h-screen flex items-center bg-gr-primary-dark overflow-hidden pt-16">
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full opacity-20"
               style={{ background: 'radial-gradient(circle, #c8a84b 0%, transparent 70%)' }} />
             <div className="absolute bottom-1/4 left-1/3 w-64 h-64 rounded-full opacity-10"
               style={{ background: 'radial-gradient(circle, #567A5F 0%, transparent 70%)' }} />
           </div>
-
-          {/* Elementos flotantes decorativos */}
           <div className="absolute right-8 top-24 opacity-10 float-1 hidden lg:block">
             <Wheat size={120} className="text-white" />
           </div>
@@ -128,7 +122,7 @@ export default async function LandingPage() {
             <div className="max-w-3xl">
               <div className="fade-up-1 inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/15 rounded-full px-4 py-1.5 mb-6">
                 <span className="w-2 h-2 bg-[#c8a84b] rounded-full relative pulse-ring" />
-                <span className="text-white/70 text-[12.5px] font-600 tracking-wide">Monteagudo, Chuquisaca · Bolivia</span>
+                <span className="text-white/70 text-[12.5px] font-600 tracking-wide">{ciudad} · Bolivia</span>
               </div>
 
               <h1 className="fade-up-2 text-white font-900 text-[42px] md:text-[62px] leading-[1.05] mb-6">
@@ -144,10 +138,10 @@ export default async function LandingPage() {
               </p>
 
               <div className="fade-up-4 flex flex-wrap gap-3">
-                <a href="#productos"
+                <Link href="/catalogo"
                   className="group flex items-center gap-2 bg-[#c8a84b] hover:bg-[#b8963e] text-[#1a0e00] font-800 px-6 py-3.5 rounded-xl text-[15px] transition-all hover:gap-3">
                   Ver catálogo <ArrowRight size={16} className="transition-all" />
-                </a>
+                </Link>
                 <a href="#proceso"
                   className="flex items-center gap-2 border border-white/20 hover:border-white/50 hover:bg-white/5 text-white/80 hover:text-white font-600 px-6 py-3.5 rounded-xl text-[15px] transition-all">
                   ¿Qué es precocido?
@@ -156,7 +150,6 @@ export default async function LandingPage() {
             </div>
           </div>
 
-          {/* Wave */}
           <div className="absolute bottom-0 inset-x-0">
             <svg viewBox="0 0 1440 80" className="w-full" preserveAspectRatio="none" style={{ display: 'block' }}>
               <path d="M0,40 C240,80 480,0 720,40 C960,80 1200,0 1440,40 L1440,80 L0,80 Z" fill="white" />
@@ -168,8 +161,8 @@ export default async function LandingPage() {
         <section id="proceso" className="py-16 bg-white">
           <div className="max-w-6xl mx-auto px-5">
             <div className="text-center mb-10">
-              <p className="text-[#3C5A44] font-700 text-[12px] uppercase tracking-[0.15em] mb-2">Cómo funciona</p>
-              <h2 className="text-[28px] md:text-[36px] font-900 text-gray-900">¿Qué significa <span className="text-[#3C5A44]">precocido</span>?</h2>
+              <p className="text-gr-primary font-700 text-[12px] uppercase tracking-[0.15em] mb-2">Cómo funciona</p>
+              <h2 className="text-[28px] md:text-[36px] font-900 text-gray-900">¿Qué significa <span className="text-gr-primary">precocido</span>?</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
@@ -177,8 +170,8 @@ export default async function LandingPage() {
                 { n: '02', title: 'Primer cocido industrial', desc: 'El grano pasa por un proceso controlado de cocción parcial que rompe la estructura del almidón. Así tú solo terminas de cocinarlo.' },
                 { n: '03', title: 'Listo en tu mesa', desc: 'En tu hogar o negocio se prepara en menos tiempo, con menos energía y siempre con la misma textura y sabor perfectos.' },
               ].map(s => (
-                <div key={s.n} className="card-hover relative bg-gradient-to-br from-gray-50 to-white border border-gray-100 rounded-2xl p-6 shadow-sm">
-                  <span className="text-[48px] font-900 text-[#3C5A44]/10 leading-none block mb-3">{s.n}</span>
+                <div key={s.n} className="card-hover relative bg-linear-to-br from-gray-50 to-white border border-gray-100 rounded-2xl p-6 shadow-sm">
+                  <span className="text-[48px] font-900 text-gr-primary/10 leading-none block mb-3">{s.n}</span>
                   <h3 className="font-800 text-[16px] text-gray-900 mb-2">{s.title}</h3>
                   <p className="text-[13.5px] text-gray-500 leading-relaxed">{s.desc}</p>
                 </div>
@@ -214,74 +207,67 @@ export default async function LandingPage() {
         {/* ── Productos ──────────────────────────────────────── */}
         <section id="productos" className="py-20 bg-white">
           <div className="max-w-6xl mx-auto px-5">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
-              <div>
-                <p className="text-[#3C5A44] font-700 text-[12px] uppercase tracking-[0.15em] mb-2">Catálogo</p>
-                <h2 className="text-[28px] md:text-[36px] font-900 text-gray-900">Nuestros productos</h2>
-              </div>
-              {activos.length > 0 && (
-                <p className="text-gray-400 text-[13.5px]">{activos.length} producto{activos.length !== 1 ? 's' : ''} disponible{activos.length !== 1 ? 's' : ''}</p>
-              )}
+            <div className="mb-10">
+              <p className="text-gr-primary font-700 text-[12px] uppercase tracking-[0.15em] mb-2">Catálogo</p>
+              <h2 className="text-[28px] md:text-[36px] font-900 text-gray-900">Nuestros productos</h2>
             </div>
 
-            {activos.length === 0 ? (
+            {preview.length === 0 ? (
               <div className="text-center py-20 text-gray-400">
                 <Wheat size={40} className="mx-auto mb-4 opacity-30" />
                 <p className="font-600">Catálogo en actualización</p>
                 <p className="text-[13px] mt-1">Vuelve pronto para ver nuestros productos.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {activos.map(p => (
-                  <div key={p.id} className="card-hover bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    {/* Imagen */}
-                    <div className="img-zoom h-52 relative overflow-hidden bg-gradient-to-br from-[#edf5ed] to-[#dbeadb]">
-                      {p.fotoPrincipal ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.fotoPrincipal} alt={p.nombre} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                          <Wheat size={52} className="text-[#3C5A44]/20" />
-                          <span className="text-[11px] text-[#3C5A44]/30 font-600">Foto próximamente</span>
-                        </div>
-                      )}
-                      {/* Código */}
-                      <span className="absolute top-3 left-3 bg-white/95 text-[#3C5A44] font-800 text-[11px] px-2.5 py-1 rounded-full font-mono shadow-sm">
-                        {p.codigo}
-                      </span>
-                      {/* Precio badge */}
-                      <div className="absolute bottom-3 right-3 bg-[#2E4434]/90 backdrop-blur-sm text-white rounded-xl px-3 py-1.5">
-                        <p className="text-[10px] text-white/50 leading-none mb-0.5">precio / {p.unidadVenta?.codigo ?? 'unidad'}</p>
-                        <p className="font-900 text-[15px] leading-none">{formatBs(Number(p.precioUnitarioBs))}</p>
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {preview.map(p => (
+                    <Link key={p.id} href={`/catalogo/${p.id}`}
+                      className="card-hover bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden group block">
+                      <div className="img-zoom h-36 relative overflow-hidden bg-linear-to-br from-[#edf5ed] to-[#dbeadb]">
+                        {p.fotoPrincipal ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.fotoPrincipal} alt={p.nombre} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Wheat size={32} className="text-gr-primary/20" />
+                          </div>
+                        )}
+                        <span className="absolute top-2 left-2 bg-white/95 text-gr-primary font-700 text-[9px] px-2 py-0.5 rounded-full font-mono shadow-sm">
+                          {p.codigo}
+                        </span>
                       </div>
-                    </div>
 
-                    {/* Contenido */}
-                    <div className="p-5">
-                      <h3 className="font-800 text-[16px] text-gray-900 mb-1">{p.nombre}</h3>
-                      {p.descripcion ? (
-                        <p className="text-[13px] text-gray-500 leading-relaxed line-clamp-2 mb-4">{p.descripcion}</p>
-                      ) : (
-                        <p className="text-[13px] text-gray-400 italic mb-4">Alimento precocido boliviano de calidad superior.</p>
-                      )}
-                      <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
-                        <div className="flex items-center gap-1">
-                          {[1,2,3,4,5].map(i => (
-                            <Star key={i} size={11} className="text-[#c8a84b]" fill="#c8a84b" />
-                          ))}
+                      <div className="p-3">
+                        <h3 className="font-700 text-[13px] text-gray-900 mb-0.5 group-hover:text-gr-primary transition-colors line-clamp-1">
+                          {p.nombre}
+                        </h3>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                          <span className="font-800 text-[13px] text-gr-primary">{formatBs(Number(p.precioUnitarioBs))}</span>
+                          <span className="text-[11px] font-600 text-gray-400 flex items-center gap-0.5 group-hover:gap-1.5 transition-all">
+                            Ver <ArrowRight size={11} />
+                          </span>
                         </div>
-                        <span className="text-[12px] text-gray-400">{Number(p.pesoKgPorUnidad).toFixed(1)} kg/unidad</span>
                       </div>
-                    </div>
+                    </Link>
+                  ))}
+                </div>
+
+                {productos.length > 4 && (
+                  <div className="text-center mt-8">
+                    <Link href="/catalogo"
+                      className="inline-flex items-center gap-2 border-2 border-gr-primary text-gr-primary hover:bg-gr-primary hover:text-white font-700 px-6 py-2.5 rounded-xl text-[13.5px] transition-all">
+                      Ver todos los productos <ArrowRight size={14} />
+                    </Link>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         </section>
 
         {/* ── Nosotros ───────────────────────────────────────── */}
-        <section id="nosotros" className="py-20 bg-[#2E4434] relative overflow-hidden">
+        <section id="nosotros" className="py-20 bg-gr-primary-dark relative overflow-hidden">
           <div className="absolute inset-0 pointer-events-none opacity-5"
             style={{ backgroundImage: 'radial-gradient(circle at 20% 80%, #c8a84b 0%, transparent 50%), radial-gradient(circle at 80% 20%, #567A5F 0%, transparent 50%)' }} />
 
@@ -294,7 +280,7 @@ export default async function LandingPage() {
                   <span className="text-[#c8a84b]">con sello de calidad.</span>
                 </h2>
                 <p className="text-white/60 text-[15px] leading-relaxed mb-4">
-                  Nacimos en Monteagudo, Chuquisaca — tierra fértil de Bolivia — con una misión clara:
+                  Nacimos en {ciudad} — tierra fértil de Bolivia — con una misión clara:
                   ofrecer alimentos precocidos de alta calidad que faciliten la vida de las familias
                   bolivianas y potencien los negocios de nuestros distribuidores.
                 </p>
@@ -305,12 +291,22 @@ export default async function LandingPage() {
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-3">
                     <MapPin size={16} className="text-[#c8a84b] shrink-0" />
-                    <span className="text-white/60 text-[14px]">Monteagudo, Chuquisaca, Bolivia</span>
+                    <span className="text-white/60 text-[14px]">{empresa?.direccion ?? ciudad}, Bolivia</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Phone size={16} className="text-[#c8a84b] shrink-0" />
-                    <span className="text-white/60 text-[14px]">+591 76012345</span>
-                  </div>
+                  {empresa?.telefono && (
+                    <div className="flex items-center gap-3">
+                      <Phone size={16} className="text-[#c8a84b] shrink-0" />
+                      <span className="text-white/60 text-[14px]">{empresa.telefono}</span>
+                    </div>
+                  )}
+                  {empresa?.email && (
+                    <div className="flex items-center gap-3">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#c8a84b" strokeWidth="2" className="shrink-0">
+                        <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                      </svg>
+                      <span className="text-white/60 text-[14px]">{empresa.email}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -345,45 +341,24 @@ export default async function LandingPage() {
               Ponte en contacto con nosotros.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <a href="tel:+59176012345"
-                className="inline-flex items-center gap-2 bg-[#2E4434] hover:bg-[#2E4434] text-white font-800 px-6 py-3.5 rounded-xl text-[14px] transition-colors shadow-lg">
-                <Phone size={15} /> Llámanos
-              </a>
-              {/* WhatsApp */}
-              <a href="https://wa.me/59176012345" target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-[#25d366] hover:bg-[#1ebe5d] text-white font-800 px-6 py-3.5 rounded-xl text-[14px] transition-colors shadow-lg">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.533 5.858L.057 23.386a.75.75 0 0 0 .918.919l5.578-1.463A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.704 9.704 0 0 1-4.95-1.355l-.355-.21-3.676.964.981-3.584-.232-.369A9.718 9.718 0 0 1 2.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/></svg>
-                WhatsApp
-              </a>
-              {/* Facebook */}
-              <a href="https://facebook.com/granoreybolivia" target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 bg-[#1877f2] hover:bg-[#0f65d4] text-white font-800 px-6 py-3.5 rounded-xl text-[14px] transition-colors shadow-lg">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
-                Facebook
-              </a>
-              {/* Instagram */}
-              <a href="https://instagram.com/granoreybolivia" target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-white font-800 px-6 py-3.5 rounded-xl text-[14px] transition-all shadow-lg"
-                style={{ background: 'linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888)' }}>
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>
-                Instagram
-              </a>
+              {tel && (
+                <a href={`tel:${tel.replace(/\s/g, '')}`}
+                  className="inline-flex items-center gap-2 bg-gr-primary-dark hover:bg-[#243a2b] text-white font-800 px-6 py-3.5 rounded-xl text-[14px] transition-colors shadow-lg">
+                  <Phone size={15} /> Llámanos
+                </a>
+              )}
+              {tel && (
+                <a href={`https://wa.me/${tel.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-[#25d366] hover:bg-[#1ebe5d] text-white font-800 px-6 py-3.5 rounded-xl text-[14px] transition-colors shadow-lg">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.533 5.858L.057 23.386a.75.75 0 0 0 .918.919l5.578-1.463A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.704 9.704 0 0 1-4.95-1.355l-.355-.21-3.676.964.981-3.584-.232-.369A9.718 9.718 0 0 1 2.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/></svg>
+                  WhatsApp
+                </a>
+              )}
             </div>
           </div>
         </section>
 
-        {/* ── Footer ─────────────────────────────────────────── */}
-        <footer className="bg-[#2E4434] py-8">
-          <div className="max-w-6xl mx-auto px-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="relative w-24 h-8">
-              <Image src="/logo-grano-rey.webp" alt="Grano Rey" fill sizes="96px" className="object-contain" />
-            </div>
-            <p className="text-white/25 text-[12px]">© {new Date().getFullYear()} Grano Rey · Monteagudo, Bolivia</p>
-            <Link href="/login" className="text-white/35 hover:text-white/70 text-[12px] transition-colors">
-              Acceso al sistema →
-            </Link>
-          </div>
-        </footer>
+        <SiteFooter nombre={nombre} ciudad={ciudad} />
 
       </div>
     </>

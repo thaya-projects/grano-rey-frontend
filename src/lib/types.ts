@@ -329,7 +329,6 @@ export interface CreateClienteRequest {
   direccion?: string;
   ciudad?: string;
   nit?: string;
-  activo?: boolean;
 }
 
 export interface CreateProveedorRequest {
@@ -338,7 +337,6 @@ export interface CreateProveedorRequest {
   telefono?: string;
   ciudad?: string;
   nit?: string;
-  activo?: boolean;
 }
 
 export interface CreateTransportistaRequest {
@@ -350,7 +348,6 @@ export interface CreateTransportistaRequest {
   marca?: string;
   color?: string;
   destinoHabitual?: string;
-  activo?: boolean;
 }
 
 export interface CreateCategoriaMPRequest {
@@ -368,7 +365,6 @@ export interface CreateProductoRequest {
   stockMinimo?: number;
   unidadVentaId: string;
   vidaUtilMeses?: number;
-  activo?: boolean;
 }
 
 export interface UpdateProductoRequest {

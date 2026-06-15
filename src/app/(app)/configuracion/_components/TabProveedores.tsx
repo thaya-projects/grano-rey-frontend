@@ -16,7 +16,6 @@ export function TabProveedores() {
   const [ciudad, setCiudad] = useState('');
   const [contacto, setContacto] = useState('');
   const [nit, setNit] = useState('');
-  const [activo, setActivo] = useState(true);
 
   async function handleSave() {
     if (!nombre) return;
@@ -27,9 +26,8 @@ export function TabProveedores() {
         telefono: telefono || undefined,
         ciudad: ciudad || undefined,
         nit: nit || undefined,
-        activo,
       });
-      setOpen(false); setNombre(''); setTel(''); setCiudad(''); setContacto(''); setNit(''); setActivo(true);
+      setOpen(false); setNombre(''); setTel(''); setCiudad(''); setContacto(''); setNit('');
       toast('Proveedor creado', 'success');
     } catch (err) { toast(apiErrorMessage(err, 'No se pudo crear'), 'error'); }
   }
@@ -80,15 +78,6 @@ export function TabProveedores() {
             <FormField label="Teléfono" hint="Opcional"><PhoneInput value={telefono} onChange={setTel} /></FormField>
           </div>
           <FormField label="NIT" hint="Opcional"><Input value={nit} onChange={e => setNit(e.target.value)} /></FormField>
-          <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActivo(v => !v)}>
-            <div className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${activo ? 'bg-gr-primary' : 'bg-gr-border'}`}>
-              <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
-            </div>
-            <span className="text-[13.5px] font-semibold text-gr-text">
-              Activo
-              <span className="ml-1 text-[12px] font-normal text-gr-muted">(Opcional · por defecto activo)</span>
-            </span>
-          </div>
         </Modal>
       )}
     </div>

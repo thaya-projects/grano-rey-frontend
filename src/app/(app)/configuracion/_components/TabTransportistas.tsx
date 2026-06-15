@@ -18,7 +18,6 @@ export function TabTransportistas() {
   const [marca, setMarca] = useState('');
   const [color, setColor] = useState('');
   const [destinoHabitual, setDestino] = useState('');
-  const [activo, setActivo] = useState(true);
   const [ci, setCi] = useState('');
 
   async function handleSave() {
@@ -33,9 +32,8 @@ export function TabTransportistas() {
         marca: marca || undefined,
         color: color || undefined,
         destinoHabitual: destinoHabitual || undefined,
-        activo,
       });
-      setOpen(false); setNombre(''); setTel(''); setEmpresa(''); setPlaca(''); setMarca(''); setColor(''); setDestino(''); setActivo(true); setCi('');
+      setOpen(false); setNombre(''); setTel(''); setEmpresa(''); setPlaca(''); setMarca(''); setColor(''); setDestino(''); setCi('');
       toast('Transportista creado', 'success');
     } catch (err) { toast(apiErrorMessage(err, 'No se pudo crear'), 'error'); }
   }
@@ -91,15 +89,6 @@ export function TabTransportistas() {
             <FormField label="Color" hint="Opcional"><Input value={color} onChange={e => setColor(e.target.value)} placeholder="Blanco" /></FormField>
           </div>
           <FormField label="Destino habitual" hint="Opcional"><Input value={destinoHabitual} onChange={e => setDestino(e.target.value)} placeholder="Ej. Santa Cruz - Cochabamba" /></FormField>
-          <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActivo(v => !v)}>
-            <div className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${activo ? 'bg-gr-primary' : 'bg-gr-border'}`}>
-              <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
-            </div>
-            <span className="text-[13.5px] font-semibold text-gr-text">
-              Activo
-              <span className="ml-1 text-[12px] font-normal text-gr-muted">(Opcional · por defecto activo)</span>
-            </span>
-          </div>
         </Modal>
       )}
     </div>
