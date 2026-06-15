@@ -4,6 +4,7 @@ import type {
   MateriaPrima,
   KardexMP,
   CreateMateriaPrimaRequest,
+  UpdateMateriaPrimaRequest,
   CreateKardexMPRequest,
 } from '../types';
 
@@ -27,6 +28,15 @@ export function useCreateMateriaPrima() {
   return useMutation({
     mutationFn: async (dto: CreateMateriaPrimaRequest) =>
       (await api.post<MateriaPrima>('/materias-primas', dto)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: mpKeys.all }),
+  });
+}
+
+export function useUpdateMateriaPrima() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: UpdateMateriaPrimaRequest }) =>
+      (await api.patch<MateriaPrima>(`/materias-primas/${id}`, dto)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: mpKeys.all }),
   });
 }
