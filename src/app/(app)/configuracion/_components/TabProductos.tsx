@@ -38,7 +38,7 @@ function Lightbox({ images, startIndex, onClose }: {
 
   return (
     <div
-      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/88"
+      className="fixed inset-0 z-300 flex items-center justify-center bg-black/88"
       onClick={onClose}>
       <div className="relative flex items-center justify-center" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-center rounded-xl overflow-hidden shadow-2xl bg-black/30"
@@ -66,20 +66,20 @@ function Lightbox({ images, startIndex, onClose }: {
         {idx > 0 && (
           <button
             onClick={() => setIdx(i => i - 1)}
-            className="absolute left-[-52px] top-1/2 -translate-y-1/2 w-10 h-10 bg-white/15 hover:bg-white/35 rounded-full flex items-center justify-center text-white transition-colors">
+            className="absolute -left-13 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/15 hover:bg-white/35 rounded-full flex items-center justify-center text-white transition-colors">
             <ChevronLeft size={20} />
           </button>
         )}
         {idx < images.length - 1 && (
           <button
             onClick={() => setIdx(i => i + 1)}
-            className="absolute right-[-52px] top-1/2 -translate-y-1/2 w-10 h-10 bg-white/15 hover:bg-white/35 rounded-full flex items-center justify-center text-white transition-colors">
+            className="absolute -right-13 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/15 hover:bg-white/35 rounded-full flex items-center justify-center text-white transition-colors">
             <ChevronRight size={20} />
           </button>
         )}
 
         {images.length > 1 && (
-          <div className="absolute bottom-[-32px] left-1/2 -translate-x-1/2 flex gap-1.5">
+          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex gap-1.5">
             {images.map((_, i) => (
               <button
                 key={i}
@@ -164,7 +164,7 @@ function ImagenesProducto({ productoId }: { productoId: string }) {
       ) : imagenes.length > 0 && (
         <div className="flex flex-wrap gap-3">
           {imagenes.map((img, imgIdx) => (
-            <div key={img.id} className="relative group w-20 h-20 rounded-[10px] overflow-hidden border border-gr-border shrink-0 cursor-zoom-in"
+            <div key={img.id} className="relative group w-20 h-20 rounded-md overflow-hidden border border-gr-border shrink-0 cursor-zoom-in"
               onClick={() => setLightbox(imgIdx)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={img.url} alt="" className="w-full h-full object-cover" />
@@ -228,7 +228,7 @@ function ImagenesProducto({ productoId }: { productoId: string }) {
           onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}
           onClick={() => inputRef.current?.click()}
-          className="flex flex-col items-center gap-1.5 py-5 rounded-[10px] border-2 border-dashed cursor-pointer transition-colors"
+          className="flex flex-col items-center gap-1.5 py-5 rounded-md border-2 border-dashed cursor-pointer transition-colors"
           style={{
             borderColor: isDragging ? 'var(--color-gr-primary)' : 'var(--color-gr-border)',
             background:  isDragging ? 'var(--color-gr-primary-lite)' : undefined,
@@ -351,7 +351,6 @@ function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: 
           stockMinimo: stockMin || undefined,
           unidadVentaId: unidadId,
           vidaUtilMeses: vidaNum,
-          activo,
         });
       } else if (producto) {
         await update.mutateAsync({
@@ -446,7 +445,7 @@ export function TabProductos() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[13px] text-[var(--color-gr-muted)]">{productos.length} productos</p>
+        <p className="text-[13px] text-gr-muted">{productos.length} productos</p>
         <Btn onClick={() => setModal({ mode: 'create' })}><Plus size={14} /> Nuevo producto</Btn>
       </div>
 
@@ -463,10 +462,10 @@ export function TabProductos() {
           <tbody>
             {productos.map((p, i) => (
               <tr key={p.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
-                className="border-b border-[var(--color-gr-border-lite)]">
-                <td className="px-4 py-3 font-mono font-700 text-[12.5px] text-[var(--color-gr-primary)]">{p.codigo}</td>
+                className="border-b border-gr-border-lite">
+                <td className="px-4 py-3 font-mono font-700 text-[12.5px] text-gr-primary">{p.codigo}</td>
                 <td className="px-4 py-3 font-700">{p.nombre}</td>
-                <td className="px-4 py-3 text-[12px] text-[var(--color-gr-muted)]">{p.unidadVenta?.codigo ?? '—'}</td>
+                <td className="px-4 py-3 text-[12px] text-gr-muted">{p.unidadVenta?.codigo ?? '—'}</td>
                 <td className="px-4 py-3">{Number(p.pesoKgPorUnidad).toFixed(2)}</td>
                 <td className="px-4 py-3">{formatBs(Number(p.precioUnitarioBs))}</td>
                 <td className="px-4 py-3 font-700">{Number(p.stockActual)}</td>
@@ -490,7 +489,7 @@ export function TabProductos() {
               </tr>
             ))}
             {productos.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-[var(--color-gr-muted)]">Sin productos cargados</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-gr-muted">Sin productos cargados</td></tr>
             )}
           </tbody>
         </table>
