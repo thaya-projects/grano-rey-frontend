@@ -168,6 +168,7 @@ export interface MateriaPrima extends AuditFields {
   descripcion?: string | null;
   stockActualKg: number;
   stockMinimoKg: number;
+  stockBajo: boolean;
   activo: boolean;
   categoria?: CategoriaMP;
   unidadMedida?: UnidadMedida;
@@ -404,6 +405,15 @@ export interface CreateKardexMPRequest {
   numeroLote?: number;
   costoUnitarioBs?: number;
   observaciones?: string;
+  estadoPago?: EstadoPagoMP;
+  fechaPago?: string;
+}
+
+export interface UpdateMateriaPrimaRequest {
+  nombre?: string;
+  descripcion?: string;
+  stockMinimoKg?: number;
+  unidadMedidaId?: string;
 }
 
 export interface CreateKardexProductoRequest {

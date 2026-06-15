@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useMateriasPrimas, useCreateKardexMP, useKardexMPPendientesPago, usePagarKardexMP } from '@/lib/api/materia-prima';
 import { useProveedores, useUnidades, useCategoriasMP, useSubtiposMP } from '@/lib/api/catalogos';
-import { TipoMovimientoMP, type MateriaPrima } from '@/lib/types';
+import { TipoMovimientoMP, EstadoPagoMP, type MateriaPrima } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatNum, formatBs } from '@/lib/utils';
 import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
@@ -257,6 +257,8 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
   const [numeroLote, setNumeroLote]   = useState('');
   const [observaciones, setObs]       = useState('');
   const [fecha, setFecha]             = useState(new Date().toISOString().slice(0, 10));
+  const [estadoPago, setEstadoPago]   = useState<'pendiente' | 'pagado'>('pendiente');
+  const [fechaPago, setFechaPago]     = useState('');
 
   const cantNum = parseFloat(cantidad) || 0;
   const valid   = cantNum > 0 && !!unidadId;
@@ -275,6 +277,8 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
         numeroLote: numeroLote ? parseInt(numeroLote) : undefined,
         costoUnitarioBs: costoBs ? parseFloat(costoBs) : undefined,
         observaciones: observaciones || undefined,
+        estadoPago: estadoPago as EstadoPagoMP,
+        fechaPago: estadoPago === 'pagado' && fechaPago ? fechaPago : undefined,
       });
       onSaved();
     } catch (err) {
@@ -332,7 +336,21 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
         </Select>
       </FormField>
 
-      <FormField label="Fecha" required>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Estado de pago">
+          <Select value={estadoPago} onChange={e => setEstadoPago(e.target.value as 'pendiente' | 'pagado')}>
+            <option value="pendiente">Pendiente</option>
+            <option value="pagado">Pagado</option>
+          </Select>
+        </FormField>
+        {estadoPago === 'pagado' && (
+          <FormField label="Fecha de pago">
+            <Input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
+          </FormField>
+        )}
+      </div>
+
+      <FormField label="Fecha de entrada" required>
         <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
       </FormField>
 
