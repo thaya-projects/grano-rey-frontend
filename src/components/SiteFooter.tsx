@@ -17,8 +17,8 @@ export function SiteFooter({ nombre = 'Grano Rey', ciudad }: Props) {
       <div className="max-w-6xl mx-auto px-5 flex flex-col sm:flex-row items-center justify-between gap-6">
 
         {/* Logo Industrias Reynales */}
-        <div className="relative w-32 h-10">
-          <Image src="/logo-reynales.webp" alt="Industrias Reynales" fill sizes="128px" className="object-contain" />
+        <div className="relative w-44 h-20">
+          <Image src="/logo-reynales.webp" alt="Industrias Reynales" fill sizes="176px" className="object-contain" />
         </div>
 
         {/* Centro: redes + copyright */}
