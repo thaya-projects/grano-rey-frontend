@@ -212,8 +212,14 @@ function ProduccionModal({ producto, onClose, onSaved, onError }: {
   const [costoMpBs, setCosto] = useState('');
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [obs, setObs] = useState('');
+  const [numeroLotePropio, setNumeroLotePropio] = useState('');
+  const [mermaUnidades, setMermaUnidades] = useState('');
+  const [mermaMpKg, setMermaMpKg] = useState('');
+  const [mermaObs, setMermaObs] = useState('');
 
   const bolsasNum = parseFloat(bolsas) || 0;
+  const mermaUnNum = parseFloat(mermaUnidades) || 0;
+  const mermaMpNum = parseFloat(mermaMpKg) || 0;
   const totalQQ   = (bolsasNum * Number(producto.pesoKgPorUnidad)) / 46;
   const puedeGuardar = bolsasNum > 0 && !!producto.unidadVenta?.id;
 
@@ -227,6 +233,10 @@ function ProduccionModal({ producto, onClose, onSaved, onError }: {
         unidadId: producto.unidadVenta!.id,
         costoMpBs: parseFloat(costoMpBs) || undefined,
         observaciones: obs || undefined,
+        numeroLotePropio: numeroLotePropio.trim() || undefined,
+        mermaUnidades: mermaUnNum > 0 ? mermaUnNum : undefined,
+        mermaMpKg: mermaMpNum > 0 ? mermaMpNum : undefined,
+        mermaObservaciones: mermaObs.trim() || undefined,
       });
       onSaved(lote.codigoLote);
     } catch (err) {
@@ -274,12 +284,36 @@ function ProduccionModal({ producto, onClose, onSaved, onError }: {
         </div>
       )}
 
-      <FormField label="Costo MP (Bs)">
-        <Input type="number" min="0" step="0.01" placeholder="0" value={costoMpBs}
-          onChange={e => setCosto(e.target.value)} />
-      </FormField>
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="N° lote propio (opcional)">
+          <Input placeholder="ej: GR-0042" value={numeroLotePropio}
+            onChange={e => setNumeroLotePropio(e.target.value)} />
+        </FormField>
+        <FormField label="Costo MP (Bs)">
+          <Input type="number" min="0" step="0.01" placeholder="0" value={costoMpBs}
+            onChange={e => setCosto(e.target.value)} />
+        </FormField>
+      </div>
 
-      <FormField label="Observaciones">
+      <div className="rounded-[10px] border border-[var(--color-gr-border)] p-3 space-y-3">
+        <p className="font-700 text-[13px] text-[var(--color-gr-text)]">Merma (opcional)</p>
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label={`Merma producto final (${producto.unidadVenta?.abreviatura ?? 'u'})`}>
+            <Input type="number" min="0" step="0.01" placeholder="0" value={mermaUnidades}
+              onChange={e => setMermaUnidades(e.target.value)} />
+          </FormField>
+          <FormField label="Merma materia prima (kg)">
+            <Input type="number" min="0" step="0.01" placeholder="0" value={mermaMpKg}
+              onChange={e => setMermaMpKg(e.target.value)} />
+          </FormField>
+        </div>
+        <FormField label="Observaciones de la merma">
+          <Textarea placeholder="Detalles de la pérdida..." value={mermaObs}
+            onChange={e => setMermaObs(e.target.value)} />
+        </FormField>
+      </div>
+
+      <FormField label="Observaciones generales">
         <Textarea placeholder="Turno, notas del lote..." value={obs} onChange={e => setObs(e.target.value)} />
       </FormField>
 

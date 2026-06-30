@@ -3,9 +3,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 const APP_ROUTES = [
   '/dashboard',
   '/stock',
+  '/produccion',
   '/materia-prima',
   '/ventas',
   '/despachos',
+  '/cargadores',
   '/reportes',
   '/configuracion',
 ];

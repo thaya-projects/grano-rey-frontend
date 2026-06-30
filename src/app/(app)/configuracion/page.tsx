@@ -1,14 +1,15 @@
 'use client';
 import { useState } from 'react';
-import { Building2, Package, Wheat, Users, Truck, Tag } from 'lucide-react';
+import { Building2, Package, Wheat, Users, Truck, Tag, HardHat } from 'lucide-react';
 import { TabEmpresa }        from './_components/TabEmpresa';
 import { TabProductos }      from './_components/TabProductos';
 import { TabMateriaPrima }   from './_components/TabMateriaPrima';
 import { TabClientes }       from './_components/TabClientes';
 import { TabTransportistas } from './_components/TabTransportistas';
 import { TabProveedores }    from './_components/TabProveedores';
+import { TabCargadores }     from './_components/TabCargadores';
 
-type Tab = 'empresa' | 'productos' | 'mp' | 'clientes' | 'transportistas' | 'proveedores';
+type Tab = 'empresa' | 'productos' | 'mp' | 'clientes' | 'transportistas' | 'proveedores' | 'cargadores';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'empresa',        label: 'Empresa',        icon: <Building2 size={15} /> },
@@ -17,6 +18,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'clientes',       label: 'Clientes',       icon: <Users size={15} /> },
   { id: 'transportistas', label: 'Transportistas', icon: <Truck size={15} /> },
   { id: 'proveedores',    label: 'Proveedores',    icon: <Tag size={15} /> },
+  { id: 'cargadores',     label: 'Cargadores',     icon: <HardHat size={15} /> },
 ];
 
 export default function ConfiguracionPage() {
@@ -51,6 +53,7 @@ export default function ConfiguracionPage() {
       {tab === 'clientes'       && <TabClientes />}
       {tab === 'transportistas' && <TabTransportistas />}
       {tab === 'proveedores'    && <TabProveedores />}
+      {tab === 'cargadores'     && <TabCargadores />}
     </div>
   );
 }
