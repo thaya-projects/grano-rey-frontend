@@ -6,15 +6,17 @@ import { useAuth } from '@/lib/auth-store';
 import Image from 'next/image';
 import {
   LayoutDashboard, Package, Wheat, ShoppingCart, Truck, BarChart3,
-  Settings, LogOut, ChevronRight
+  Settings, LogOut, ChevronRight, HardHat, Factory,
 } from 'lucide-react';
 
 const NAV = [
   { href: '/dashboard',     label: 'Inicio',        icon: LayoutDashboard, roles: ['administradora','almacenero','vendedor','produccion'] },
   { href: '/stock',         label: 'Stock',          icon: Package,         roles: ['administradora','almacenero','vendedor'] },
+  { href: '/produccion',    label: 'Producción',     icon: Factory,         roles: ['administradora','almacenero','produccion'] },
   { href: '/materia-prima', label: 'Materia Prima',  icon: Wheat,           roles: ['administradora','almacenero','produccion'] },
   { href: '/ventas',        label: 'Ventas',         icon: ShoppingCart,    roles: ['administradora','vendedor'] },
   { href: '/despachos',     label: 'Despachos',      icon: Truck,           roles: ['administradora','almacenero'] },
+  { href: '/cargadores',    label: 'Cargadores',     icon: HardHat,         roles: ['administradora','almacenero'] },
   { href: '/reportes',      label: 'Reportes',       icon: BarChart3,       roles: ['administradora'] },
   { href: '/configuracion', label: 'Configuración',  icon: Settings,        roles: ['administradora'] },
 ];

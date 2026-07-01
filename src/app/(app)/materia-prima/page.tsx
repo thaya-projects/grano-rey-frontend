@@ -2,11 +2,12 @@
 import { useState } from 'react';
 import { useMateriasPrimas, useCreateKardexMP, useKardexMPPendientesPago, usePagarKardexMP } from '@/lib/api/materia-prima';
 import { useProveedores, useUnidades, useCategoriasMP, useSubtiposMP } from '@/lib/api/catalogos';
+import { useCargadores, useTarifaCarga } from '@/lib/api/cargadores';
 import { TipoMovimientoMP, EstadoPagoMP, type MateriaPrima } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatNum, formatBs } from '@/lib/utils';
 import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
-import { Wheat, Plus, CheckCircle } from 'lucide-react';
+import { Wheat, Plus, CheckCircle, HardHat } from 'lucide-react';
 
 function StockDot({ value, min }: { value: number; min: number }) {
   const low  = min > 0 && value < min;
@@ -248,6 +249,10 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
   const createKardex = useCreateKardexMP();
   const subtiposQ = useSubtiposMP(mp.categoria?.tieneSubtipos ? mp.categoria.id : undefined);
   const subtipos = subtiposQ.data ?? [];
+  const cargadoresQ = useCargadores();
+  const tarifaQ = useTarifaCarga();
+  const cargadores = cargadoresQ.data ?? [];
+  const tarifa = Number(tarifaQ.data?.tarifaPorBolsaBs ?? 0);
 
   const [cantidad, setCantidad]       = useState('');
   const [unidadId, setUnidadId]       = useState(mp.unidadMedida?.id ?? '');
@@ -255,13 +260,26 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
   const [costoBs, setCostoBs]         = useState('');
   const [proveedorId, setProvId]      = useState('');
   const [numeroLote, setNumeroLote]   = useState('');
+  const [numeroLotePropio, setNumeroLotePropio] = useState('');
   const [observaciones, setObs]       = useState('');
   const [fecha, setFecha]             = useState(new Date().toISOString().slice(0, 10));
   const [estadoPago, setEstadoPago]   = useState<'pendiente' | 'pagado'>('pendiente');
   const [fechaPago, setFechaPago]     = useState('');
 
+  // Carga
+  const [cargadorId, setCargadorId] = useState('');
+  const [bolsasCarga, setBolsasCarga] = useState('');
+  const [cargaPagada, setCargaPagada] = useState(false);
+  const bolsasNum = parseFloat(bolsasCarga) || 0;
+  const montoCarga = bolsasNum * tarifa;
+
   const cantNum = parseFloat(cantidad) || 0;
-  const valid   = cantNum > 0 && !!unidadId;
+  // Obligatorios: cantidad, unidad, n° lote, proveedor
+  const valid =
+    cantNum > 0
+    && !!unidadId
+    && !!numeroLote.trim()
+    && !!proveedorId;
 
   async function handleSave() {
     if (!valid) return;
@@ -273,12 +291,16 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
         materiaPrimaId: mp.id,
         unidadId,
         subtipoId: subtipoId || undefined,
-        proveedorId: proveedorId || undefined,
-        numeroLote: numeroLote ? parseInt(numeroLote) : undefined,
+        proveedorId,
+        numeroLote: parseInt(numeroLote),
+        numeroLotePropio: numeroLotePropio.trim() || undefined,
         costoUnitarioBs: costoBs ? parseFloat(costoBs) : undefined,
         observaciones: observaciones || undefined,
         estadoPago: estadoPago as EstadoPagoMP,
         fechaPago: estadoPago === 'pagado' && fechaPago ? fechaPago : undefined,
+        cargadorId: cargadorId || undefined,
+        bolsasCarga: cargadorId ? bolsasNum : undefined,
+        cargaPagada: cargadorId ? cargaPagada : undefined,
       });
       onSaved();
     } catch (err) {
@@ -319,22 +341,28 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
       )}
 
       <div className="grid grid-cols-2 gap-3">
+        <FormField label="N° de lote" required>
+          <Input type="number" min="1" placeholder="ej: 1" value={numeroLote}
+            onChange={e => setNumeroLote(e.target.value)} />
+        </FormField>
+        <FormField label="N° lote propio (opcional)">
+          <Input placeholder="ej: MP-0042" value={numeroLotePropio}
+            onChange={e => setNumeroLotePropio(e.target.value)} />
+        </FormField>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Proveedor" required>
+          <Select value={proveedorId} onChange={e => setProvId(e.target.value)}>
+            <option value="">— Seleccionar —</option>
+            {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </Select>
+        </FormField>
         <FormField label="Costo unitario (Bs)">
           <Input type="number" min="0" step="0.01" placeholder="0" value={costoBs}
             onChange={e => setCostoBs(e.target.value)} />
         </FormField>
-        <FormField label="N° de lote">
-          <Input type="number" min="1" placeholder="Opcional" value={numeroLote}
-            onChange={e => setNumeroLote(e.target.value)} />
-        </FormField>
       </div>
-
-      <FormField label="Proveedor">
-        <Select value={proveedorId} onChange={e => setProvId(e.target.value)}>
-          <option value="">— Sin proveedor —</option>
-          {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-        </Select>
-      </FormField>
 
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Estado de pago">
@@ -357,6 +385,61 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
       <FormField label="Observaciones">
         <Input placeholder="Notas..." value={observaciones} onChange={e => setObs(e.target.value)} />
       </FormField>
+
+      <div className="rounded-[10px] border border-[var(--color-gr-border)] p-3 space-y-3">
+        <div className="flex items-center gap-2">
+          <HardHat size={14} className="text-[var(--color-gr-primary)]" />
+          <p className="font-700 text-[13px] text-[var(--color-gr-text)]">Carga / estibaje</p>
+          {tarifa > 0 && (
+            <span className="ml-auto text-[11.5px] text-[var(--color-gr-muted)]">
+              Tarifa actual: {formatBs(tarifa)}/bolsa
+            </span>
+          )}
+        </div>
+        {tarifa === 0 && (
+          <p className="text-[12px] text-[var(--color-gr-warning)]">
+            ⚠ Aún no hay tarifa de carga configurada. Configurala desde Configuración → Empresa.
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Cargador">
+            <Select value={cargadorId} onChange={e => setCargadorId(e.target.value)}>
+              <option value="">— Ninguno —</option>
+              {cargadores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Bolsas cargadas">
+            <Input type="number" min="0" placeholder="0" value={bolsasCarga}
+              disabled={!cargadorId}
+              onChange={e => setBolsasCarga(e.target.value)} />
+          </FormField>
+        </div>
+        {cargadorId && bolsasNum > 0 && (
+          <div className="flex items-center justify-between rounded-[8px] px-3 py-2 bg-[var(--color-gr-primary-lite)]">
+            <span className="text-[12.5px] text-[var(--color-gr-sub)]">
+              {bolsasNum} bolsas × {formatBs(tarifa)} =
+            </span>
+            <span className="font-800 text-[14px] text-[var(--color-gr-primary)]">
+              {formatBs(montoCarga)}
+            </span>
+          </div>
+        )}
+        {cargadorId && (
+          <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={cargaPagada}
+              onChange={e => setCargaPagada(e.target.checked)}
+            />
+            Pago realizado en este momento
+            {!cargaPagada && bolsasNum > 0 && (
+              <span className="text-[11.5px] text-[var(--color-gr-warning)] ml-1">
+                (queda como deuda al cargador)
+              </span>
+            )}
+          </label>
+        )}
+      </div>
 
       <div className="flex gap-3 justify-end">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>

@@ -56,8 +56,13 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--color-gr-border); border-radius: 99px; }
   @media print {
-    .no-print { display: none !important; }
+    .no-print, .no-print * { display: none !important; visibility: hidden !important; }
+    nav.fixed, .fixed[class*="bottom-0"] { display: none !important; }
     body { background: white; }
+    .print-only-target { position: static !important; padding: 0 !important; }
+    .print-combined { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8mm; }
+    .print-page-break { page-break-after: always; }
+    @page { margin: 10mm; }
   }
 }
 

@@ -1,12 +1,16 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { useVentas, useCambiarEstadoVenta } from '@/lib/api/ventas';
+import { useCargadores, useTarifaCarga } from '@/lib/api/cargadores';
 import { type NotaVenta, EstadoVenta, TipoFlete } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatBs } from '@/lib/utils';
-import { Btn, Modal, EstadoBadge, Badge, Spinner, useToast } from '@/components/ui';
-import { Truck, CheckCircle2, Clock, Printer, ArrowRight, Package, Zap } from 'lucide-react';
+import { Btn, Modal, FormField, Input, Select, EstadoBadge, Badge, Spinner, useToast } from '@/components/ui';
+import { Truck, CheckCircle2, Clock, Printer, ArrowRight, Package, Zap, HardHat } from 'lucide-react';
 import Image from 'next/image';
+
+const FILTROS_FECHA = ['Hoy', 'Esta semana', 'Este mes', 'Personalizado', 'Todos'] as const;
 
 export default function DespachosPage() {
   const toast              = useToast(s => s.show);
@@ -14,10 +18,32 @@ export default function DespachosPage() {
   const cambiarEstadoMut   = useCambiarEstadoVenta();
   const ventas             = ventasQ.data ?? [];
   const [remisionModal, setRemisionModal] = useState<NotaVenta | null>(null);
+  const [despacharVenta, setDespacharVenta] = useState<NotaVenta | null>(null);
+  const [filtroFecha, setFiltroFecha] = useState<typeof FILTROS_FECHA[number]>('Todos');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
 
-  const pendientes  = ventas.filter(v => v.estado === EstadoVenta.PENDIENTE);
-  const despachadas = ventas.filter(v => v.estado === EstadoVenta.DESPACHADA);
-  const entregadas  = ventas.filter(v => v.estado === EstadoVenta.ENTREGADA);
+  const ahora = new Date();
+  const hoy = ahora.toISOString().slice(0, 10);
+  const lunes = new Date(ahora); lunes.setDate(ahora.getDate() - ahora.getDay() + 1);
+  const primerMes = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}`;
+
+  function pasaFiltroFecha(v: NotaVenta) {
+    if (filtroFecha === 'Todos') return true;
+    if (filtroFecha === 'Hoy') return v.fecha === hoy;
+    if (filtroFecha === 'Esta semana') return new Date(v.fecha) >= lunes;
+    if (filtroFecha === 'Este mes') return v.fecha.startsWith(primerMes);
+    if (filtroFecha === 'Personalizado') {
+      if (fechaDesde && v.fecha < fechaDesde) return false;
+      if (fechaHasta && v.fecha > fechaHasta) return false;
+    }
+    return true;
+  }
+
+  const ventasFiltradas = ventas.filter(pasaFiltroFecha);
+  const pendientes  = ventasFiltradas.filter(v => v.estado === EstadoVenta.PENDIENTE);
+  const despachadas = ventasFiltradas.filter(v => v.estado === EstadoVenta.DESPACHADA);
+  const entregadas  = ventasFiltradas.filter(v => v.estado === EstadoVenta.ENTREGADA);
 
   async function marcarEstado(id: string, estado: EstadoVenta, msg: string) {
     try {
@@ -29,7 +55,8 @@ export default function DespachosPage() {
   }
 
   function marcarDespachado(id: string) {
-    marcarEstado(id, EstadoVenta.DESPACHADA, 'Venta marcada como despachada');
+    const venta = ventas.find(v => v.id === id);
+    if (venta) setDespacharVenta(venta);
     setRemisionModal(null);
   }
 
@@ -68,6 +95,29 @@ export default function DespachosPage() {
             Cada venta genera su remisión con número de guía, fecha y datos del cliente — lista para imprimir.
           </p>
         </div>
+      </div>
+
+      {/* Filtros de fecha */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1.5 bg-white border border-[var(--color-gr-border)] rounded-[10px] p-1">
+          {FILTROS_FECHA.map(f => (
+            <button key={f} onClick={() => setFiltroFecha(f)}
+              className={`px-3 py-1.5 rounded-[8px] text-[12.5px] font-600 transition-all ${filtroFecha === f ? 'bg-[var(--color-gr-primary)] text-white' : 'text-[var(--color-gr-muted)] hover:text-[var(--color-gr-text)]'}`}>
+              {f}
+            </button>
+          ))}
+        </div>
+        {filtroFecha === 'Personalizado' && (
+          <div className="flex flex-wrap items-end gap-2 bg-[var(--color-gr-border-lite)] rounded-[10px] p-2">
+            <input type="date" value={fechaDesde}
+              onChange={e => setFechaDesde(e.target.value)}
+              className="border border-[var(--color-gr-border)] rounded-[8px] px-3 py-1.5 text-[13px] bg-white" />
+            <span className="text-[12px] text-[var(--color-gr-muted)]">→</span>
+            <input type="date" value={fechaHasta}
+              onChange={e => setFechaHasta(e.target.value)}
+              className="border border-[var(--color-gr-border)] rounded-[8px] px-3 py-1.5 text-[13px] bg-white" />
+          </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -167,6 +217,18 @@ export default function DespachosPage() {
             if (remisionModal.estado === EstadoVenta.PENDIENTE) marcarDespachado(id);
             else marcarEntregado(id);
           }}
+        />
+      )}
+
+      {despacharVenta && (
+        <DespacharModal
+          venta={despacharVenta}
+          onClose={() => setDespacharVenta(null)}
+          onSaved={() => {
+            setDespacharVenta(null);
+            toast('Venta marcada como despachada', 'success');
+          }}
+          onError={(msg) => toast(msg, 'error')}
         />
       )}
     </div>
@@ -346,9 +408,20 @@ function RemisionModal({ venta: v, onClose, onDespachar }: {
         </div>
       </div>
 
-      <div className="flex gap-3 justify-end">
+      <div className="flex flex-wrap gap-2 justify-end">
         <Btn variant="ghost" onClick={onClose}>Cerrar</Btn>
-        <Btn variant="secondary" onClick={() => window.print()}><Printer size={14} /> Imprimir</Btn>
+        <Link href={`/ventas/${v.id}/imprimir?modo=proforma`}
+          className="inline-flex items-center gap-2 bg-[var(--color-gr-gold-lite)] hover:bg-[var(--color-gr-gold)] text-[var(--color-gr-gold-dark)] font-700 px-3 py-2 rounded-[10px] text-[13px]">
+          <Printer size={14} /> Proforma
+        </Link>
+        <Link href={`/ventas/${v.id}/imprimir?modo=nota`}
+          className="inline-flex items-center gap-2 bg-[var(--color-gr-border-lite)] hover:bg-[var(--color-gr-border)] text-[var(--color-gr-text)] font-700 px-3 py-2 rounded-[10px] text-[13px]">
+          <Printer size={14} /> Nota
+        </Link>
+        <Link href={`/ventas/${v.id}/imprimir?modo=combinada`}
+          className="inline-flex items-center gap-2 bg-[var(--color-gr-primary)] hover:bg-[var(--color-gr-primary-mid)] text-white font-700 px-3 py-2 rounded-[10px] text-[13px]">
+          <Printer size={14} /> Combinada
+        </Link>
         {v.estado === EstadoVenta.PENDIENTE && (
           <Btn onClick={() => onDespachar(v.id)}>
             <Truck size={14} /> Marcar despachado
@@ -359,6 +432,116 @@ function RemisionModal({ venta: v, onClose, onDespachar }: {
             <CheckCircle2 size={14} /> Confirmar entregado
           </Btn>
         )}
+      </div>
+    </Modal>
+  );
+}
+
+// ─── DespacharModal: cargador + bolsas + pago ───────────────────────────────
+function DespacharModal({ venta, onClose, onSaved, onError }: {
+  venta: NotaVenta;
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (msg: string) => void;
+}) {
+  const cambiar = useCambiarEstadoVenta();
+  const cargadoresQ = useCargadores();
+  const tarifaQ = useTarifaCarga();
+  const cargadores = cargadoresQ.data ?? [];
+  const tarifa = Number(tarifaQ.data?.tarifaPorBolsaBs ?? 0);
+
+  const [cargadorId, setCargadorId] = useState('');
+  const [bolsas, setBolsas] = useState('');
+  const [pagado, setPagado] = useState(false);
+
+  const bolsasNum = parseFloat(bolsas) || 0;
+  const monto = bolsasNum * tarifa;
+
+  async function handleConfirmar() {
+    try {
+      await cambiar.mutateAsync({
+        id: venta.id,
+        estado: EstadoVenta.DESPACHADA,
+        cargadorId: cargadorId || undefined,
+        bolsasCarga: cargadorId ? bolsasNum : undefined,
+        cargaPagada: cargadorId ? pagado : undefined,
+      });
+      onSaved();
+    } catch (err) {
+      onError(apiErrorMessage(err, 'No se pudo despachar'));
+    }
+  }
+
+  return (
+    <Modal open title={`Despachar NV-${venta.numeroNota}`} onClose={onClose}>
+      <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: 'var(--color-gr-primary-lite)' }}>
+        <p className="font-700 text-[var(--color-gr-primary)]">
+          {venta.cliente?.nombre ?? '—'} · {formatBs(Number(venta.totalBs))}
+        </p>
+      </div>
+
+      <div className="rounded-[10px] border border-[var(--color-gr-border)] p-3 space-y-3">
+        <div className="flex items-center gap-2">
+          <HardHat size={14} className="text-[var(--color-gr-primary)]" />
+          <p className="font-700 text-[13px] text-[var(--color-gr-text)]">Carga / estibaje (opcional)</p>
+          {tarifa > 0 && (
+            <span className="ml-auto text-[11.5px] text-[var(--color-gr-muted)]">
+              Tarifa: {formatBs(tarifa)}/bolsa
+            </span>
+          )}
+        </div>
+        {tarifa === 0 && (
+          <p className="text-[12px] text-[var(--color-gr-warning)]">
+            ⚠ Aún no hay tarifa de carga configurada. Configurala desde Configuración → Empresa.
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          <FormField label="Cargador">
+            <Select value={cargadorId} onChange={e => setCargadorId(e.target.value)}>
+              <option value="">— Ninguno —</option>
+              {cargadores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Bolsas cargadas">
+            <Input
+              type="number" min="0" placeholder="0" value={bolsas}
+              disabled={!cargadorId}
+              onChange={e => setBolsas(e.target.value)}
+            />
+          </FormField>
+        </div>
+        {cargadorId && bolsasNum > 0 && (
+          <div className="flex items-center justify-between rounded-[8px] px-3 py-2 bg-[var(--color-gr-primary-lite)]">
+            <span className="text-[12.5px] text-[var(--color-gr-sub)]">
+              {bolsasNum} bolsas × {formatBs(tarifa)} =
+            </span>
+            <span className="font-800 text-[14px] text-[var(--color-gr-primary)]">
+              {formatBs(monto)}
+            </span>
+          </div>
+        )}
+        {cargadorId && (
+          <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={pagado}
+              onChange={e => setPagado(e.target.checked)}
+            />
+            Pago realizado en este momento
+            {!pagado && bolsasNum > 0 && (
+              <span className="text-[11.5px] text-[var(--color-gr-warning)] ml-1">
+                (queda como deuda al cargador)
+              </span>
+            )}
+          </label>
+        )}
+      </div>
+
+      <div className="flex gap-3 justify-end">
+        <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
+        <Btn onClick={handleConfirmar} loading={cambiar.isPending}>
+          <Truck size={14} /> Confirmar despacho
+        </Btn>
       </div>
     </Modal>
   );

@@ -111,7 +111,7 @@ export interface Empresa {
   ciudad?: string | null;
   logoUrl?: string | null;
   plan: 'basico' | 'profesional' | 'enterprise';
-  configuracion: { registroSanitario?: string;[k: string]: unknown };
+  configuracion: { registroSanitario?: string; tarifaPorBolsaBs?: number;[k: string]: unknown };
   activo: boolean;
 }
 
@@ -162,6 +162,39 @@ export interface Transportista extends AuditFields {
   destinoHabitual?: string | null;
 }
 
+export interface Cargador extends AuditFields {
+  nombre: string;
+  ci?: string | null;
+  telefono?: string | null;
+  activo: boolean;
+}
+
+export interface DeudaItem {
+  tipo: 'kardex_mp' | 'venta';
+  id: string;
+  fecha: string;
+  bolsas: number;
+  montoBs: number;
+  referencia: string;
+}
+
+export interface DeudaCargador {
+  cargadorId: string;
+  cargadorNombre: string;
+  totalBs: number;
+  totalBolsas: number;
+  cantidadPendientes: number;
+  items: DeudaItem[];
+}
+
+export interface SaldoCargadorResponse {
+  cargadorId: string;
+  cargadorNombre: string;
+  totalBs: number;
+  cantidadMovimientos: number;
+  fechaPago: string;
+}
+
 export interface MateriaPrima extends AuditFields {
   codigo: string;
   nombre: string;
@@ -180,6 +213,7 @@ export interface KardexMP extends AuditFields {
   cantidad: number;
   cantidadKg: number;
   numeroLote?: number | null;
+  numeroLotePropio?: string | null;
   costoUnitarioBs?: number | null;
   costoTotalBs?: number | null;
   observaciones?: string | null;
@@ -190,6 +224,11 @@ export interface KardexMP extends AuditFields {
   proveedor?: Proveedor | null;
   unidad: UnidadMedida;
   responsable?: Usuario;
+  cargador?: Cargador | null;
+  bolsasCarga: number;
+  montoCargaBs: number;
+  cargaPagada: boolean;
+  fechaPagoCarga?: string | null;
 }
 
 export interface ProductoImagen {
@@ -220,12 +259,16 @@ export interface Producto extends AuditFields {
 export interface LoteProduccion extends AuditFields {
   fecha: string;
   codigoLote: string;
+  numeroLotePropio?: string | null;
   fechaVencimiento: string;
   registroSanitario?: string | null;
   cantidadProducida: number;
   stockRestante: number;
   totalKg: number;
   costoMpBs: number;
+  mermaUnidades: number;
+  mermaMpKg: number;
+  mermaObservaciones?: string | null;
   observaciones?: string | null;
   producto: Producto;
   unidad: UnidadMedida;
@@ -274,6 +317,11 @@ export interface NotaVenta extends AuditFields {
   vendedor?: Usuario;
   transportista?: Transportista | null;
   detalles: DetalleVenta[];
+  cargador?: Cargador | null;
+  bolsasCarga: number;
+  montoCargaBs: number;
+  cargaPagada: boolean;
+  fechaPagoCarga?: string | null;
 }
 
 export interface Remision extends AuditFields {
@@ -310,6 +358,7 @@ export interface LoginResponse {
 
 export interface ActualizarConfiguracionRequest {
   registroSanitario?: string;
+  tarifaPorBolsaBs?: number;
 }
 
 export interface ActualizarEmpresaRequest {
@@ -399,10 +448,32 @@ export interface CreateKardexMPRequest {
   subtipoId?: string;
   proveedorId?: string;
   numeroLote?: number;
+  numeroLotePropio?: string;
   costoUnitarioBs?: number;
   observaciones?: string;
   estadoPago?: EstadoPagoMP;
   fechaPago?: string;
+  cargadorId?: string;
+  bolsasCarga?: number;
+  cargaPagada?: boolean;
+}
+
+export interface CreateCargadorRequest {
+  nombre: string;
+  ci?: string;
+  telefono?: string;
+}
+
+export interface UpdateCargadorRequest {
+  nombre?: string;
+  ci?: string;
+  telefono?: string;
+}
+
+export interface SaldarCargadorRequest {
+  fechaPago?: string;
+  kardexMpIds?: string[];
+  remisionIds?: string[];
 }
 
 export interface UpdateMateriaPrimaRequest {
@@ -428,6 +499,10 @@ export interface CreateLoteRequest {
   productoId: string;
   unidadId: string;
   costoMpBs?: number;
+  numeroLotePropio?: string;
+  mermaUnidades?: number;
+  mermaMpKg?: number;
+  mermaObservaciones?: string;
   observaciones?: string;
 }
 

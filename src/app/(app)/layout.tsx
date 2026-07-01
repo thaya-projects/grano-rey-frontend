@@ -21,11 +21,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <div className="hidden md:flex">
+      <div className="hidden md:flex no-print">
         <Sidebar />
       </div>
       <div className="flex-1 flex flex-col overflow-hidden bg-gr-bg">
-        <div className="hidden md:block">
+        <div className="hidden md:block no-print">
           <Header />
         </div>
         <main className="flex-1 overflow-y-auto">
@@ -34,7 +34,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
-      <MobileNav />
+      <div className="no-print">
+        <MobileNav />
+      </div>
     </div>
   );
 }
