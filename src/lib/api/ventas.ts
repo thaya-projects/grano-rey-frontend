@@ -39,12 +39,23 @@ export function useCreateVenta() {
   });
 }
 
+interface CambiarEstadoVentaInput {
+  id: string;
+  estado: EstadoVenta;
+  cargadorId?: string;
+  bolsasCarga?: number;
+  cargaPagada?: boolean;
+}
+
 export function useCambiarEstadoVenta() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, estado }: { id: string; estado: EstadoVenta }) =>
-      (await api.patch<NotaVenta>(`/ventas/${id}/estado`, { estado })).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ventasKeys.all }),
+    mutationFn: async ({ id, ...body }: CambiarEstadoVentaInput) =>
+      (await api.patch<NotaVenta>(`/ventas/${id}/estado`, body)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ventasKeys.all });
+      qc.invalidateQueries({ queryKey: ['cargadores', 'deuda'] });
+    },
   });
 }
 

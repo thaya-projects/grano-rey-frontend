@@ -108,7 +108,7 @@ export function MobileNav() {
       )}
 
       {/* ── Bottom tab bar ────────────────────────────────────── */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[var(--color-gr-border)] flex md:hidden">
+      <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[var(--color-gr-border)] flex md:hidden no-print">
         {NAV_BOTTOM.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
           return (

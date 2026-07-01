@@ -10,7 +10,7 @@ import { Plus, ShoppingCart, Printer, Eye, CheckCircle, Banknote } from 'lucide-
 import { apiErrorMessage } from '@/lib/api';
 import Image from 'next/image';
 
-const FILTROS = ['Hoy', 'Esta semana', 'Este mes', 'Todos'] as const;
+const FILTROS = ['Hoy', 'Esta semana', 'Este mes', 'Personalizado', 'Todos'] as const;
 
 const METODO_LABEL: Record<string, string> = {
   efectivo:      'Efectivo',
@@ -44,6 +44,8 @@ export default function VentasPage() {
   const [search, setSearch]             = useState('');
   const [detalleVenta, setDetalleVenta] = useState<NotaVenta | null>(null);
   const [cobrarVenta, setCobrarVenta]   = useState<NotaVenta | null>(null);
+  const [fechaDesde, setFechaDesde]     = useState('');
+  const [fechaHasta, setFechaHasta]     = useState('');
 
   const ahora    = new Date();
   const hoy      = ahora.toISOString().slice(0, 10);
@@ -51,11 +53,14 @@ export default function VentasPage() {
   const primerMes = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}`;
 
   const filtradas = ventas.filter(v => {
-    const matchFiltro =
-      filtro === 'Todos'       ? true :
-      filtro === 'Hoy'         ? v.fecha === hoy :
-      filtro === 'Esta semana' ? new Date(v.fecha) >= lunes :
-      v.fecha.startsWith(primerMes);
+    let matchFiltro = true;
+    if (filtro === 'Hoy')              matchFiltro = v.fecha === hoy;
+    else if (filtro === 'Esta semana') matchFiltro = new Date(v.fecha) >= lunes;
+    else if (filtro === 'Este mes')    matchFiltro = v.fecha.startsWith(primerMes);
+    else if (filtro === 'Personalizado') {
+      if (fechaDesde && v.fecha < fechaDesde) matchFiltro = false;
+      if (fechaHasta && v.fecha > fechaHasta) matchFiltro = false;
+    }
     const clienteNombre = v.cliente?.nombre ?? '';
     const matchSearch = !search
       || clienteNombre.toLowerCase().includes(search.toLowerCase())
@@ -145,6 +150,30 @@ export default function VentasPage() {
           <SearchBox value={search} onChange={setSearch} placeholder="Buscar por nota, cliente o producto..." />
         </div>
       </div>
+
+      {filtro === 'Personalizado' && (
+        <div className="flex flex-wrap items-end gap-3 bg-[var(--color-gr-border-lite)] rounded-[10px] p-3">
+          <div>
+            <label className="block text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Desde</label>
+            <input type="date" value={fechaDesde}
+              onChange={e => setFechaDesde(e.target.value)}
+              className="border border-[var(--color-gr-border)] rounded-[8px] px-3 py-1.5 text-[13px] bg-white" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Hasta</label>
+            <input type="date" value={fechaHasta}
+              onChange={e => setFechaHasta(e.target.value)}
+              className="border border-[var(--color-gr-border)] rounded-[8px] px-3 py-1.5 text-[13px] bg-white" />
+          </div>
+          {(fechaDesde || fechaHasta) && (
+            <button
+              onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+              className="text-[12px] font-600 text-[var(--color-gr-primary)] underline">
+              Limpiar
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Total visible */}
       <div className="flex items-center justify-between px-1">
@@ -382,9 +411,18 @@ function DetalleModal({ venta: v, onClose, onCambiarEstado, onCobrar }: {
         <Btn variant="secondary" onClick={() => { onCambiarEstado(v.id); onClose(); }}>
           <ShoppingCart size={14} /> Cambiar estado
         </Btn>
-        <Btn onClick={() => window.print()}>
-          <Printer size={14} /> Imprimir
-        </Btn>
+        <Link href={`/ventas/${v.id}/imprimir?modo=nota`}
+          className="inline-flex items-center gap-2 bg-[var(--color-gr-border-lite)] hover:bg-[var(--color-gr-border)] text-[var(--color-gr-text)] font-700 px-3 py-2 rounded-[10px] text-[13px]">
+          <Printer size={14} /> Nota
+        </Link>
+        <Link href={`/ventas/${v.id}/imprimir?modo=proforma`}
+          className="inline-flex items-center gap-2 bg-[var(--color-gr-gold-lite)] hover:bg-[var(--color-gr-gold)] text-[var(--color-gr-gold-dark)] font-700 px-3 py-2 rounded-[10px] text-[13px]">
+          <Printer size={14} /> Proforma
+        </Link>
+        <Link href={`/ventas/${v.id}/imprimir?modo=combinada`}
+          className="inline-flex items-center gap-2 bg-[var(--color-gr-primary)] hover:bg-[var(--color-gr-primary-mid)] text-white font-700 px-3 py-2 rounded-[10px] text-[13px]">
+          <Printer size={14} /> Combinada (Grano Rey)
+        </Link>
       </div>
     </Modal>
   );

@@ -358,6 +358,8 @@ function ReporteVentas() {
   const [search, setSearch]           = useState('');
   const [filterCliente, setFilterCliente] = useState('');
   const [filterEstado, setFilterEstado]   = useState('');
+  const [fechaDesde, setFechaDesde]   = useState('');
+  const [fechaHasta, setFechaHasta]   = useState('');
 
   const clientes = useMemo(() => [...new Set(ventas.map(v => v.cliente?.nombre ?? '—'))].sort(), [ventas]);
 
@@ -365,6 +367,8 @@ function ReporteVentas() {
     const nombre = v.cliente?.nombre ?? '—';
     if (filterCliente && nombre !== filterCliente) return false;
     if (filterEstado  && v.estado !== filterEstado) return false;
+    if (fechaDesde && v.fecha < fechaDesde) return false;
+    if (fechaHasta && v.fecha > fechaHasta) return false;
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -374,7 +378,7 @@ function ReporteVentas() {
       );
     }
     return true;
-  }), [ventas, search, filterCliente, filterEstado]);
+  }), [ventas, search, filterCliente, filterEstado, fechaDesde, fechaHasta]);
 
   const totalFiltered = filtered.reduce((s, v) => s + Number(v.totalBs), 0);
 
@@ -481,6 +485,20 @@ function ReporteVentas() {
           <option value={EstadoVenta.ENTREGADA}>Entregada</option>
           <option value={EstadoVenta.CANCELADA}>Cancelada</option>
         </select>
+        <input type="date" value={fechaDesde}
+          onChange={e => setFechaDesde(e.target.value)}
+          aria-label="Desde"
+          className="border border-gr-border rounded-[8px] px-3 py-2 text-[13px] bg-white" />
+        <input type="date" value={fechaHasta}
+          onChange={e => setFechaHasta(e.target.value)}
+          aria-label="Hasta"
+          className="border border-gr-border rounded-[8px] px-3 py-2 text-[13px] bg-white" />
+        {(fechaDesde || fechaHasta) && (
+          <button onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+            className="text-[12px] font-600 text-gr-primary underline">
+            Limpiar fechas
+          </button>
+        )}
       </div>
 
       {/* Tabla */}
@@ -532,14 +550,18 @@ function ReporteMovimientosMP() {
   const movs = kardexQ.data ?? [];
   const [filterMP, setFilterMP] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
 
   const mpNames = useMemo(() => [...new Set(movs.map(m => m.materiaPrima?.nombre ?? '—'))].sort(), [movs]);
 
   const filtered = useMemo(() => movs.filter(m => {
     if (filterMP   && (m.materiaPrima?.nombre ?? '') !== filterMP) return false;
     if (filterTipo && m.tipoMovimiento !== filterTipo) return false;
+    if (fechaDesde && m.fecha < fechaDesde) return false;
+    if (fechaHasta && m.fecha > fechaHasta) return false;
     return true;
-  }), [movs, filterMP, filterTipo]);
+  }), [movs, filterMP, filterTipo, fechaDesde, fechaHasta]);
 
   const movsLegacy = filtered.map(m => ({
     id: m.id,
@@ -583,6 +605,20 @@ function ReporteMovimientosMP() {
           <option value={TipoMovimientoMP.AJUSTE}>Ajuste</option>
           <option value={TipoMovimientoMP.DEVOLUCION}>Devolución</option>
         </select>
+        <input type="date" value={fechaDesde}
+          onChange={e => setFechaDesde(e.target.value)}
+          aria-label="Desde"
+          className="border border-[var(--color-gr-border)] rounded-[8px] px-3 py-2 text-[13px] bg-white" />
+        <input type="date" value={fechaHasta}
+          onChange={e => setFechaHasta(e.target.value)}
+          aria-label="Hasta"
+          className="border border-[var(--color-gr-border)] rounded-[8px] px-3 py-2 text-[13px] bg-white" />
+        {(fechaDesde || fechaHasta) && (
+          <button onClick={() => { setFechaDesde(''); setFechaHasta(''); }}
+            className="text-[12px] font-600 text-[var(--color-gr-primary)] underline">
+            Limpiar fechas
+          </button>
+        )}
       </div>
 
       <div className="card-no-pad">
