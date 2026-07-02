@@ -111,7 +111,7 @@ export interface Empresa {
   ciudad?: string | null;
   logoUrl?: string | null;
   plan: 'basico' | 'profesional' | 'enterprise';
-  configuracion: { registroSanitario?: string; tarifaPorBolsaBs?: number;[k: string]: unknown };
+  configuracion: { registroSanitario?: string; [k: string]: unknown };
   activo: boolean;
 }
 
@@ -169,30 +169,85 @@ export interface Cargador extends AuditFields {
   activo: boolean;
 }
 
+/** Enum numérico espejado del back. */
+export const TipoPagoCarga = {
+  BOLSA: 0,
+  JORNAL: 1,
+} as const;
+export type TipoPagoCarga = (typeof TipoPagoCarga)[keyof typeof TipoPagoCarga];
+
+/** Una fila de la tabla cargas_trabajo — cargador + trabajo. */
+export interface CargaTrabajo extends AuditFields {
+  cargador: Cargador;
+  tipoPago: TipoPagoCarga;
+  cantidad: number;
+  tarifaBs: number;
+  montoBs: number;
+  pagado: boolean;
+  fechaPago?: string | null;
+  observaciones?: string | null;
+  // Origen (uno de los 2)
+  kardexMp?: {
+    id: string;
+    fecha: string;
+    materiaPrima?: { id: string; nombre: string };
+  } | null;
+  notaVenta?: {
+    id: string;
+    numeroNota: number;
+    fecha: string;
+    cliente?: { id: string; nombre: string };
+  } | null;
+}
+
 export interface DeudaItem {
-  tipo: 'kardex_mp' | 'venta';
   id: string;
   fecha: string;
-  bolsas: number;
-  montoBs: number;
+  origen: 'kardex_mp' | 'venta';
+  origenId: string;
   referencia: string;
+  numeroReferencia?: string;
+  clienteNombre?: string;
+  materiaPrimaNombre?: string;
+  tipoPago: TipoPagoCarga;
+  cantidad: number;
+  tarifaBs: number;
+  montoBs: number;
+  pagado?: boolean;
+  fechaPago?: string | null;
+  cargadorId?: string;
+  cargadorNombre?: string;
 }
 
 export interface DeudaCargador {
   cargadorId: string;
   cargadorNombre: string;
   totalBs: number;
-  totalBolsas: number;
-  cantidadPendientes: number;
+  cantidad: number;
   items: DeudaItem[];
 }
 
-export interface SaldoCargadorResponse {
+export interface PagoCargadorResponse {
+  totalBs: number;
+  cantidadPagada: number;
+  fechaPago: string;
+}
+
+export interface ReporteCargadoresItem {
   cargadorId: string;
   cargadorNombre: string;
-  totalBs: number;
-  cantidadMovimientos: number;
-  fechaPago: string;
+  cantidadPagos: number;
+  totalPagadoBs: number;
+  pendienteBs: number;
+}
+
+export interface ReporteCargadores {
+  desde: string | null;
+  hasta: string | null;
+  totalPagadoBs: number;
+  totalPendienteBs: number;
+  cantidadCargadores: number;
+  porCargador: ReporteCargadoresItem[];
 }
 
 export interface MateriaPrima extends AuditFields {
@@ -224,11 +279,7 @@ export interface KardexMP extends AuditFields {
   proveedor?: Proveedor | null;
   unidad: UnidadMedida;
   responsable?: Usuario;
-  cargador?: Cargador | null;
-  bolsasCarga: number;
-  montoCargaBs: number;
-  cargaPagada: boolean;
-  fechaPagoCarga?: string | null;
+  cargas?: CargaTrabajo[];
 }
 
 export interface ProductoImagen {
@@ -317,11 +368,7 @@ export interface NotaVenta extends AuditFields {
   vendedor?: Usuario;
   transportista?: Transportista | null;
   detalles: DetalleVenta[];
-  cargador?: Cargador | null;
-  bolsasCarga: number;
-  montoCargaBs: number;
-  cargaPagada: boolean;
-  fechaPagoCarga?: string | null;
+  cargas?: CargaTrabajo[];
 }
 
 export interface Remision extends AuditFields {
@@ -358,7 +405,6 @@ export interface LoginResponse {
 
 export interface ActualizarConfiguracionRequest {
   registroSanitario?: string;
-  tarifaPorBolsaBs?: number;
 }
 
 export interface ActualizarEmpresaRequest {
@@ -439,6 +485,27 @@ export interface CobrarVentaRequest {
   fechaCobro?: string;
 }
 
+export interface CreateCargaTrabajoRequest {
+  cargadorId: string;
+  tipoPago: TipoPagoCarga;
+  cantidad: number;
+  tarifaBs: number;
+  pagado?: boolean;
+  observaciones?: string;
+}
+
+export interface UpdateCargaTrabajoRequest {
+  tipoPago?: TipoPagoCarga;
+  cantidad?: number;
+  tarifaBs?: number;
+  observaciones?: string;
+}
+
+export interface PagarBulkRequest {
+  ids: string[];
+  fechaPago?: string;
+}
+
 export interface CreateKardexMPRequest {
   fecha: string;
   tipoMovimiento: TipoMovimientoMP;
@@ -453,9 +520,7 @@ export interface CreateKardexMPRequest {
   observaciones?: string;
   estadoPago?: EstadoPagoMP;
   fechaPago?: string;
-  cargadorId?: string;
-  bolsasCarga?: number;
-  cargaPagada?: boolean;
+  cargas?: CreateCargaTrabajoRequest[];
 }
 
 export interface CreateCargadorRequest {
@@ -468,12 +533,6 @@ export interface UpdateCargadorRequest {
   nombre?: string;
   ci?: string;
   telefono?: string;
-}
-
-export interface SaldarCargadorRequest {
-  fechaPago?: string;
-  kardexMpIds?: string[];
-  remisionIds?: string[];
 }
 
 export interface UpdateMateriaPrimaRequest {

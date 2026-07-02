@@ -1,13 +1,28 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMateriasPrimas, useCreateKardexMP, useKardexMPPendientesPago, usePagarKardexMP } from '@/lib/api/materia-prima';
 import { useProveedores, useUnidades, useCategoriasMP, useSubtiposMP } from '@/lib/api/catalogos';
-import { useCargadores, useTarifaCarga } from '@/lib/api/cargadores';
-import { TipoMovimientoMP, EstadoPagoMP, type MateriaPrima } from '@/lib/types';
+import { TipoMovimientoMP, TipoPagoCarga, EstadoPagoMP, type MateriaPrima } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatNum, formatBs } from '@/lib/utils';
 import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
-import { Wheat, Plus, CheckCircle, HardHat } from 'lucide-react';
+import { Wheat, Plus, CheckCircle } from 'lucide-react';
+import { CargasSection, type CargaDraft } from '@/components/CargasSection';
+
+/**
+ * Código de lote sugerido para entradas de materia prima:
+ * `MP-YYMMDD-HHMM` (ej. MP-260701-2006 = 1-jul-2026 20:06).
+ * Fecha primero para orden cronológico natural + separador para lectura.
+ */
+function autoLoteMp(): string {
+  const d = new Date();
+  const yy = String(d.getFullYear()).slice(2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `MP-${yy}${mm}${dd}-${hh}${mi}`;
+}
 
 function StockDot({ value, min }: { value: number; min: number }) {
   const low  = min > 0 && value < min;
@@ -249,41 +264,52 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
   const createKardex = useCreateKardexMP();
   const subtiposQ = useSubtiposMP(mp.categoria?.tieneSubtipos ? mp.categoria.id : undefined);
   const subtipos = subtiposQ.data ?? [];
-  const cargadoresQ = useCargadores();
-  const tarifaQ = useTarifaCarga();
-  const cargadores = cargadoresQ.data ?? [];
-  const tarifa = Number(tarifaQ.data?.tarifaPorBolsaBs ?? 0);
 
   const [cantidad, setCantidad]       = useState('');
   const [unidadId, setUnidadId]       = useState(mp.unidadMedida?.id ?? '');
   const [subtipoId, setSubtipoId]     = useState('');
   const [costoBs, setCostoBs]         = useState('');
   const [proveedorId, setProvId]      = useState('');
-  const [numeroLote, setNumeroLote]   = useState('');
+  const [numeroLote, setNumeroLote]   = useState(() => autoLoteMp());
   const [numeroLotePropio, setNumeroLotePropio] = useState('');
   const [observaciones, setObs]       = useState('');
   const [fecha, setFecha]             = useState(new Date().toISOString().slice(0, 10));
   const [estadoPago, setEstadoPago]   = useState<'pendiente' | 'pagado'>('pendiente');
   const [fechaPago, setFechaPago]     = useState('');
 
-  // Carga
-  const [cargadorId, setCargadorId] = useState('');
-  const [bolsasCarga, setBolsasCarga] = useState('');
-  const [cargaPagada, setCargaPagada] = useState(false);
-  const bolsasNum = parseFloat(bolsasCarga) || 0;
-  const montoCarga = bolsasNum * tarifa;
+  // Cargas
+  const [tipoPago, setTipoPago]       = useState<TipoPagoCarga>(TipoPagoCarga.BOLSA);
+  const [tarifaBs, setTarifaBs]       = useState(0);
+  const [cargas, setCargas]           = useState<CargaDraft[]>([]);
 
   const cantNum = parseFloat(cantidad) || 0;
-  // Obligatorios: cantidad, unidad, n° lote, proveedor
-  const valid =
-    cantNum > 0
-    && !!unidadId
-    && !!numeroLote.trim()
-    && !!proveedorId;
+
+  // Total esperado en bolsas para el reparto: si la unidad seleccionada es una bolsa,
+  // la cantidad ingresada ya es "bolsas". Si es kg / QQ, aproximamos por factor a base.
+  const unidadSel = unidades.find(u => u.id === unidadId);
+  const totalBolsas = useMemo(() => {
+    if (!unidadSel || cantNum <= 0) return 0;
+    const cod = unidadSel.codigo.toUpperCase();
+    if (cod.startsWith('BOL')) return cantNum;
+    return cantNum;
+  }, [unidadSel, cantNum]);
+
+  // Obligatorios: cantidad, unidad, proveedor. N° de lote se autogenera pero editable.
+  const valid = cantNum > 0 && !!unidadId && !!proveedorId;
 
   async function handleSave() {
     if (!valid) return;
     try {
+      // Sanear lote: si es entero, mandarlo como number; si es string, va a numeroLotePropio
+      let numeroLoteNum: number | undefined;
+      let numeroLotePropioAuto = numeroLotePropio.trim();
+      const parsedLote = parseInt(numeroLote);
+      if (!isNaN(parsedLote) && String(parsedLote) === numeroLote.trim()) {
+        numeroLoteNum = parsedLote;
+      } else if (numeroLote.trim() && !numeroLotePropioAuto) {
+        numeroLotePropioAuto = numeroLote.trim();
+      }
+
       await createKardex.mutateAsync({
         fecha,
         tipoMovimiento: TipoMovimientoMP.INGRESO,
@@ -292,15 +318,15 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
         unidadId,
         subtipoId: subtipoId || undefined,
         proveedorId,
-        numeroLote: parseInt(numeroLote),
-        numeroLotePropio: numeroLotePropio.trim() || undefined,
+        numeroLote: numeroLoteNum,
+        numeroLotePropio: numeroLotePropioAuto || undefined,
         costoUnitarioBs: costoBs ? parseFloat(costoBs) : undefined,
         observaciones: observaciones || undefined,
         estadoPago: estadoPago as EstadoPagoMP,
         fechaPago: estadoPago === 'pagado' && fechaPago ? fechaPago : undefined,
-        cargadorId: cargadorId || undefined,
-        bolsasCarga: cargadorId ? bolsasNum : undefined,
-        cargaPagada: cargadorId ? cargaPagada : undefined,
+        cargas: cargas.length > 0
+          ? cargas.map(({ _id: _drop, ...c }) => c)
+          : undefined,
       });
       onSaved();
     } catch (err) {
@@ -309,139 +335,116 @@ function EntradaModal({ mp, proveedores, unidades, onClose, onSaved, onError }: 
   }
 
   return (
-    <Modal open title={`Registrar entrada — ${mp.nombre}`} onClose={onClose}>
+    <Modal xl open title={`Registrar entrada — ${mp.nombre}`} onClose={onClose}>
       <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: 'var(--color-gr-primary-lite)' }}>
         <p className="font-600 text-[var(--color-gr-primary)]">
           Stock actual: <strong>{formatNum(Number(mp.stockActualKg), 1)} kg</strong> ({formatNum(Number(mp.stockActualKg) / 46, 2)} QQ)
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Cantidad" required>
-          <Input type="number" min="0" step="0.01" placeholder="0" value={cantidad}
-            onChange={e => setCantidad(e.target.value)} autoFocus />
-        </FormField>
-        <FormField label="Unidad" required>
-          <Select value={unidadId} onChange={e => setUnidadId(e.target.value)}>
-            <option value="">— Seleccionar —</option>
-            {unidades.map(u => (
-              <option key={u.id} value={u.id}>{u.codigo} · {u.nombre}</option>
-            ))}
-          </Select>
-        </FormField>
-      </div>
-
-      {mp.categoria?.tieneSubtipos && subtipos.length > 0 && (
-        <FormField label="Subtipo">
-          <Select value={subtipoId} onChange={e => setSubtipoId(e.target.value)}>
-            <option value="">— Sin subtipo —</option>
-            {subtipos.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </Select>
-        </FormField>
-      )}
-
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="N° de lote" required>
-          <Input type="number" min="1" placeholder="ej: 1" value={numeroLote}
-            onChange={e => setNumeroLote(e.target.value)} />
-        </FormField>
-        <FormField label="N° lote propio (opcional)">
-          <Input placeholder="ej: MP-0042" value={numeroLotePropio}
-            onChange={e => setNumeroLotePropio(e.target.value)} />
-        </FormField>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Proveedor" required>
-          <Select value={proveedorId} onChange={e => setProvId(e.target.value)}>
-            <option value="">— Seleccionar —</option>
-            {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-          </Select>
-        </FormField>
-        <FormField label="Costo unitario (Bs)">
-          <Input type="number" min="0" step="0.01" placeholder="0" value={costoBs}
-            onChange={e => setCostoBs(e.target.value)} />
-        </FormField>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Estado de pago">
-          <Select value={estadoPago} onChange={e => setEstadoPago(e.target.value as 'pendiente' | 'pagado')}>
-            <option value="pendiente">Pendiente</option>
-            <option value="pagado">Pagado</option>
-          </Select>
-        </FormField>
-        {estadoPago === 'pagado' && (
-          <FormField label="Fecha de pago">
-            <Input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
-          </FormField>
-        )}
-      </div>
-
-      <FormField label="Fecha de entrada" required>
-        <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
-      </FormField>
-
-      <FormField label="Observaciones">
-        <Input placeholder="Notas..." value={observaciones} onChange={e => setObs(e.target.value)} />
-      </FormField>
-
-      <div className="rounded-[10px] border border-[var(--color-gr-border)] p-3 space-y-3">
-        <div className="flex items-center gap-2">
-          <HardHat size={14} className="text-[var(--color-gr-primary)]" />
-          <p className="font-700 text-[13px] text-[var(--color-gr-text)]">Carga / estibaje</p>
-          {tarifa > 0 && (
-            <span className="ml-auto text-[11.5px] text-[var(--color-gr-muted)]">
-              Tarifa actual: {formatBs(tarifa)}/bolsa
-            </span>
-          )}
-        </div>
-        {tarifa === 0 && (
-          <p className="text-[12px] text-[var(--color-gr-warning)]">
-            ⚠ Aún no hay tarifa de carga configurada. Configurala desde Configuración → Empresa.
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* ── Columna izquierda ── datos de la entrada ── */}
+        <div className="space-y-3">
+          <p className="text-[11.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">
+            Datos de la entrada
           </p>
-        )}
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Cargador">
-            <Select value={cargadorId} onChange={e => setCargadorId(e.target.value)}>
-              <option value="">— Ninguno —</option>
-              {cargadores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Bolsas cargadas">
-            <Input type="number" min="0" placeholder="0" value={bolsasCarga}
-              disabled={!cargadorId}
-              onChange={e => setBolsasCarga(e.target.value)} />
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Cantidad" required>
+              <Input type="number" min="0" step="0.01" placeholder="0" value={cantidad}
+                onChange={e => setCantidad(e.target.value)} autoFocus className="text-[16px] font-700" />
+            </FormField>
+            <FormField label="Unidad" required>
+              <Select value={unidadId} onChange={e => setUnidadId(e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {unidades.map(u => (
+                  <option key={u.id} value={u.id}>{u.codigo} · {u.nombre}</option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+
+          {mp.categoria?.tieneSubtipos && subtipos.length > 0 && (
+            <FormField label="Subtipo">
+              <Select value={subtipoId} onChange={e => setSubtipoId(e.target.value)}>
+                <option value="">— Sin subtipo —</option>
+                {subtipos.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </Select>
+            </FormField>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="N° de lote" hint="Autogenerado — podés editarlo">
+              <Input placeholder="MP-260701-2006" value={numeroLote}
+                onChange={e => setNumeroLote(e.target.value)} />
+            </FormField>
+            <FormField label="N° lote propio (opcional)">
+              <Input placeholder="ej: MP-0042" value={numeroLotePropio}
+                onChange={e => setNumeroLotePropio(e.target.value)} />
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Proveedor" required>
+              <Select value={proveedorId} onChange={e => setProvId(e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </Select>
+            </FormField>
+            <FormField label="Costo unitario (Bs)">
+              <Input type="number" min="0" step="0.01" placeholder="0" value={costoBs}
+                onChange={e => setCostoBs(e.target.value)} />
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Estado de pago">
+              <Select value={estadoPago} onChange={e => setEstadoPago(e.target.value as 'pendiente' | 'pagado')}>
+                <option value="pendiente">Pendiente</option>
+                <option value="pagado">Pagado</option>
+              </Select>
+            </FormField>
+            {estadoPago === 'pagado' ? (
+              <FormField label="Fecha de pago">
+                <Input type="date" value={fechaPago} onChange={e => setFechaPago(e.target.value)} />
+              </FormField>
+            ) : (
+              <FormField label="Fecha de entrada" required>
+                <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+              </FormField>
+            )}
+          </div>
+
+          {estadoPago === 'pagado' && (
+            <FormField label="Fecha de entrada" required>
+              <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+            </FormField>
+          )}
+
+          <FormField label="Observaciones">
+            <Input placeholder="Notas..." value={observaciones} onChange={e => setObs(e.target.value)} />
           </FormField>
         </div>
-        {cargadorId && bolsasNum > 0 && (
-          <div className="flex items-center justify-between rounded-[8px] px-3 py-2 bg-[var(--color-gr-primary-lite)]">
-            <span className="text-[12.5px] text-[var(--color-gr-sub)]">
-              {bolsasNum} bolsas × {formatBs(tarifa)} =
-            </span>
-            <span className="font-800 text-[14px] text-[var(--color-gr-primary)]">
-              {formatBs(montoCarga)}
-            </span>
-          </div>
-        )}
-        {cargadorId && (
-          <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={cargaPagada}
-              onChange={e => setCargaPagada(e.target.checked)}
-            />
-            Pago realizado en este momento
-            {!cargaPagada && bolsasNum > 0 && (
-              <span className="text-[11.5px] text-[var(--color-gr-warning)] ml-1">
-                (queda como deuda al cargador)
-              </span>
-            )}
-          </label>
-        )}
+
+        {/* ── Columna derecha ── cargadores ── */}
+        <div className="space-y-3">
+          <p className="text-[11.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">
+            Estibaje (opcional)
+          </p>
+          <CargasSection
+            totalEsperado={totalBolsas}
+            unidadTotal="bolsas"
+            tipoPago={tipoPago}
+            onTipoPagoChange={setTipoPago}
+            tarifaBs={tarifaBs}
+            onTarifaChange={setTarifaBs}
+            cargas={cargas}
+            onCargasChange={setCargas}
+          />
+        </div>
       </div>
 
-      <div className="flex gap-3 justify-end">
+      <div className="flex gap-3 justify-end pt-2 border-t border-[var(--color-gr-border-lite)]">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
         <Btn onClick={handleSave} disabled={!valid} loading={createKardex.isPending}>
           <Plus size={14} /> Registrar entrada
