@@ -15,6 +15,20 @@ import {
 
 const FILTROS = ['Hoy', 'Esta semana', 'Este mes', 'Personalizado', 'Todos'] as const;
 
+/**
+ * Código de lote sugerido para producciones (producto terminado):
+ * `PT-YYMMDD-HHMM` (ej. PT-260701-2006 = 1-jul-2026 20:06).
+ */
+function autoLotePt(): string {
+  const d = new Date();
+  const yy = String(d.getFullYear()).slice(2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `PT-${yy}${mm}${dd}-${hh}${mi}`;
+}
+
 export default function ProduccionPage() {
   const toast = useToast(s => s.show);
   const productosQ = useProductos();
@@ -306,7 +320,7 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
   const [costoMpBs, setCosto] = useState('');
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [obs, setObs] = useState('');
-  const [numeroLotePropio, setNumeroLotePropio] = useState('');
+  const [numeroLotePropio, setNumeroLotePropio] = useState(() => autoLotePt());
   const [mermaUnidades, setMermaUnidades] = useState('');
   const [mermaMpKg, setMermaMpKg] = useState('');
   const [mermaObs, setMermaObs] = useState('');
@@ -341,7 +355,7 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
   }
 
   return (
-    <Modal open title="Registrar producción" onClose={onClose}>
+    <Modal xl open title="Registrar producción" onClose={onClose}>
       <FormField label="Producto" required>
         <Select value={productoId} onChange={e => setProductoId(e.target.value)}>
           <option value="">— Seleccionar —</option>
@@ -363,75 +377,90 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Cantidad producida" required>
-          <Input type="number" min="1" placeholder="0" value={bolsas}
-            onChange={e => setBolsas(e.target.value)} />
-        </FormField>
-        <FormField label="Fecha" required>
-          <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
-        </FormField>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* ── Columna izquierda: datos del lote ── */}
+        <div className="space-y-3">
+          <p className="text-[11.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">
+            Datos del lote
+          </p>
 
-      {bolsasNum > 0 && producto && (
-        <div className="grid grid-cols-3 gap-3 rounded-[10px] px-4 py-3 text-[13px]"
-          style={{ background: 'var(--color-gr-border-lite)' }}>
-          <div>
-            <p className="text-[var(--color-gr-muted)] text-[10.5px] font-600 uppercase">QQ a producir</p>
-            <p className="font-800 text-[var(--color-gr-text)]">{formatNum(totalQQ, 2)}</p>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Cantidad producida" required>
+              <Input type="number" min="1" placeholder="0" value={bolsas}
+                onChange={e => setBolsas(e.target.value)} className="text-[16px] font-700" />
+            </FormField>
+            <FormField label="Fecha" required>
+              <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
+            </FormField>
           </div>
-          <div>
-            <p className="text-[var(--color-gr-muted)] text-[10.5px] font-600 uppercase">Stock después</p>
-            <p className="font-800 text-[var(--color-gr-text)]">
-              {formatNum(Number(producto.stockActual) + bolsasNum, 0)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[var(--color-gr-muted)] text-[10.5px] font-600 uppercase">Valor producido</p>
-            <p className="font-800 text-[var(--color-gr-primary)]">
-              {formatBs(bolsasNum * Number(producto.precioUnitarioBs))}
-            </p>
-          </div>
-        </div>
-      )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="N° lote propio (opcional)">
-          <Input placeholder="ej: GR-0042" value={numeroLotePropio}
-            onChange={e => setNumeroLotePropio(e.target.value)} />
-        </FormField>
-        <FormField label="Costo MP (Bs)">
-          <Input type="number" min="0" step="0.01" placeholder="0" value={costoMpBs}
-            onChange={e => setCosto(e.target.value)} />
-        </FormField>
-      </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="N° de lote" hint="Autogenerado — podés editarlo">
+              <Input placeholder="PT-260701-2006" value={numeroLotePropio}
+                onChange={e => setNumeroLotePropio(e.target.value)} />
+            </FormField>
+            <FormField label="Costo MP (Bs)">
+              <Input type="number" min="0" step="0.01" placeholder="0" value={costoMpBs}
+                onChange={e => setCosto(e.target.value)} />
+            </FormField>
+          </div>
 
-      <div className="rounded-[10px] border border-[var(--color-gr-border)] p-3 space-y-3">
-        <div className="flex items-center gap-2">
-          <TrendingDown size={14} className="text-[var(--color-gr-warning)]" />
-          <p className="font-700 text-[13px] text-[var(--color-gr-text)]">Merma (opcional)</p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label={`Merma producto final (${producto?.unidadVenta?.abreviatura ?? 'u'})`}>
-            <Input type="number" min="0" step="0.01" placeholder="0" value={mermaUnidades}
-              onChange={e => setMermaUnidades(e.target.value)} />
-          </FormField>
-          <FormField label="Merma materia prima (kg)">
-            <Input type="number" min="0" step="0.01" placeholder="0" value={mermaMpKg}
-              onChange={e => setMermaMpKg(e.target.value)} />
+          {bolsasNum > 0 && producto && (
+            <div className="grid grid-cols-3 gap-3 rounded-[10px] px-4 py-3 text-[13px]"
+              style={{ background: 'var(--color-gr-border-lite)' }}>
+              <div>
+                <p className="text-[var(--color-gr-muted)] text-[10.5px] font-600 uppercase">QQ a producir</p>
+                <p className="font-800 text-[var(--color-gr-text)]">{formatNum(totalQQ, 2)}</p>
+              </div>
+              <div>
+                <p className="text-[var(--color-gr-muted)] text-[10.5px] font-600 uppercase">Stock después</p>
+                <p className="font-800 text-[var(--color-gr-text)]">
+                  {formatNum(Number(producto.stockActual) + bolsasNum, 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[var(--color-gr-muted)] text-[10.5px] font-600 uppercase">Valor producido</p>
+                <p className="font-800 text-[var(--color-gr-primary)]">
+                  {formatBs(bolsasNum * Number(producto.precioUnitarioBs))}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <FormField label="Observaciones generales">
+            <Textarea placeholder="Turno, notas del lote..." value={obs} onChange={e => setObs(e.target.value)} />
           </FormField>
         </div>
-        <FormField label="Observaciones de la merma">
-          <Textarea placeholder="Detalles de la pérdida..." value={mermaObs}
-            onChange={e => setMermaObs(e.target.value)} />
-        </FormField>
+
+        {/* ── Columna derecha: merma ── */}
+        <div className="space-y-3">
+          <p className="text-[11.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">
+            Merma (opcional)
+          </p>
+          <div className="rounded-[12px] border-2 border-[var(--color-gr-border)] p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <TrendingDown size={16} className="text-[var(--color-gr-warning)]" />
+              <p className="font-700 text-[13.5px] text-[var(--color-gr-text)]">Pérdidas del lote</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label={`Producto final (${producto?.unidadVenta?.abreviatura ?? 'u'})`}>
+                <Input type="number" min="0" step="0.01" placeholder="0" value={mermaUnidades}
+                  onChange={e => setMermaUnidades(e.target.value)} />
+              </FormField>
+              <FormField label="Materia prima (kg)">
+                <Input type="number" min="0" step="0.01" placeholder="0" value={mermaMpKg}
+                  onChange={e => setMermaMpKg(e.target.value)} />
+              </FormField>
+            </div>
+            <FormField label="Observaciones de la merma">
+              <Textarea placeholder="Detalles de la pérdida..." value={mermaObs}
+                onChange={e => setMermaObs(e.target.value)} />
+            </FormField>
+          </div>
+        </div>
       </div>
 
-      <FormField label="Observaciones generales">
-        <Textarea placeholder="Turno, notas del lote..." value={obs} onChange={e => setObs(e.target.value)} />
-      </FormField>
-
-      <div className="flex gap-3 justify-end">
+      <div className="flex gap-3 justify-end pt-2 border-t border-[var(--color-gr-border-lite)]">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
         <Btn onClick={handleSave} disabled={!valid} loading={createLote.isPending}>
           <Package size={14} /> Confirmar producción

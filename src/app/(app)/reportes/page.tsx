@@ -6,15 +6,16 @@ import { useGastos } from '@/lib/api/gastos';
 import { useKardexMP } from '@/lib/api/materia-prima';
 import { useMateriasPrimas } from '@/lib/api/materia-prima';
 import { useProductos } from '@/lib/api/productos';
+import { useReporteCargadores } from '@/lib/api/cargadores';
 import { CategoriaGasto, EstadoVenta, TipoMovimientoMP } from '@/lib/types';
 import { formatBs, formatNum } from '@/lib/utils';
 import { Badge, SearchBox, Spinner } from '@/components/ui';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
-import { TrendingUp, ShoppingCart, Boxes, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
+import { TrendingUp, ShoppingCart, Boxes, Layers, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Trophy, HardHat } from 'lucide-react';
 
-type ReporteId      = 'financiero' | 'ventas' | 'movimientos_mp' | 'stock';
+type ReporteId      = 'financiero' | 'ventas' | 'movimientos_mp' | 'stock' | 'cargadores';
 type AgrupacionTipo = 'semana' | 'mes' | 'año';
 type StockTab       = 'productos' | 'mp';
 
@@ -41,6 +42,7 @@ const REPORT_CARDS: { id: ReporteId; Icon: React.ElementType; title: string; des
   { id: 'ventas',         Icon: ShoppingCart, title: 'Ventas por Período',   desc: 'Detalle de notas de venta con filtros por cliente y estado' },
   { id: 'movimientos_mp', Icon: Boxes,        title: 'Movimientos de MP',    desc: 'Entradas y salidas de materia prima con costos' },
   { id: 'stock',          Icon: Layers,       title: 'Stock Actual',         desc: 'Inventario completo de productos terminados y materia prima' },
+  { id: 'cargadores',     Icon: HardHat,      title: 'Gastos en cargadores', desc: 'Total pagado + pendiente por cargador con filtro de fechas' },
 ];
 
 function KPICard({ label, value, color }: { label: string; value: string; color: 'success' | 'danger' | 'warning' | 'primary' }) {
@@ -220,6 +222,124 @@ export default function ReportesPage() {
       {activo === 'ventas'         && <ReporteVentas />}
       {activo === 'movimientos_mp' && <ReporteMovimientosMP />}
       {activo === 'stock'          && <ReporteStock />}
+      {activo === 'cargadores'     && <ReporteCargadores />}
+    </div>
+  );
+}
+
+// ── Report 5: Gastos en cargadores ───────────────────────────────────────
+function ReporteCargadores() {
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const reporteQ = useReporteCargadores(desde || undefined, hasta || undefined);
+  const r = reporteQ.data;
+
+  if (reporteQ.isLoading) {
+    return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
+  }
+
+  return (
+    <div className="space-y-4 animate-fade-up">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="font-900 text-[16px] text-[var(--color-gr-text)]">Gastos en cargadores</h2>
+          <p className="text-[12.5px] text-[var(--color-gr-muted)]">
+            {desde || hasta
+              ? `Período ${desde || '…'} → ${hasta || '…'}`
+              : 'Todo el histórico'}
+          </p>
+        </div>
+      </div>
+
+      {/* Filtros de fecha */}
+      <div className="card flex flex-wrap gap-3 items-end py-3">
+        <div>
+          <label className="block text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Desde</label>
+          <input type="date" value={desde}
+            onChange={e => setDesde(e.target.value)}
+            className="border border-[var(--color-gr-border)] rounded-[8px] px-3 py-2 text-[13px] bg-white" />
+        </div>
+        <div>
+          <label className="block text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Hasta</label>
+          <input type="date" value={hasta}
+            onChange={e => setHasta(e.target.value)}
+            className="border border-[var(--color-gr-border)] rounded-[8px] px-3 py-2 text-[13px] bg-white" />
+        </div>
+        {(desde || hasta) && (
+          <button onClick={() => { setDesde(''); setHasta(''); }}
+            className="text-[12px] font-600 text-[var(--color-gr-primary)] underline pb-2">
+            Limpiar
+          </button>
+        )}
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-3 gap-3">
+        <KPICard label="Total pagado" value={formatBs(r?.totalPagadoBs ?? 0)} color="success" />
+        <KPICard label="Pendiente" value={formatBs(r?.totalPendienteBs ?? 0)} color="danger" />
+        <KPICard label="Cargadores activos" value={String(r?.cantidadCargadores ?? 0)} color="primary" />
+      </div>
+
+      {/* Desglose por cargador */}
+      <div className="card-no-pad">
+        <div className="px-5 py-3.5 border-b border-[var(--color-gr-border)]">
+          <p className="font-800 text-[14px] text-[var(--color-gr-text)]">Desglose por cargador</p>
+        </div>
+
+        {!r || r.porCargador.length === 0 ? (
+          <p className="px-5 py-6 text-[13px] text-[var(--color-gr-muted)] text-center">
+            Sin movimientos en el período
+          </p>
+        ) : (
+          <>
+            <div
+              className="hidden md:grid gap-3 px-5 py-3 text-[11px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide border-b border-[var(--color-gr-border)]"
+              style={{ gridTemplateColumns: '1fr 90px 130px 130px', background: 'var(--color-gr-border-lite)' }}
+            >
+              <span>Cargador</span>
+              <span className="text-right">Pagos</span>
+              <span className="text-right">Total pagado</span>
+              <span className="text-right">Pendiente</span>
+            </div>
+            {r.porCargador.map(c => (
+              <div key={c.cargadorId}
+                className="px-5 py-3 border-b border-[var(--color-gr-border-lite)] last:border-b-0"
+              >
+                <div className="hidden md:grid gap-3 items-center"
+                  style={{ gridTemplateColumns: '1fr 90px 130px 130px' }}>
+                  <span className="font-700 text-[13.5px] text-[var(--color-gr-text)]">{c.cargadorNombre}</span>
+                  <span className="text-right text-[13px]">{c.cantidadPagos}</span>
+                  <span className="text-right font-800 text-[13.5px]" style={{ color: 'var(--color-gr-success)' }}>
+                    {formatBs(c.totalPagadoBs)}
+                  </span>
+                  <span className="text-right font-800 text-[13.5px]" style={{ color: c.pendienteBs > 0 ? 'var(--color-gr-danger)' : 'var(--color-gr-muted)' }}>
+                    {formatBs(c.pendienteBs)}
+                  </span>
+                </div>
+                <div className="md:hidden">
+                  <p className="font-700 text-[13.5px] text-[var(--color-gr-text)]">{c.cargadorNombre}</p>
+                  <p className="text-[12px] text-[var(--color-gr-muted)]">
+                    {c.cantidadPagos} pagos ·{' '}
+                    <span style={{ color: 'var(--color-gr-success)' }}>{formatBs(c.totalPagadoBs)}</span>
+                    {c.pendienteBs > 0 && (
+                      <> · pendiente <span style={{ color: 'var(--color-gr-danger)' }}>{formatBs(c.pendienteBs)}</span></>
+                    )}
+                  </p>
+                </div>
+              </div>
+            ))}
+            <div
+              className="px-5 py-3 flex items-center justify-between border-t border-[var(--color-gr-border)]"
+              style={{ background: 'var(--color-gr-border-lite)' }}
+            >
+              <span className="text-[13px] font-700 text-[var(--color-gr-text)]">Total</span>
+              <span className="font-900 text-[14px] text-[var(--color-gr-primary)]">
+                {formatBs(r.totalPagadoBs)} pagado + {formatBs(r.totalPendienteBs)} pendiente
+              </span>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

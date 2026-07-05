@@ -4,8 +4,7 @@ import { useEmpresa, useActualizarConfiguracion, useActualizarEmpresa } from '@/
 import { apiErrorMessage } from '@/lib/api';
 import { normalizePhone } from '@/components/ui';
 import { Btn, FormField, Input, PhoneInput, Spinner, useToast } from '@/components/ui';
-import { Building2, ShieldCheck, HardHat } from 'lucide-react';
-import { formatBs } from '@/lib/utils';
+import { Building2, ShieldCheck } from 'lucide-react';
 
 export function TabEmpresa() {
   const toast = useToast(s => s.show);
@@ -22,7 +21,6 @@ export function TabEmpresa() {
   const [ciudad, setCiudad]       = useState('');
   const [logoUrl, setLogoUrl]     = useState('');
   const [registroSanitario, setRS] = useState('');
-  const [tarifa, setTarifa] = useState('');
 
   const empresa = empresaQ.data;
 
@@ -81,20 +79,6 @@ export function TabEmpresa() {
       toast(apiErrorMessage(err, 'No se pudo actualizar'), 'error');
     }
   }
-
-  async function handleGuardarTarifa() {
-    const valor = parseFloat(tarifa);
-    if (!Number.isFinite(valor) || valor < 0) return;
-    try {
-      await actualizarConfig.mutateAsync({ tarifaPorBolsaBs: valor });
-      toast('Tarifa de carga actualizada', 'success');
-      setTarifa('');
-    } catch (err) {
-      toast(apiErrorMessage(err, 'No se pudo actualizar'), 'error');
-    }
-  }
-
-  const tarifaActual = Number(empresa?.configuracion?.tarifaPorBolsaBs ?? 0);
 
   return (
     <div className="space-y-5 max-w-2xl">
@@ -178,39 +162,6 @@ export function TabEmpresa() {
         <div className="flex justify-end">
           <Btn onClick={handleGuardarRS} disabled={!registroSanitario.trim()} loading={actualizarConfig.isPending}>
             <ShieldCheck size={14} /> Guardar registro
-          </Btn>
-        </div>
-      </div>
-
-      <div className="card space-y-4">
-        <div className="flex items-center gap-2">
-          <HardHat size={18} className="text-[var(--color-gr-primary)]" />
-          <h2 className="font-800 text-[15px] text-[var(--color-gr-text)]">Tarifa de carga (estibadores)</h2>
-        </div>
-        <p className="text-[12.5px] text-[var(--color-gr-muted)] -mt-2">
-          Monto en Bs que se paga por cada bolsa cargada. Se aplica al registrar carga en entradas de MP y despachos.
-        </p>
-
-        <div className="rounded-[10px] px-4 py-3" style={{ background: 'var(--color-gr-primary-lite)' }}>
-          <p className="text-[12px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Tarifa actual</p>
-          <p className="font-800 text-[15px] text-[var(--color-gr-primary)]">
-            {tarifaActual > 0
-              ? `${formatBs(tarifaActual)} / bolsa`
-              : <span className="text-[var(--color-gr-muted)] font-normal italic">Sin configurar</span>}
-          </p>
-        </div>
-
-        <FormField label="Nueva tarifa (Bs por bolsa)">
-          <Input type="number" min="0" step="0.1" placeholder="ej: 1.50" value={tarifa}
-            onChange={e => setTarifa(e.target.value)} />
-        </FormField>
-
-        <div className="flex justify-end">
-          <Btn
-            onClick={handleGuardarTarifa}
-            disabled={!tarifa.trim() || !Number.isFinite(parseFloat(tarifa)) || parseFloat(tarifa) < 0}
-            loading={actualizarConfig.isPending}>
-            <HardHat size={14} /> Guardar tarifa
           </Btn>
         </div>
       </div>
