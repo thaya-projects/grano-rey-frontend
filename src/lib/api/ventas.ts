@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import type { NotaVenta, EstadoVenta, CreateVentaRequest, CobrarVentaRequest } from '../types';
+import type {
+  NotaVenta,
+  EstadoVenta,
+  CreateVentaRequest,
+  CobrarVentaRequest,
+  CreateCargaTrabajoRequest,
+} from '../types';
 import { productosKeys } from './productos';
 import { lotesKeys } from './produccion';
 
@@ -42,9 +48,7 @@ export function useCreateVenta() {
 interface CambiarEstadoVentaInput {
   id: string;
   estado: EstadoVenta;
-  cargadorId?: string;
-  bolsasCarga?: number;
-  cargaPagada?: boolean;
+  cargas?: CreateCargaTrabajoRequest[];
 }
 
 export function useCambiarEstadoVenta() {

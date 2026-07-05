@@ -2,13 +2,13 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useVentas, useCambiarEstadoVenta } from '@/lib/api/ventas';
-import { useCargadores, useTarifaCarga } from '@/lib/api/cargadores';
-import { type NotaVenta, EstadoVenta, TipoFlete } from '@/lib/types';
+import { type NotaVenta, EstadoVenta, TipoFlete, TipoPagoCarga } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatBs } from '@/lib/utils';
-import { Btn, Modal, FormField, Input, Select, EstadoBadge, Badge, Spinner, useToast } from '@/components/ui';
-import { Truck, CheckCircle2, Clock, Printer, ArrowRight, Package, Zap, HardHat } from 'lucide-react';
+import { Btn, Modal, EstadoBadge, Badge, Spinner, useToast } from '@/components/ui';
+import { Truck, CheckCircle2, Clock, Printer, ArrowRight, Package, Zap } from 'lucide-react';
 import Image from 'next/image';
+import { CargasSection, type CargaDraft } from '@/components/CargasSection';
 
 const FILTROS_FECHA = ['Hoy', 'Esta semana', 'Este mes', 'Personalizado', 'Todos'] as const;
 
@@ -437,7 +437,7 @@ function RemisionModal({ venta: v, onClose, onDespachar }: {
   );
 }
 
-// ─── DespacharModal: cargador + bolsas + pago ───────────────────────────────
+// ─── DespacharModal: cargadores múltiples + tarifa por sesión ───────────────
 function DespacharModal({ venta, onClose, onSaved, onError }: {
   venta: NotaVenta;
   onClose: () => void;
@@ -445,26 +445,22 @@ function DespacharModal({ venta, onClose, onSaved, onError }: {
   onError: (msg: string) => void;
 }) {
   const cambiar = useCambiarEstadoVenta();
-  const cargadoresQ = useCargadores();
-  const tarifaQ = useTarifaCarga();
-  const cargadores = cargadoresQ.data ?? [];
-  const tarifa = Number(tarifaQ.data?.tarifaPorBolsaBs ?? 0);
 
-  const [cargadorId, setCargadorId] = useState('');
-  const [bolsas, setBolsas] = useState('');
-  const [pagado, setPagado] = useState(false);
+  const [tipoPago, setTipoPago] = useState<TipoPagoCarga>(TipoPagoCarga.BOLSA);
+  const [tarifaBs, setTarifaBs] = useState(0);
+  const [cargas, setCargas]     = useState<CargaDraft[]>([]);
 
-  const bolsasNum = parseFloat(bolsas) || 0;
-  const monto = bolsasNum * tarifa;
+  // Total en unidades (bolsas) de los detalles de la nota
+  const totalBolsas = venta.detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
 
   async function handleConfirmar() {
     try {
       await cambiar.mutateAsync({
         id: venta.id,
         estado: EstadoVenta.DESPACHADA,
-        cargadorId: cargadorId || undefined,
-        bolsasCarga: cargadorId ? bolsasNum : undefined,
-        cargaPagada: cargadorId ? pagado : undefined,
+        cargas: cargas.length > 0
+          ? cargas.map(({ _id: _drop, ...c }) => c)
+          : undefined,
       });
       onSaved();
     } catch (err) {
@@ -473,71 +469,31 @@ function DespacharModal({ venta, onClose, onSaved, onError }: {
   }
 
   return (
-    <Modal open title={`Despachar NV-${venta.numeroNota}`} onClose={onClose}>
-      <div className="rounded-[10px] px-4 py-3 text-[13px]" style={{ background: 'var(--color-gr-primary-lite)' }}>
-        <p className="font-700 text-[var(--color-gr-primary)]">
-          {venta.cliente?.nombre ?? '—'} · {formatBs(Number(venta.totalBs))}
-        </p>
-      </div>
-
-      <div className="rounded-[10px] border border-[var(--color-gr-border)] p-3 space-y-3">
-        <div className="flex items-center gap-2">
-          <HardHat size={14} className="text-[var(--color-gr-primary)]" />
-          <p className="font-700 text-[13px] text-[var(--color-gr-text)]">Carga / estibaje (opcional)</p>
-          {tarifa > 0 && (
-            <span className="ml-auto text-[11.5px] text-[var(--color-gr-muted)]">
-              Tarifa: {formatBs(tarifa)}/bolsa
-            </span>
-          )}
-        </div>
-        {tarifa === 0 && (
-          <p className="text-[12px] text-[var(--color-gr-warning)]">
-            ⚠ Aún no hay tarifa de carga configurada. Configurala desde Configuración → Empresa.
+    <Modal xl open title={`Despachar NV-${venta.numeroNota}`} onClose={onClose}>
+      <div className="rounded-[10px] px-4 py-3 flex items-center justify-between"
+        style={{ background: 'var(--color-gr-primary-lite)' }}>
+        <div>
+          <p className="font-700 text-[var(--color-gr-primary)] text-[14px]">
+            {venta.cliente?.nombre ?? '—'}
           </p>
-        )}
-        <div className="grid grid-cols-2 gap-3">
-          <FormField label="Cargador">
-            <Select value={cargadorId} onChange={e => setCargadorId(e.target.value)}>
-              <option value="">— Ninguno —</option>
-              {cargadores.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </Select>
-          </FormField>
-          <FormField label="Bolsas cargadas">
-            <Input
-              type="number" min="0" placeholder="0" value={bolsas}
-              disabled={!cargadorId}
-              onChange={e => setBolsas(e.target.value)}
-            />
-          </FormField>
+          <p className="text-[12px] text-[var(--color-gr-muted)]">
+            {venta.fecha} · {totalBolsas} bolsas · {formatBs(Number(venta.totalBs))}
+          </p>
         </div>
-        {cargadorId && bolsasNum > 0 && (
-          <div className="flex items-center justify-between rounded-[8px] px-3 py-2 bg-[var(--color-gr-primary-lite)]">
-            <span className="text-[12.5px] text-[var(--color-gr-sub)]">
-              {bolsasNum} bolsas × {formatBs(tarifa)} =
-            </span>
-            <span className="font-800 text-[14px] text-[var(--color-gr-primary)]">
-              {formatBs(monto)}
-            </span>
-          </div>
-        )}
-        {cargadorId && (
-          <label className="flex items-center gap-2 text-[13px] cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={pagado}
-              onChange={e => setPagado(e.target.checked)}
-            />
-            Pago realizado en este momento
-            {!pagado && bolsasNum > 0 && (
-              <span className="text-[11.5px] text-[var(--color-gr-warning)] ml-1">
-                (queda como deuda al cargador)
-              </span>
-            )}
-          </label>
-        )}
       </div>
 
-      <div className="flex gap-3 justify-end">
+      <CargasSection
+        totalEsperado={totalBolsas}
+        unidadTotal="bolsas"
+        tipoPago={tipoPago}
+        onTipoPagoChange={setTipoPago}
+        tarifaBs={tarifaBs}
+        onTarifaChange={setTarifaBs}
+        cargas={cargas}
+        onCargasChange={setCargas}
+      />
+
+      <div className="flex gap-3 justify-end pt-2 border-t border-[var(--color-gr-border-lite)]">
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
         <Btn onClick={handleConfirmar} loading={cambiar.isPending}>
           <Truck size={14} /> Confirmar despacho

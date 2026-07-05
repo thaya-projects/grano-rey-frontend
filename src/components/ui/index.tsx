@@ -131,11 +131,12 @@ export function FormField({ label, required, error, children, className, hint }:
   return (
     <div className={cn('flex flex-col gap-0', className)}>
       {label && (
-        <Label required={required}>
-          {label}{hint && <span className="font-normal text-[var(--color-gr-muted)] ml-1">({hint})</span>}
-        </Label>
+        <Label required={required}>{label}</Label>
       )}
       {children}
+      {hint && !error && (
+        <p className="text-[11.5px] text-[var(--color-gr-muted)] mt-1 leading-tight">{hint}</p>
+      )}
       {error && <p className="text-[12px] text-[var(--color-gr-danger)] mt-1">{error}</p>}
     </div>
   );
@@ -205,8 +206,8 @@ export function StockBar({ value, min, className }: { value: number; min: number
 }
 
 // ─── Modal ────────────────────────────────────────────────────────────────────
-interface ModalProps { open: boolean; onClose: () => void; title: string; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean; className?: string; }
-export function Modal({ open, onClose, title, children, footer, wide, className }: ModalProps) {
+interface ModalProps { open: boolean; onClose: () => void; title: string; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean; xl?: boolean; className?: string; }
+export function Modal({ open, onClose, title, children, footer, wide, xl, className }: ModalProps) {
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
@@ -218,7 +219,7 @@ export function Modal({ open, onClose, title, children, footer, wide, className 
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
       <div onClick={e => e.stopPropagation()}
         className={cn('relative bg-white rounded-[16px] shadow-2xl w-full max-h-[90vh] flex flex-col animate-fade-up',
-          wide ? 'max-w-2xl' : 'max-w-lg', className)}>
+          xl ? 'max-w-5xl' : wide ? 'max-w-2xl' : 'max-w-lg', className)}>
         {/* Header fijo */}
         <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-[var(--color-gr-border)]">
           <h2 className="text-[16px] font-800 text-[var(--color-gr-text)]">{title}</h2>
