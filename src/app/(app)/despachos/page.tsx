@@ -6,7 +6,7 @@ import { type NotaVenta, EstadoVenta, TipoFlete, TipoPagoCarga } from '@/lib/typ
 import { apiErrorMessage } from '@/lib/api';
 import { formatBs } from '@/lib/utils';
 import { Btn, Modal, EstadoBadge, Badge, Spinner, useToast } from '@/components/ui';
-import { Truck, CheckCircle2, Clock, Printer, ArrowRight, Package, Zap } from 'lucide-react';
+import { Truck, CheckCircle2, Clock, Printer, ArrowRight, Package, Zap, User, Calendar, HardHat, Receipt } from 'lucide-react';
 import Image from 'next/image';
 import { CargasSection, type CargaDraft } from '@/components/CargasSection';
 
@@ -19,6 +19,7 @@ export default function DespachosPage() {
   const ventas             = ventasQ.data ?? [];
   const [remisionModal, setRemisionModal] = useState<NotaVenta | null>(null);
   const [despacharVenta, setDespacharVenta] = useState<NotaVenta | null>(null);
+  const [reporteEstado, setReporteEstado] = useState<EstadoVenta | null>(null);
   const [filtroFecha, setFiltroFecha] = useState<typeof FILTROS_FECHA[number]>('Todos');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -120,27 +121,40 @@ export default function DespachosPage() {
         )}
       </div>
 
-      {/* Stats */}
+      {/* Stats (clickeables → abren reporte informativo del estado) */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: 'Por despachar', value: pendientes.length,  color: 'var(--color-gr-warning)' },
-          { label: 'En tránsito',   value: despachadas.length, color: 'var(--color-gr-info)'    },
-          { label: 'Entregadas',    value: entregadas.length,  color: 'var(--color-gr-success)'  },
+          { label: 'Por despachar', value: pendientes.length,  color: 'var(--color-gr-warning)', estado: EstadoVenta.PENDIENTE,  Icon: Clock },
+          { label: 'En tránsito',   value: despachadas.length, color: 'var(--color-gr-info)',    estado: EstadoVenta.DESPACHADA, Icon: Truck },
+          { label: 'Entregadas',    value: entregadas.length,  color: 'var(--color-gr-success)', estado: EstadoVenta.ENTREGADA,  Icon: CheckCircle2 },
         ].map(s => (
-          <div key={s.label} className="card border-t-4 text-center"
-            style={{ borderTopColor: s.color }}>
+          <button
+            key={s.label}
+            onClick={() => setReporteEstado(s.estado)}
+            className="card border-t-4 text-center transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
+            style={{ borderTopColor: s.color }}
+          >
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <s.Icon size={14} style={{ color: s.color }} />
+              <p className="text-[11.5px] font-700 uppercase tracking-wider" style={{ color: s.color }}>
+                {s.label}
+              </p>
+            </div>
             <p className="text-[32px] font-900 leading-tight" style={{ color: s.color }}>{s.value}</p>
-            <p className="text-[12px] text-[var(--color-gr-muted)] font-500 mt-0.5">{s.label}</p>
-          </div>
+            <p className="text-[11px] text-[var(--color-gr-muted)] font-500 mt-0.5">
+              Toca para ver el reporte
+            </p>
+          </button>
         ))}
       </div>
 
-      {/* Pendientes */}
-      {pendientes.length > 0 && (
+      {/* Sección accionable: Por despachar (única que requiere acción operativa) */}
+      {pendientes.length > 0 ? (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Clock size={15} style={{ color: 'var(--color-gr-warning)' }} />
             <h2 className="font-800 text-[var(--color-gr-text)] text-[15px]">Por despachar</h2>
+            <span className="text-[12px] text-[var(--color-gr-muted)]">— requieren tu acción</span>
           </div>
           <div className="space-y-3">
             {pendientes.map(v => (
@@ -150,62 +164,14 @@ export default function DespachosPage() {
             ))}
           </div>
         </div>
-      )}
-
-      {/* En tránsito */}
-      {despachadas.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Truck size={15} style={{ color: 'var(--color-gr-info)' }} />
-            <h2 className="font-800 text-[var(--color-gr-text)] text-[15px]">En tránsito</h2>
-          </div>
-          <div className="space-y-3">
-            {despachadas.map(v => {
-              const transp = v.transportista;
-              return (
-                <div key={v.id} className="card flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0"
-                    style={{ background: 'var(--color-gr-info-bg)' }}>
-                    <Truck size={18} style={{ color: 'var(--color-gr-info)' }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-700 text-[var(--color-gr-text)]">
-                        NV-{v.numeroNota}
-                        {v.numeroGuia ? ` · G-${v.numeroGuia}` : ''}
-                      </p>
-                      <EstadoBadge estado={v.estado} />
-                      {v.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
-                        <span className="text-[11px] font-600 px-2 py-0.5 rounded-full"
-                          style={{ background: 'var(--color-gr-info-bg)', color: 'var(--color-gr-info)' }}>
-                          Cliente paga flete
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[12px] text-[var(--color-gr-muted)]">
-                      {v.cliente?.nombre ?? '—'} · {v.fecha} · {formatBs(Number(v.totalBs))}
-                      {transp && ` · ${transp.nombre}`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Btn size="sm" variant="ghost" onClick={() => setRemisionModal(v)}>Ver</Btn>
-                    <Btn size="sm" variant="primary" onClick={() => marcarEntregado(v.id)}>
-                      <CheckCircle2 size={13} /> Entregado
-                    </Btn>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {pendientes.length === 0 && despachadas.length === 0 && (
-        <div className="rounded-[14px] px-6 py-10 text-center"
+      ) : (
+        <div className="rounded-[14px] px-6 py-8 text-center"
           style={{ background: 'var(--color-gr-success-bg)', border: '1px solid rgba(46,125,82,0.15)' }}>
-          <CheckCircle2 size={36} style={{ color: 'var(--color-gr-success)' }} className="mx-auto mb-3" />
-          <p className="font-800 text-[var(--color-gr-text)] text-[16px]">Todo al día</p>
-          <p className="text-[var(--color-gr-muted)] text-[13px] mt-1">No hay ventas pendientes de despacho</p>
+          <CheckCircle2 size={32} style={{ color: 'var(--color-gr-success)' }} className="mx-auto mb-2" />
+          <p className="font-800 text-[var(--color-gr-text)] text-[15px]">Todo al día — sin despachos pendientes</p>
+          <p className="text-[var(--color-gr-muted)] text-[12.5px] mt-1">
+            Los despachos en tránsito y entregas los podés consultar en las tarjetas de arriba.
+          </p>
         </div>
       )}
 
@@ -231,6 +197,202 @@ export default function DespachosPage() {
           onError={(msg) => toast(msg, 'error')}
         />
       )}
+
+      {reporteEstado !== null && (
+        <ReporteEstadoModal
+          estado={reporteEstado}
+          ventas={
+            reporteEstado === EstadoVenta.PENDIENTE  ? pendientes  :
+            reporteEstado === EstadoVenta.DESPACHADA ? despachadas :
+            entregadas
+          }
+          onClose={() => setReporteEstado(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Reporte informativo por estado (solo lectura) ─────────────────────────
+function ReporteEstadoModal({
+  estado, ventas, onClose,
+}: {
+  estado: EstadoVenta;
+  ventas: NotaVenta[];
+  onClose: () => void;
+}) {
+  const meta: Record<string, { titulo: string; Icon: React.ElementType; color: string; bg: string; subtitulo: string }> = {
+    [EstadoVenta.PENDIENTE]: {
+      titulo: 'Por despachar',
+      Icon: Clock,
+      color: 'var(--color-gr-warning)',
+      bg: '#fff7e6',
+      subtitulo: 'Ventas confirmadas esperando salir del depósito',
+    },
+    [EstadoVenta.DESPACHADA]: {
+      titulo: 'En tránsito',
+      Icon: Truck,
+      color: 'var(--color-gr-info)',
+      bg: 'var(--color-gr-info-bg)',
+      subtitulo: 'Despachadas y en camino al cliente',
+    },
+    [EstadoVenta.ENTREGADA]: {
+      titulo: 'Entregadas',
+      Icon: CheckCircle2,
+      color: 'var(--color-gr-success)',
+      bg: 'var(--color-gr-success-bg)',
+      subtitulo: 'Historial de entregas confirmadas',
+    },
+    [EstadoVenta.CANCELADA]: {
+      titulo: 'Canceladas',
+      Icon: CheckCircle2,
+      color: 'var(--color-gr-muted)',
+      bg: 'var(--color-gr-border-lite)',
+      subtitulo: '—',
+    },
+  };
+  const m = meta[estado];
+  const ordenadas = [...ventas].sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
+  const totalBs = ordenadas.reduce((s, v) => s + Number(v.totalBs), 0);
+  const totalBolsas = ordenadas.reduce((s, v) =>
+    s + v.detalles.reduce((ss, d) => ss + Number(d.cantidad ?? 0), 0), 0);
+
+  return (
+    <Modal xl open title={`Reporte — ${m.titulo}`} onClose={onClose}>
+      {/* Header resumen */}
+      <div className="rounded-[12px] px-5 py-4 flex items-center gap-4" style={{ background: m.bg }}>
+        <div className="w-12 h-12 rounded-[12px] flex items-center justify-center shrink-0"
+          style={{ background: m.color }}>
+          <m.Icon size={22} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-900 text-[16px]" style={{ color: m.color }}>{m.titulo}</p>
+          <p className="text-[12.5px] text-[var(--color-gr-muted)]">{m.subtitulo}</p>
+        </div>
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-[10.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">Ventas</p>
+            <p className="font-900 text-[20px] text-[var(--color-gr-text)]">{ordenadas.length}</p>
+          </div>
+          <div>
+            <p className="text-[10.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">Bolsas</p>
+            <p className="font-900 text-[20px] text-[var(--color-gr-text)]">{totalBolsas}</p>
+          </div>
+          <div>
+            <p className="text-[10.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">Total</p>
+            <p className="font-900 text-[20px]" style={{ color: m.color }}>{formatBs(totalBs)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Lista de despachos */}
+      {ordenadas.length === 0 ? (
+        <div className="py-10 text-center text-[var(--color-gr-muted)] text-[13px]">
+          Sin ventas en este estado.
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {ordenadas.map(v => <ReporteFila key={v.id} venta={v} color={m.color} />)}
+        </div>
+      )}
+
+      <div className="flex justify-end pt-2 border-t border-[var(--color-gr-border-lite)]">
+        <Btn variant="ghost" onClick={onClose}>Cerrar</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+/** Fila informativa (read-only) — sin botones de acción. */
+function ReporteFila({ venta: v, color }: { venta: NotaVenta; color: string }) {
+  const productos = v.detalles.map(d =>
+    `${Number(d.cantidad)} ${d.unidad?.abreviatura ?? ''} ${d.producto?.nombre ?? ''}`.trim()
+  ).join(' · ');
+  const bolsas = v.detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
+  const cargas = v.cargas ?? [];
+
+  return (
+    <div className="rounded-[12px] border border-[var(--color-gr-border-lite)] p-4 bg-white">
+      {/* Cabecera de la fila */}
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-[10px] flex items-center justify-center shrink-0"
+          style={{ background: color + '15' }}>
+          <Receipt size={18} style={{ color }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-900 text-[15px] text-[var(--color-gr-text)]">
+              NV-{v.numeroNota}
+              {v.numeroGuia ? ` · G-${v.numeroGuia}` : ''}
+            </p>
+            <EstadoBadge estado={v.estado} />
+            {v.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
+              <Badge color="blue">Cliente paga flete</Badge>
+            )}
+          </div>
+          <p className="text-[12.5px] text-[var(--color-gr-muted)] mt-0.5">
+            {productos || 'Sin productos'}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-[10.5px] font-700 text-[var(--color-gr-muted)] uppercase">Total</p>
+          <p className="font-900 text-[18px]" style={{ color }}>{formatBs(Number(v.totalBs))}</p>
+        </div>
+      </div>
+
+      {/* Recuadros informativos */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+        <InfoBox icon={<User size={13} />} label="Cliente" value={v.cliente?.nombre ?? '—'} />
+        <InfoBox icon={<Calendar size={13} />} label="Fecha" value={v.fecha} />
+        <InfoBox
+          icon={<Truck size={13} />}
+          label="Transportista"
+          value={v.transportista
+            ? `${v.transportista.nombre}${v.transportista.placa ? ` · ${v.transportista.placa}` : ''}`
+            : 'Sin asignar'}
+        />
+        <InfoBox icon={<Package size={13} />} label="Bolsas totales" value={String(bolsas)} />
+      </div>
+
+      {/* Cargadores del despacho (si hay) */}
+      {cargas.length > 0 && (
+        <div className="mt-3 rounded-[10px] px-3 py-2.5"
+          style={{ background: 'var(--color-gr-primary-lite)' }}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <HardHat size={13} style={{ color: 'var(--color-gr-primary)' }} />
+            <p className="text-[11px] font-700 uppercase tracking-wide" style={{ color: 'var(--color-gr-primary)' }}>
+              Cargadores del despacho
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {cargas.map(c => (
+              <span key={c.id}
+                className="text-[11.5px] font-600 rounded-full px-2.5 py-1"
+                style={{ background: '#fff', color: 'var(--color-gr-text)' }}>
+                {c.cargador?.nombre ?? '—'} ·{' '}
+                {Number(c.cantidad)}{' '}
+                {c.tipoPago === TipoPagoCarga.BOLSA ? 'bolsas' : 'jornal'} ·{' '}
+                {formatBs(Number(c.montoBs))}
+                {c.pagado
+                  ? <span style={{ color: 'var(--color-gr-success)' }}> ✓</span>
+                  : <span style={{ color: 'var(--color-gr-warning)' }}> ⏳</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InfoBox({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-[8px] border border-[var(--color-gr-border-lite)] px-3 py-2 bg-white">
+      <div className="flex items-center gap-1.5 text-[var(--color-gr-muted)] mb-0.5">
+        {icon}
+        <p className="text-[10px] font-700 uppercase tracking-wide">{label}</p>
+      </div>
+      <p className="text-[13px] font-700 text-[var(--color-gr-text)] truncate">{value}</p>
     </div>
   );
 }
