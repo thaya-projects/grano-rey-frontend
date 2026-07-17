@@ -56,13 +56,59 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--color-gr-border); border-radius: 99px; }
   @media print {
+    /* Ocultar controles y navegación */
     .no-print, .no-print * { display: none !important; visibility: hidden !important; }
     nav.fixed, .fixed[class*="bottom-0"] { display: none !important; }
-    body { background: white; }
-    .print-only-target { position: static !important; padding: 0 !important; }
+
+    /* Forzar impresión de colores/fondos (Chrome/Edge/Safari los omite por defecto) */
+    *, *::before, *::after {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+
+    /* Reset del layout de la app: no heredar alturas fijas ni scroll interno
+       (h-screen + overflow-hidden hacen que Chrome genere una hoja extra). */
+    html, body {
+      background: white !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    body > *,
+    body > * > *,
+    .flex.h-screen,
+    main,
+    main > div {
+      height: auto !important;
+      min-height: 0 !important;
+      overflow: visible !important;
+      max-width: 100% !important;
+    }
+    main > div { padding: 0 !important; margin: 0 !important; }
+
+    /* Contenedor del documento imprimible */
+    .print-only-target {
+      position: static !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      max-width: 100% !important;
+      width: 100% !important;
+    }
+    /* Anular márgenes residuales de space-y-* que quedaron al ocultar el header */
+    .print-only-target,
+    .print-only-target > * { margin-top: 0 !important; }
+
+    /* Evitar que el documento se parta a la mitad */
+    .print-only-target > *,
+    .print-combined > * {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
     .print-combined { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8mm; }
     .print-page-break { page-break-after: always; }
-    @page { margin: 10mm; }
+
+    @page { size: A4; margin: 10mm; }
   }
 }
 

@@ -43,7 +43,7 @@ export default function ImprimirVentaPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 print:space-y-0">
       <div className="no-print flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Btn variant="ghost" onClick={() => router.back()}>

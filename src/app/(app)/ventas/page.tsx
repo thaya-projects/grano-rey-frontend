@@ -313,7 +313,7 @@ function DetalleModal({ venta: v, onClose, onCambiarEstado, onCobrar }: {
 }) {
   const transportista = v.transportista;
   return (
-    <Modal open title={`Nota de Venta NV-${v.numeroNota}`} onClose={onClose} wide>
+    <Modal open title={`Nota de Venta NV-${v.numeroNota}`} onClose={onClose} xl>
       <div className="border-[1.5px] border-[var(--color-gr-border)] rounded-[12px] overflow-hidden">
         <div className="bg-[var(--color-gr-primary)] px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -344,20 +344,29 @@ function DetalleModal({ venta: v, onClose, onCambiarEstado, onCobrar }: {
           </div>
 
           <div className="border border-[var(--color-gr-border)] rounded-[10px] overflow-hidden">
-            <div className="grid grid-cols-[1fr_auto_auto_auto] bg-[var(--color-gr-primary)] px-4 py-2.5 gap-3 text-[11px] font-700 text-white/80 uppercase">
-              <span>Producto</span><span>Cant.</span><span>Precio</span><span>Total</span>
+            <div
+              className="bg-[var(--color-gr-primary)] px-4 py-2.5 gap-3 text-[11px] font-700 text-white/80 uppercase tracking-wide"
+              style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px 110px 120px' }}
+            >
+              <span>Producto</span>
+              <span className="text-right">Cant.</span>
+              <span className="text-right">Precio</span>
+              <span className="text-right">Total</span>
             </div>
             {v.detalles.map((d, i) => (
-              <div key={d.id ?? i} className={`grid grid-cols-[1fr_auto_auto_auto] px-4 py-3 gap-3 text-[13px] ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
-                <div>
-                  <p className="font-600">{d.producto?.nombre ?? '—'}</p>
+              <div key={d.id ?? i}
+                className={`px-4 py-3 gap-3 text-[13.5px] ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}
+                style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 90px 110px 120px', alignItems: 'center' }}
+              >
+                <div className="min-w-0">
+                  <p className="font-600 truncate">{d.producto?.nombre ?? '—'}</p>
                   {d.lote && (
-                    <p className="text-[11.5px] text-[var(--color-gr-muted)]">Lote {d.lote.codigoLote}</p>
+                    <p className="text-[11.5px] text-[var(--color-gr-muted)] truncate">Lote {d.lote.codigoLote}</p>
                   )}
                 </div>
-                <span>{Number(d.cantidad)} {d.unidad?.abreviatura ?? d.unidad?.codigo ?? ''}</span>
-                <span>{formatBs(Number(d.precioUnitarioBs))}</span>
-                <span className="font-800 text-[var(--color-gr-primary)]">{formatBs(Number(d.valorTotalBs))}</span>
+                <span className="text-right whitespace-nowrap">{Number(d.cantidad)} {d.unidad?.abreviatura ?? d.unidad?.codigo ?? ''}</span>
+                <span className="text-right whitespace-nowrap">{formatBs(Number(d.precioUnitarioBs))}</span>
+                <span className="text-right font-800 text-[var(--color-gr-primary)] whitespace-nowrap">{formatBs(Number(d.valorTotalBs))}</span>
               </div>
             ))}
           </div>
