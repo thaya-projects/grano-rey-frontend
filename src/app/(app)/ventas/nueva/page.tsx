@@ -97,12 +97,26 @@ export default function NuevaVentaPage() {
     });
   }
 
+  /** Actualiza la cantidad sin eliminar la línea (permite 0 temporalmente
+   *  mientras el usuario escribe, evita perder la línea al borrar dígitos). */
   function setCantidad(productoId: string, cant: number) {
-    if (cant <= 0) {
-      setLineas(ls => ls.filter(l => l.productoId !== productoId));
-    } else {
-      setLineas(ls => ls.map(l => l.productoId === productoId ? { ...l, cantidad: cant } : l));
-    }
+    const safe = Math.max(0, Number.isFinite(cant) ? cant : 0);
+    setLineas(ls => ls.map(l => l.productoId === productoId ? { ...l, cantidad: safe } : l));
+  }
+
+  /** Botón "−": si baja a 0 elimina la línea, si no decrementa. */
+  function decrementarLinea(productoId: string) {
+    setLineas(ls => {
+      const linea = ls.find(l => l.productoId === productoId);
+      if (!linea) return ls;
+      if (linea.cantidad <= 1) return ls.filter(l => l.productoId !== productoId);
+      return ls.map(l => l.productoId === productoId ? { ...l, cantidad: l.cantidad - 1 } : l);
+    });
+  }
+
+  /** Botón papelera: elimina la línea sin importar la cantidad. */
+  function eliminarLinea(productoId: string) {
+    setLineas(ls => ls.filter(l => l.productoId !== productoId));
   }
 
   function setPrecio(productoId: string, precio: string) {
@@ -332,7 +346,7 @@ export default function NuevaVentaPage() {
                     </div>
                     {enPedido > 0 ? (
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <button onClick={() => setCantidad(p.id, enPedido - 1)}
+                        <button onClick={() => decrementarLinea(p.id)}
                           className="w-7 h-7 rounded-full border flex items-center justify-center transition-colors hover:bg-[var(--color-gr-border-lite)]"
                           style={{ borderColor: 'var(--color-gr-border)' }}>
                           <Minus size={12} />
@@ -381,7 +395,7 @@ export default function NuevaVentaPage() {
                             Stock: {Number(prod?.stockActual)} {prod?.unidadVenta?.abreviatura ?? ''}
                           </p>
                         </div>
-                        <button onClick={() => setCantidad(prod.id, 0)}
+                        <button onClick={() => eliminarLinea(prod.id)}
                           className="text-[var(--color-gr-muted)] hover:text-[var(--color-gr-danger)] transition-colors p-1">
                           <Trash2 size={14} />
                         </button>
@@ -390,13 +404,26 @@ export default function NuevaVentaPage() {
                       <div className="grid grid-cols-3 gap-2 items-end">
                         <FormField label="Cantidad">
                           <div className="flex items-center gap-1.5">
-                            <button onClick={() => setCantidad(prod.id, l.cantidad - 1)}
+                            <button onClick={() => decrementarLinea(prod.id)}
                               className="w-7 h-8 border rounded-[6px] flex items-center justify-center shrink-0 hover:bg-[var(--color-gr-border-lite)] transition-colors"
                               style={{ borderColor: 'var(--color-gr-border)' }}>
                               <Minus size={11} />
                             </button>
-                            <Input type="number" min="1" value={l.cantidad}
-                              onChange={e => setCantidad(prod.id, parseInt(e.target.value) || 0)}
+                            <Input
+                              type="number"
+                              min="0"
+                              value={l.cantidad === 0 ? '' : l.cantidad}
+                              onChange={e => {
+                                const raw = e.target.value;
+                                setCantidad(prod.id, raw === '' ? 0 : parseInt(raw, 10));
+                              }}
+                              onBlur={e => {
+                                // Al perder el foco, si quedó vacío o 0 volvemos a 1 —
+                                // así el usuario nunca se queda con cantidad inválida.
+                                if (!e.target.value || parseInt(e.target.value, 10) < 1) {
+                                  setCantidad(prod.id, 1);
+                                }
+                              }}
                               className="text-center px-1" />
                             <button onClick={() => setCantidad(prod.id, l.cantidad + 1)}
                               className="w-7 h-8 border rounded-[6px] flex items-center justify-center shrink-0 hover:bg-[var(--color-gr-border-lite)] transition-colors"
