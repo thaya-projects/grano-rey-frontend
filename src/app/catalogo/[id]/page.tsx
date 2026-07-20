@@ -82,9 +82,9 @@ export default async function ProductoDetallePage({ params }: { params: Promise<
               {/* Precio */}
               <div className="bg-gr-primary-dark rounded-2xl px-6 py-5 text-white">
                 <p className="text-white/50 text-[11px] font-bold uppercase tracking-wider mb-1">
-                  Precio por {producto.unidadVenta?.nombre ?? 'unidad'}
+                  Precio por {producto.unidadProduccion?.nombre ?? 'unidad'}
                 </p>
-                <p className="text-[40px] font-black leading-none">{formatBs(Number(producto.precioUnitarioBs))}</p>
+                <p className="text-[40px] font-black leading-none">{producto.precioUnitarioBs ? formatBs(Number(producto.precioUnitarioBs)) : '—'}</p>
               </div>
 
               {/* Atributos */}
@@ -95,8 +95,8 @@ export default async function ProductoDetallePage({ params }: { params: Promise<
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Peso neto</span>
                   </div>
                   <p className="font-black text-[20px] text-gray-800">
-                    {Number(producto.pesoKgPorUnidad).toFixed(1)}
-                    <span className="text-[13px] font-medium text-gray-400 ml-1">kg / {producto.unidadVenta?.codigo ?? 'u.'}</span>
+                    {producto.pesoKgPorUnidad ? Number(producto.pesoKgPorUnidad).toFixed(1) : '—'}
+                    <span className="text-[13px] font-medium text-gray-400 ml-1">kg / {producto.unidadProduccion?.codigo ?? 'u.'}</span>
                   </p>
                 </div>
                 {producto.vidaUtilMeses && (

@@ -16,9 +16,11 @@ export const TipoUnidad = {
 export type TipoUnidad = (typeof TipoUnidad)[keyof typeof TipoUnidad];
 
 export const TipoMovimientoMP = {
-  INGRESO: 'ingreso',
-  SALIDA: 'salida',
-  AJUSTE: 'ajuste',
+  INGRESO:    'ingreso',
+  SALIDA:     'salida',
+  MERMA:      'merma',
+  DESECHO:    'desecho',
+  AJUSTE:     'ajuste',
   DEVOLUCION: 'devolucion',
 } as const;
 export type TipoMovimientoMP = (typeof TipoMovimientoMP)[keyof typeof TipoMovimientoMP];
@@ -73,13 +75,14 @@ export const EstadoPagoMP = {
 export type EstadoPagoMP = (typeof EstadoPagoMP)[keyof typeof EstadoPagoMP];
 
 export const CategoriaGasto = {
-  TRANSPORTE: 'transporte',
-  SERVICIOS: 'servicios',
-  MANO_DE_OBRA: 'mano_de_obra',
-  MANTENIMIENTO: 'mantenimiento',
-  MATERIA_PRIMA: 'materia_prima',
-  ADMINISTRATIVO: 'administrativo',
-  OTROS: 'otros',
+  TRANSPORTE:        'transporte',
+  SERVICIOS_BASICOS: 'servicios_basicos',
+  MANO_DE_OBRA:      'mano_de_obra',
+  MANTENIMIENTO:     'mantenimiento',
+  MATERIA_PRIMA:     'materia_prima',
+  ADMINISTRATIVO:    'administrativo',
+  IMPUESTOS:         'impuestos',
+  OTROS:             'otros',
 } as const;
 export type CategoriaGasto = (typeof CategoriaGasto)[keyof typeof CategoriaGasto];
 
@@ -262,15 +265,22 @@ export interface MateriaPrima extends AuditFields {
   unidadMedida?: UnidadMedida;
 }
 
+export interface LoteProduccionRef {
+  id: string;
+  codigoLote: string;
+  fecha: string;
+  cantidadProducida: number;
+  mermaMpKg?: number | null;
+  mermaUnidades?: number | null;
+}
+
 export interface KardexMP extends AuditFields {
   fecha: string;
   tipoMovimiento: TipoMovimientoMP;
   cantidad: number;
   cantidadKg: number;
-  numeroLote?: number | null;
   numeroLotePropio?: string | null;
   costoUnitarioBs?: number | null;
-  costoTotalBs?: number | null;
   observaciones?: string | null;
   estadoPago: EstadoPagoMP;
   fechaPago?: string | null;
@@ -280,6 +290,7 @@ export interface KardexMP extends AuditFields {
   unidad: UnidadMedida;
   responsable?: Usuario;
   cargas?: CargaTrabajo[];
+  loteProduccion?: LoteProduccionRef | null;
 }
 
 export interface ProductoImagen {
@@ -296,13 +307,13 @@ export interface Producto extends AuditFields {
   codigo: string;
   nombre: string;
   descripcion?: string | null;
-  pesoKgPorUnidad: number;
-  precioUnitarioBs: number;
+  pesoKgPorUnidad?: number | null;
+  precioUnitarioBs?: number | null;
   stockActual: number;
   stockMinimo: number;
   vidaUtilMeses: number;
   activo: boolean;
-  unidadVenta: UnidadMedida;
+  unidadProduccion: UnidadMedida;
   fotoPrincipal?: string | null;
   imagenes?: ProductoImagen[];
 }
@@ -392,6 +403,7 @@ export interface Gasto extends AuditFields {
   descripcion: string;
   montoBs: number;
   comprobante?: string | null;
+  comprobanteImagenUrl?: string | null;
   responsable?: Usuario;
 }
 
@@ -455,20 +467,20 @@ export interface CreateProductoRequest {
   codigo: string;
   nombre: string;
   descripcion?: string;
-  pesoKgPorUnidad: number;
-  precioUnitarioBs: number;
+  pesoKgPorUnidad?: number;
   stockMinimo?: number;
-  unidadVentaId: string;
+  unidadProduccionId: string;
   vidaUtilMeses?: number;
 }
 
 export interface UpdateProductoRequest {
   nombre?: string;
   descripcion?: string;
-  precioUnitarioBs?: number;
+  pesoKgPorUnidad?: number;
   stockMinimo?: number;
   vidaUtilMeses?: number;
   activo?: boolean;
+  unidadProduccionId?: string;
 }
 
 export interface CreateMateriaPrimaRequest {
@@ -514,13 +526,13 @@ export interface CreateKardexMPRequest {
   unidadId: string;
   subtipoId?: string;
   proveedorId?: string;
-  numeroLote?: number;
   numeroLotePropio?: string;
   costoUnitarioBs?: number;
   observaciones?: string;
   estadoPago?: EstadoPagoMP;
   fechaPago?: string;
   cargas?: CreateCargaTrabajoRequest[];
+  loteProduccionId?: string;
 }
 
 export interface CreateCargadorRequest {
@@ -558,11 +570,18 @@ export interface CreateLoteRequest {
   productoId: string;
   unidadId: string;
   costoMpBs?: number;
+  precioReferencialBs?: number;
   numeroLotePropio?: string;
   mermaUnidades?: number;
   mermaMpKg?: number;
   mermaObservaciones?: string;
   observaciones?: string;
+  consumoMp?: {
+    materiaPrimaId: string;
+    unidadId: string;
+    cantidad: number;
+    observaciones?: string;
+  }[];
 }
 
 export interface CreateDetalleVentaRequest {
@@ -570,7 +589,7 @@ export interface CreateDetalleVentaRequest {
   unidadId: string;
   loteId?: string;
   cantidad: number;
-  precioUnitarioBs: number;
+  precioUnitarioBs?: number;
 }
 
 export interface CreateVentaRequest {

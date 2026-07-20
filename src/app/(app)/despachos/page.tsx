@@ -612,8 +612,7 @@ function DespacharModal({ venta, onClose, onSaved, onError }: {
   const [tarifaBs, setTarifaBs] = useState(0);
   const [cargas, setCargas]     = useState<CargaDraft[]>([]);
 
-  // Total en unidades (bolsas) de los detalles de la nota
-  const totalBolsas = venta.detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
+  const totalUnidades = venta.detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
 
   async function handleConfirmar() {
     try {
@@ -639,14 +638,14 @@ function DespacharModal({ venta, onClose, onSaved, onError }: {
             {venta.cliente?.nombre ?? '—'}
           </p>
           <p className="text-[12px] text-[var(--color-gr-muted)]">
-            {venta.fecha} · {totalBolsas} bolsas · {formatBs(Number(venta.totalBs))}
+            {venta.fecha} · {totalUnidades} unid. · {formatBs(Number(venta.totalBs))}
           </p>
         </div>
       </div>
 
       <CargasSection
-        totalEsperado={totalBolsas}
-        unidadTotal="bolsas"
+        totalEsperado={totalUnidades}
+        unidadTotal="unid."
         tipoPago={tipoPago}
         onTipoPagoChange={setTipoPago}
         tarifaBs={tarifaBs}

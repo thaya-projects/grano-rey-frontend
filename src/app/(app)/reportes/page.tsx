@@ -8,7 +8,7 @@ import { useMateriasPrimas } from '@/lib/api/materia-prima';
 import { useProductos } from '@/lib/api/productos';
 import { useReporteCargadores } from '@/lib/api/cargadores';
 import { CategoriaGasto, EstadoVenta, TipoMovimientoMP } from '@/lib/types';
-import { formatBs, formatNum } from '@/lib/utils';
+import { formatBs, formatNum, kgToQQ, equivPT, equivLabel } from '@/lib/utils';
 import { Badge, SearchBox, Spinner } from '@/components/ui';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
@@ -364,13 +364,14 @@ function ReporteFinanciero() {
   const resumen    = { ingresosBs, egresosBs, utilidadBs, margenPct };
 
   const LABELS: Record<string, string> = {
-    [CategoriaGasto.MATERIA_PRIMA]:  'Materia Prima',
-    [CategoriaGasto.TRANSPORTE]:     'Transporte/Flete',
-    [CategoriaGasto.MANO_DE_OBRA]:   'Mano de Obra',
-    [CategoriaGasto.MANTENIMIENTO]:  'Mantenimiento',
-    [CategoriaGasto.SERVICIOS]:      'Servicios',
-    [CategoriaGasto.ADMINISTRATIVO]: 'Administrativo',
-    [CategoriaGasto.OTROS]:          'Otros',
+    [CategoriaGasto.MATERIA_PRIMA]:   'Materia Prima',
+    [CategoriaGasto.TRANSPORTE]:      'Transporte/Flete',
+    [CategoriaGasto.MANO_DE_OBRA]:    'Mano de Obra',
+    [CategoriaGasto.MANTENIMIENTO]:   'Mantenimiento',
+    [CategoriaGasto.SERVICIOS_BASICOS]: 'Servicios básicos',
+    [CategoriaGasto.ADMINISTRATIVO]:  'Administrativo',
+    [CategoriaGasto.IMPUESTOS]:       'Impuestos',
+    [CategoriaGasto.OTROS]:           'Otros',
   };
   const totalEgresos = gastosPeriodo.reduce((s, g) => s + Number(g.montoBs), 0);
   const gastosCat = Object.entries(
@@ -688,9 +689,9 @@ function ReporteMovimientosMP() {
     fecha: m.fecha,
     mpNombre: m.materiaPrima?.nombre ?? '—',
     tipo: m.tipoMovimiento,
-    totalQQ: Number(m.cantidadKg) / 46,
-    costoBs: m.costoTotalBs != null ? Number(m.costoTotalBs) : null,
-    lote: m.numeroLote ?? null,
+    totalQQ: kgToQQ(Number(m.cantidadKg)),
+    costoBs: m.costoUnitarioBs != null ? Number(m.costoUnitarioBs) * Number(m.cantidad) : null,
+    lote: m.numeroLotePropio ?? null,
     responsable: m.responsable?.nombre ?? '—',
   }));
 
@@ -722,6 +723,8 @@ function ReporteMovimientosMP() {
           <option value="">Todos los tipos</option>
           <option value={TipoMovimientoMP.INGRESO}>Ingreso</option>
           <option value={TipoMovimientoMP.SALIDA}>Salida</option>
+          <option value={TipoMovimientoMP.MERMA}>Merma</option>
+          <option value={TipoMovimientoMP.DESECHO}>Desecho</option>
           <option value={TipoMovimientoMP.AJUSTE}>Ajuste</option>
           <option value={TipoMovimientoMP.DEVOLUCION}>Devolución</option>
         </select>
@@ -756,14 +759,23 @@ function ReporteMovimientosMP() {
                 <tr key={m.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
                   className="border-b border-gr-border-lite">
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <Badge color={m.tipoMovimiento === TipoMovimientoMP.INGRESO ? 'green' : 'red'}>
-                      {m.tipoMovimiento === TipoMovimientoMP.INGRESO ? '↑ Ingreso' : '↓ Salida'}
-                    </Badge>
+                    {(() => {
+                      const t = m.tipoMovimiento;
+                      const [color, label] =
+                        t === TipoMovimientoMP.INGRESO    ? ['green',  '↑ Ingreso']    :
+                        t === TipoMovimientoMP.AJUSTE     ? ['green',  '↑ Ajuste']     :
+                        t === TipoMovimientoMP.SALIDA     ? ['red',    '↓ Salida']     :
+                        t === TipoMovimientoMP.MERMA      ? ['yellow', '↓ Merma']      :
+                        t === TipoMovimientoMP.DESECHO    ? ['yellow', '↓ Desecho']    :
+                        t === TipoMovimientoMP.DEVOLUCION ? ['gray',   '↩ Devolución'] :
+                        ['gray', t];
+                      return <Badge color={color as 'green' | 'red' | 'yellow' | 'gray'}>{label}</Badge>;
+                    })()}
                   </td>
                   <td className="px-4 py-3 font-700 whitespace-nowrap">{m.materiaPrima?.nombre ?? '—'}</td>
-                  <td className="px-4 py-3 text-right font-700">{formatNum(Number(m.cantidadKg) / 46, 2)}</td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">{m.costoTotalBs != null ? formatBs(Number(m.costoTotalBs)) : '—'}</td>
-                  <td className="px-4 py-3 text-right text-gr-muted">{m.numeroLote ? `#${m.numeroLote}` : '—'}</td>
+                  <td className="px-4 py-3 text-right font-700">{formatNum(kgToQQ(Number(m.cantidadKg)), 2)}</td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">{m.costoUnitarioBs != null ? formatBs(Number(m.costoUnitarioBs) * Number(m.cantidad)) : '—'}</td>
+                  <td className="px-4 py-3 text-right text-gr-muted">{m.numeroLotePropio ?? '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gr-muted">{m.fecha}</td>
                   <td className="px-4 py-3 whitespace-nowrap">{m.responsable?.nombre ?? '—'}</td>
                 </tr>
@@ -773,7 +785,7 @@ function ReporteMovimientosMP() {
               <tr style={{ background: 'var(--color-gr-border-lite)', borderTop: '2px solid var(--color-gr-border)' }}>
                 <td colSpan={2} className="px-4 py-3 text-[12.5px] text-gr-muted">{filtered.length} movimientos</td>
                 <td colSpan={5} className="px-4 py-3 text-right font-900 text-[13.5px] text-gr-primary">
-                  {formatNum(filtered.reduce((s, m) => s + Number(m.cantidadKg) / 46, 0), 2)} QQ totales
+                  {formatNum(filtered.reduce((s, m) => s + kgToQQ(Number(m.cantidadKg)), 0), 2)} QQ totales
                 </td>
               </tr>
             </tfoot>
@@ -800,9 +812,9 @@ function ReporteStock() {
     id: p.id,
     codigo: p.codigo,
     nombre: p.nombre,
-    kgPorBolsa: Number(p.pesoKgPorUnidad),
-    bolsaEsQQ: false,
-    precioUnitarioBs: Number(p.precioUnitarioBs),
+    factorABase: Number(p.unidadProduccion?.factorABase ?? 0),
+    tipo: p.unidadProduccion?.tipo ?? null,
+    precioUnitarioBs: Number(p.precioUnitarioBs ?? 0),
     stockActual: Number(p.stockActual),
     stockMinimo: Number(p.stockMinimo),
   }));
@@ -814,8 +826,8 @@ function ReporteStock() {
     stockEntero: undefined,
     stockParChico: undefined,
     stockParGrande: undefined,
-    stockTotal: Number(m.stockActualKg) / 46,
-    stockMinimo: Number(m.stockMinimoKg) / 46,
+    stockTotal: kgToQQ(Number(m.stockActualKg)),
+    stockMinimo: kgToQQ(Number(m.stockMinimoKg)),
   }));
 
   return (
@@ -849,12 +861,13 @@ function ReporteStock() {
           <div style={{ minWidth: 540 }}>
           <div className="hidden md:grid gap-3 px-5 py-3 text-[11px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide border-b border-[var(--color-gr-border)]"
             style={{ gridTemplateColumns: '80px 1fr 90px 80px 80px 70px', background: 'var(--color-gr-border-lite)' }}>
-            <span>Código</span><span>Producto</span><span className="text-right">Bolsas</span><span className="text-right">QQ equiv.</span><span className="text-right">Precio/u</span><span>Estado</span>
+            <span>Código</span><span>Producto</span><span className="text-right">Stock</span><span className="text-right">Equiv.</span><span className="text-right">Precio/u</span><span>Estado</span>
           </div>
           {productos.map((p, i) => {
             const stock = Number(p.stockActual);
             const min   = Number(p.stockMinimo);
-            const qq    = stock * Number(p.pesoKgPorUnidad) / 46;
+            const qq    = equivPT(stock, p.unidadProduccion?.factorABase, p.unidadProduccion?.tipo);
+            const qlbl  = equivLabel(p.unidadProduccion?.tipo);
             const low   = stock < min;
             const warn  = !low && stock < min * 2;
             return (
@@ -864,7 +877,7 @@ function ReporteStock() {
                   <div>
                     <p className="font-700 text-[var(--color-gr-text)] text-[13.5px]">{p.nombre}</p>
                     <p className="text-[12px] text-[var(--color-gr-muted)]">
-                      {p.codigo} · {formatNum(stock, 0)} · {formatNum(qq, 2)} QQ
+                      {p.codigo} · {formatNum(stock, 0)} · {formatNum(qq, 2)} {qlbl}
                     </p>
                   </div>
                   <Badge color={low ? 'red' : warn ? 'yellow' : 'green'}>
@@ -879,7 +892,7 @@ function ReporteStock() {
                     {formatNum(stock, 0)}
                   </span>
                   <span className="text-right font-700 text-[var(--color-gr-text)] text-[13px]">{formatNum(qq, 2)}</span>
-                  <span className="text-right text-[13px] text-[var(--color-gr-text)]">{formatBs(Number(p.precioUnitarioBs))}</span>
+                  <span className="text-right text-[13px] text-[var(--color-gr-text)]">{p.precioUnitarioBs ? formatBs(Number(p.precioUnitarioBs)) : '—'}</span>
                   <Badge color={low ? 'red' : warn ? 'yellow' : 'green'}>
                     {low ? 'Bajo' : warn ? 'Alerta' : 'OK'}
                   </Badge>
@@ -918,7 +931,7 @@ function ReporteStock() {
                 <div className="md:hidden flex items-center justify-between gap-2">
                   <div>
                     <p className="font-700 text-[var(--color-gr-text)] text-[13.5px]">{mp.nombre}</p>
-                    <p className="text-[12px] text-[var(--color-gr-muted)]">{formatNum(stockKg, 1)} kg · {formatNum(stockKg / 46, 2)} QQ</p>
+                    <p className="text-[12px] text-[var(--color-gr-muted)]">{formatNum(stockKg, 1)} kg · {formatNum(kgToQQ(stockKg), 2)} QQ</p>
                   </div>
                   <Badge color={low ? 'red' : warn ? 'yellow' : 'green'}>
                     {low ? 'Bajo' : warn ? 'Alerta' : 'OK'}
@@ -931,7 +944,7 @@ function ReporteStock() {
                     {formatNum(stockKg, 1)}
                   </span>
                   <span className="text-right font-900 text-[14px] text-[var(--color-gr-primary)]">
-                    {formatNum(stockKg / 46, 2)}
+                    {formatNum(kgToQQ(stockKg), 2)}
                   </span>
                   <span className="text-right text-[12.5px] text-[var(--color-gr-muted)]">{formatNum(minKg, 1)}</span>
                   <Badge color={low ? 'red' : warn ? 'yellow' : 'green'}>

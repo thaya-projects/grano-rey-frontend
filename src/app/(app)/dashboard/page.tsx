@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-store';
 import { useVentas } from '@/lib/api/ventas';
 import { useProductos } from '@/lib/api/productos';
 import { useMateriasPrimas } from '@/lib/api/materia-prima';
-import { formatBs, formatNum } from '@/lib/utils';
+import { formatBs, formatNum, kgToQQ, equivPT, equivLabel } from '@/lib/utils';
 import { StockBar, EstadoBadge, Spinner } from '@/components/ui';
 import { Package, Wheat, ShoppingCart, TrendingUp, AlertTriangle, CheckCircle2, Plus, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -31,10 +31,10 @@ export default function DashboardPage() {
       pendientes: ventas.filter(v => v.estado === EstadoVenta.PENDIENTE).length,
       totalStock: productos.reduce((s, p) => s + Number(p.stockActual), 0),
       totalQQ: productos.reduce(
-        (s, p) => s + (Number(p.stockActual) * Number(p.pesoKgPorUnidad)) / 46,
+        (s, p) => s + equivPT(Number(p.stockActual), p.unidadProduccion?.factorABase, p.unidadProduccion?.tipo),
         0,
       ),
-      totalMP: materiasPrimas.reduce((s, m) => s + Number(m.stockActualKg), 0) / 46,
+      totalMP: kgToQQ(materiasPrimas.reduce((s, m) => s + Number(m.stockActualKg), 0)),
     };
   }, [ventas, productos, materiasPrimas]);
 
@@ -162,7 +162,7 @@ export default function DashboardPage() {
           <div className="space-y-2.5">
             <QuickAction href="/ventas/nueva"  label="Nueva nota de venta"     color="gold"    icon={<ShoppingCart size={16} />} />
             <QuickAction href="/materia-prima" label="Registrar entrada MP"     color="primary" icon={<Wheat size={16} />} />
-            <QuickAction href="/stock"         label="Registrar producción"     color="ghost"   icon={<Package size={16} />} />
+            <QuickAction href="/produccion"     label="Registrar producción"     color="ghost"   icon={<Package size={16} />} />
             <QuickAction href="/despachos"     label="Ver despachos pendientes" color="ghost"   icon={<TrendingUp size={16} />} />
           </div>
         </div>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                 <p className="text-[28px] font-900 text-[var(--color-gr-text)] leading-none mb-1">
                   {formatNum(Number(p.stockActual), 0)} <span className="text-[14px] font-500 text-[var(--color-gr-muted)]">bol</span>
                 </p>
-                <p className="text-[12px] text-[var(--color-gr-muted)] mb-3">{formatNum((Number(p.stockActual) * Number(p.pesoKgPorUnidad)) / 46, 1)} QQ</p>
+                <p className="text-[12px] text-[var(--color-gr-muted)] mb-3">{formatNum(equivPT(Number(p.stockActual), p.unidadProduccion?.factorABase, p.unidadProduccion?.tipo), 1)} {equivLabel(p.unidadProduccion?.tipo)}</p>
                 <StockBar value={Number(p.stockActual)} min={Number(p.stockMinimo)} />
               </div>
             );

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMateriasPrimas, useCreateMateriaPrima, useUpdateMateriaPrima } from '@/lib/api/materia-prima';
 import { useCategoriasMP, useCreateCategoriaMP, useUnidades } from '@/lib/api/catalogos';
 import { apiErrorMessage } from '@/lib/api';
@@ -7,22 +7,66 @@ import type { MateriaPrima } from '@/lib/types';
 import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
 import { Plus, Pencil } from 'lucide-react';
 
-function NuevaMPModal({ categorias, unidades, onClose, onSaved, onError }: {
+const STOPWORDS = new Set(['DE','DEL','LA','LAS','LOS','EL','Y','E','A','EN','CON','POR','UN','UNA']);
+
+function sugerirCodigo(nombre: string, existentes: Set<string>): string {
+  const palabras = nombre
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z\s]/g, '')
+    .split(/\s+/)
+    .filter(p => p.length > 0 && !STOPWORDS.has(p));
+
+  if (palabras.length === 0) return '';
+
+  let base: string;
+  if (palabras.length === 1) {
+    // "Maíz" → "MAIZ"
+    base = palabras[0].slice(0, 4);
+  } else {
+    // "Maíz Blanco" → prefijo: M + BL = "MBL", sufijo: "BL" → "MBL-BL"
+    // "Maíz Blanco Seco" → prefijo: M + B + S = "MBS", sufijo: "SE" → "MBS-SE"
+    const ultima = palabras[palabras.length - 1];
+    const prefijo = palabras[0].slice(0, 1)
+      + palabras.slice(1).map(p => p.slice(0, 2)).join('');
+    const sufijo = ultima.slice(0, 2);
+    base = `${prefijo}-${sufijo}`;
+  }
+
+  if (!existentes.has(base)) return base;
+  for (let i = 2; i <= 99; i++) {
+    const c = `${base}-${i}`;
+    if (!existentes.has(c)) return c;
+  }
+  return base;
+}
+
+function NuevaMPModal({ categorias, unidades, codigosExistentes, onClose, onSaved, onError }: {
   categorias: { id: string; nombre: string }[];
   unidades: { id: string; codigo: string; nombre: string }[];
+  codigosExistentes: Set<string>;
   onClose: () => void;
   onSaved: () => void;
   onError: (msg: string) => void;
 }) {
   const create = useCreateMateriaPrima();
-  const [codigo, setCodigo] = useState('');
   const [nombre, setNombre] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [codigoEditado, setCodigoEditado] = useState(false);
   const [descripcion, setDesc] = useState('');
   const [categoriaId, setCatId] = useState('');
   const [unidadMedidaId, setUnidad] = useState('');
   const [stockMinimoKg, setMin] = useState('0');
 
-  const valid = !!codigo && !!nombre && !!categoriaId && !!unidadMedidaId;
+  function handleNombreChange(val: string) {
+    setNombre(val);
+    if (!codigoEditado) {
+      setCodigo(sugerirCodigo(val, codigosExistentes));
+    }
+  }
+
+  const codigoConflicto = !!codigo && codigosExistentes.has(codigo);
+  const valid = !!codigo && !!nombre && !!categoriaId && !!unidadMedidaId && !codigoConflicto;
 
   async function handleSave() {
     if (!valid) return;
@@ -42,12 +86,22 @@ function NuevaMPModal({ categorias, unidades, onClose, onSaved, onError }: {
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
         <Btn onClick={handleSave} disabled={!valid} loading={create.isPending}>Crear</Btn>
       </>}>
+      <FormField label="Nombre" required>
+        <Input autoFocus value={nombre} onChange={e => handleNombreChange(e.target.value)} placeholder="Maíz Amarillo" />
+      </FormField>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <FormField label="Código" required><Input value={codigo} onChange={e => setCodigo(e.target.value)} placeholder="MAZ-AM" /></FormField>
-        <FormField label="Stock mínimo (kg)"><Input type="number" min="0" step="0.1" value={stockMinimoKg} onChange={e => setMin(e.target.value)} /></FormField>
+        <FormField label="Código" required hint={codigoConflicto ? '⚠ Ya existe — cambialo' : codigoEditado ? 'Editado' : 'Sugerido · editable'}>
+          <Input value={codigo} onChange={e => { setCodigo(e.target.value.toUpperCase()); setCodigoEditado(true); }}
+            placeholder="MAZ-AM"
+            className={codigoConflicto ? 'border-red-400 focus:ring-red-300' : ''} />
+        </FormField>
+        <FormField label="Stock mínimo (kg)">
+          <Input type="number" min="0" step="0.1" value={stockMinimoKg} onChange={e => setMin(e.target.value)} />
+        </FormField>
       </div>
-      <FormField label="Nombre" required><Input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Maíz Amarillo" /></FormField>
-      <FormField label="Descripción"><Input value={descripcion} onChange={e => setDesc(e.target.value)} /></FormField>
+      <FormField label="Descripción">
+        <Input value={descripcion} onChange={e => setDesc(e.target.value)} />
+      </FormField>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FormField label="Categoría" required>
           <Select value={categoriaId} onChange={e => setCatId(e.target.value)}>
@@ -166,6 +220,7 @@ export function TabMateriaPrima() {
   const mps          = mpQ.data ?? [];
   const categorias   = categoriasQ.data ?? [];
   const unidades     = unidadesQ.data ?? [];
+  const codigosExistentes = useMemo(() => new Set(mps.map(m => m.codigo)), [mps]);
 
   const [modal, setModal]     = useState<'nueva' | 'categoria' | null>(null);
   const [editMP, setEditMP]   = useState<MateriaPrima | null>(null);
@@ -231,6 +286,7 @@ export function TabMateriaPrima() {
         <NuevaMPModal
           categorias={categorias}
           unidades={unidades}
+          codigosExistentes={codigosExistentes}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); toast('Materia prima creada', 'success'); }}
           onError={(msg) => toast(msg, 'error')}

@@ -99,7 +99,7 @@ export default async function CatalogoPage() {
                     </h3>
                     <div className="flex items-center justify-between pt-2 border-t border-gr-border-lite">
                       <span className="font-bold text-[13px] text-gr-primary">
-                        {formatBs(Number(p.precioUnitarioBs))}
+                        {p.precioUnitarioBs ? formatBs(Number(p.precioUnitarioBs)) : '—'}
                       </span>
                       <span className="text-[11px] text-gr-muted flex items-center gap-0.5 group-hover:text-gr-primary group-hover:gap-1.5 transition-all">
                         Ver <ArrowRight size={11} />
