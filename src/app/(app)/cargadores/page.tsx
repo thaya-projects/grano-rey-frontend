@@ -378,7 +378,7 @@ function FilaCarga({
   const totalActual = Number(item.cantidad) * Number(item.tarifaBs);
   const totalEdit   = cantidad * tarifa;
   const esBolsa     = item.tipoPago === TipoPagoCarga.BOLSA;
-  const unidad      = esBolsa ? 'bolsas' : 'día';
+  const unidad      = esBolsa ? 'unid.' : 'día';
 
   async function guardar() {
     try {

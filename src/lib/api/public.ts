@@ -17,11 +17,11 @@ export interface PublicProducto {
   codigo: string;
   nombre: string;
   descripcion?: string | null;
-  precioUnitarioBs: number;
-  pesoKgPorUnidad: number;
+  precioUnitarioBs?: number | null;
+  pesoKgPorUnidad?: number | null;
   vidaUtilMeses?: number | null;
   fotoPrincipal?: string | null;
-  unidadVenta?: { id: string; codigo: string; nombre: string } | null;
+  unidadProduccion?: { id: string; codigo: string; nombre: string } | null;
 }
 
 export interface PublicImagen {

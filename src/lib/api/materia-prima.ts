@@ -50,6 +50,8 @@ export function useKardexMP(materiaPrimaId?: string) {
           params: materiaPrimaId ? { materiaPrimaId } : undefined,
         })
       ).data,
+    // Cuando se pasa string vacío ('') el query queda desactivado
+    enabled: materiaPrimaId !== '',
   });
 }
 

@@ -6,25 +6,28 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-store';
 import {
   LayoutDashboard, Package, ShoppingCart, Truck, Settings,
-  Menu, X, Wheat, BarChart3, LogOut, ChevronRight,
+  Menu, X, Wheat, BarChart3, LogOut, ChevronRight, Factory, HardHat, Receipt,
 } from 'lucide-react';
 
 const NAV_BOTTOM = [
-  { href: '/dashboard',     label: 'Inicio',    icon: LayoutDashboard },
-  { href: '/stock',         label: 'Stock',     icon: Package },
-  { href: '/ventas',        label: 'Ventas',    icon: ShoppingCart },
-  { href: '/despachos',     label: 'Despachos', icon: Truck },
-  { href: '/configuracion', label: 'Config',    icon: Settings },
+  { href: '/dashboard',     label: 'Inicio',      icon: LayoutDashboard },
+  { href: '/stock',         label: 'Stock',       icon: Package },
+  { href: '/produccion',    label: 'Producción',  icon: Factory },
+  { href: '/ventas',        label: 'Ventas',      icon: ShoppingCart },
+  { href: '/configuracion', label: 'Config',      icon: Settings },
 ];
 
 const NAV_ALL = [
-  { href: '/dashboard',     label: 'Inicio',       icon: LayoutDashboard, roles: ['administradora','almacenero','vendedor','produccion'] },
-  { href: '/stock',         label: 'Stock',         icon: Package,         roles: ['administradora','almacenero','vendedor'] },
-  { href: '/materia-prima', label: 'Materia Prima', icon: Wheat,           roles: ['administradora','almacenero','produccion'] },
-  { href: '/ventas',        label: 'Ventas',        icon: ShoppingCart,    roles: ['administradora','vendedor'] },
-  { href: '/despachos',     label: 'Despachos',     icon: Truck,           roles: ['administradora','almacenero'] },
-  { href: '/reportes',      label: 'Reportes',      icon: BarChart3,       roles: ['administradora'] },
-  { href: '/configuracion', label: 'Configuración', icon: Settings,        roles: ['administradora'] },
+  { href: '/dashboard',     label: 'Inicio',        icon: LayoutDashboard, roles: ['administradora','almacenero','vendedor','produccion'] },
+  { href: '/stock',         label: 'Stock',          icon: Package,         roles: ['administradora','almacenero','vendedor'] },
+  { href: '/produccion',    label: 'Producción',     icon: Factory,         roles: ['administradora','almacenero','produccion'] },
+  { href: '/materia-prima', label: 'Materia Prima',  icon: Wheat,           roles: ['administradora','almacenero','produccion'] },
+  { href: '/ventas',        label: 'Ventas',         icon: ShoppingCart,    roles: ['administradora','vendedor'] },
+  { href: '/despachos',     label: 'Despachos',      icon: Truck,           roles: ['administradora','almacenero'] },
+  { href: '/cargadores',    label: 'Cargadores',     icon: HardHat,         roles: ['administradora','almacenero'] },
+  { href: '/gastos',        label: 'Gastos',         icon: Receipt,         roles: ['administradora'] },
+  { href: '/reportes',      label: 'Reportes',       icon: BarChart3,       roles: ['administradora'] },
+  { href: '/configuracion', label: 'Configuración',  icon: Settings,        roles: ['administradora'] },
 ];
 
 export function MobileNav() {

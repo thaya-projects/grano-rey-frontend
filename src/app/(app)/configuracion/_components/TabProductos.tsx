@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   useProductos, useProducto,
   useCreateProducto, useUpdateProducto,
@@ -7,10 +7,40 @@ import {
 } from '@/lib/api/productos';
 import { useUnidades } from '@/lib/api/catalogos';
 import { apiErrorMessage } from '@/lib/api';
-import { formatBs } from '@/lib/utils';
 import type { Producto, ProductoImagen } from '@/lib/types';
 import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
 import { Plus, Pencil, Star, Trash2, ImageIcon, Upload, X, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const STOPWORDS = new Set(['DE','DEL','LA','LAS','LOS','EL','Y','E','A','EN','CON','POR','UN','UNA']);
+
+function sugerirCodigo(nombre: string, existentes: Set<string>): string {
+  const palabras = nombre
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z\s]/g, '')
+    .split(/\s+/)
+    .filter(p => p.length > 0 && !STOPWORDS.has(p));
+
+  if (palabras.length === 0) return '';
+
+  let base: string;
+  if (palabras.length === 1) {
+    base = palabras[0].slice(0, 4);
+  } else {
+    const ultima = palabras[palabras.length - 1];
+    const prefijo = palabras[0].slice(0, 1)
+      + palabras.slice(1).map(p => p.slice(0, 2)).join('');
+    const sufijo = ultima.slice(0, 2);
+    base = `${prefijo}-${sufijo}`;
+  }
+
+  if (!existentes.has(base)) return base;
+  for (let i = 2; i <= 99; i++) {
+    const c = `${base}-${i}`;
+    if (!existentes.has(c)) return c;
+  }
+  return base;
+}
 
 const MAX_SIZE_MB  = 5;
 const MAX_IMAGENES = 10;
@@ -311,10 +341,11 @@ function ImagenesStrip({ producto }: { producto: Producto }) {
 }
 
 /* ─── Modal crear / editar producto ────────────────────────── */
-function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: {
+function ProductoModal({ mode, producto, unidades, codigosExistentes, onClose, onSaved, onError }: {
   mode: 'create' | 'edit';
   producto?: Producto;
   unidades: { id: string; codigo: string; nombre: string }[];
+  codigosExistentes: Set<string>;
   onClose: () => void;
   onSaved: () => void;
   onError: (msg: string) => void;
@@ -322,21 +353,27 @@ function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: 
   const create = useCreateProducto();
   const update = useUpdateProducto();
 
-  const [codigo, setCodigo]     = useState(producto?.codigo ?? '');
-  const [nombre, setNombre]     = useState(producto?.nombre ?? '');
-  const [descripcion, setDesc]  = useState(producto?.descripcion ?? '');
-  const [pesoKg, setPesoKg]     = useState(String(producto?.pesoKgPorUnidad ?? ''));
-  const [precio, setPrecio]     = useState(String(producto?.precioUnitarioBs ?? ''));
+  const [nombre, setNombre]        = useState(producto?.nombre ?? '');
+  const [codigo, setCodigo]        = useState(producto?.codigo ?? '');
+  const [codigoEditado, setCodEd]  = useState(false);
+  const [unidadId, setUnidadId]    = useState(producto?.unidadProduccion?.id ?? '');
+  const [descripcion, setDesc]     = useState(producto?.descripcion ?? '');
   const [stockMinimo, setStockMin] = useState(String(producto?.stockMinimo ?? '0'));
-  const [vidaUtil, setVidaUtil] = useState(String(producto?.vidaUtilMeses ?? '12'));
-  const [unidadId, setUnidadId] = useState(producto?.unidadVenta?.id ?? '');
-  const [activo, setActivo]     = useState(producto?.activo ?? true);
+  const [vidaUtil, setVidaUtil]    = useState(String(producto?.vidaUtilMeses ?? '12'));
+  const [activo, setActivo]        = useState(producto?.activo ?? true);
 
-  const pesoNum   = parseFloat(pesoKg) || 0;
-  const precioNum = parseFloat(precio) || 0;
-  const stockMin  = parseFloat(stockMinimo) || 0;
-  const vidaNum   = parseInt(vidaUtil) || 0;
-  const valid     = !!nombre && pesoNum > 0 && precioNum >= 0 && vidaNum >= 1 && (mode === 'edit' || (!!codigo && !!unidadId));
+  function handleNombreChange(val: string) {
+    setNombre(val);
+    if (mode === 'create' && !codigoEditado) {
+      setCodigo(sugerirCodigo(val, codigosExistentes));
+    }
+  }
+
+  const codigoConflicto = mode === 'create' && !!codigo && codigosExistentes.has(codigo);
+  const stockMin = parseFloat(stockMinimo) || 0;
+  const vidaNum  = parseInt(vidaUtil) || 0;
+  const valid    = !!nombre && vidaNum >= 1 && !!unidadId
+    && (mode === 'create' ? !!codigo && !codigoConflicto : true);
 
   async function handleSave() {
     if (!valid) return;
@@ -346,10 +383,8 @@ function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: 
           codigo,
           nombre,
           descripcion: descripcion || undefined,
-          pesoKgPorUnidad: pesoNum,
-          precioUnitarioBs: precioNum,
           stockMinimo: stockMin || undefined,
-          unidadVentaId: unidadId,
+          unidadProduccionId: unidadId,
           vidaUtilMeses: vidaNum,
         });
       } else if (producto) {
@@ -358,10 +393,10 @@ function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: 
           dto: {
             nombre,
             descripcion: descripcion || undefined,
-            precioUnitarioBs: precioNum,
             stockMinimo: stockMin || undefined,
             vidaUtilMeses: vidaNum,
             activo,
+            unidadProduccionId: unidadId || undefined,
           },
         });
       }
@@ -379,48 +414,55 @@ function ProductoModal({ mode, producto, unidades, onClose, onSaved, onError }: 
           {mode === 'create' ? 'Crear' : 'Guardar'}
         </Btn>
       </>}>
+
+      <FormField label="Nombre" required hint="Obligatorio">
+        <Input autoFocus value={nombre} onChange={e => handleNombreChange(e.target.value)}
+          placeholder="Harina de Maíz Amarillo" />
+      </FormField>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <FormField label="Código" required hint="Obligatorio">
-          <Input value={codigo} onChange={e => setCodigo(e.target.value)} disabled={mode === 'edit'} placeholder="HMAP-06" />
+        <FormField label="Código" required={mode === 'create'}
+          hint={mode === 'edit' ? 'No editable' : codigoConflicto ? '⚠ Ya existe — cambialo' : codigoEditado ? 'Editado' : 'Sugerido · editable'}>
+          <Input value={codigo}
+            onChange={e => { setCodigo(e.target.value.toUpperCase()); setCodEd(true); }}
+            disabled={mode === 'edit'}
+            placeholder="HAMA-AM"
+            className={codigoConflicto ? 'border-red-400 focus:ring-red-300' : ''} />
         </FormField>
-        <FormField label="Unidad de venta" required hint="Obligatorio">
-          <Select value={unidadId} onChange={e => setUnidadId(e.target.value)} disabled={mode === 'edit'}>
+        <FormField label="Unidad de producción" required hint="Obligatorio">
+          <Select value={unidadId} onChange={e => setUnidadId(e.target.value)}>
             <option value="">— Seleccionar —</option>
             {unidades.map(u => <option key={u.id} value={u.id}>{u.codigo} · {u.nombre}</option>)}
           </Select>
         </FormField>
       </div>
-      <FormField label="Nombre" required hint="Obligatorio">
-        <Input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Harina de Maíz Amarillo" />
-      </FormField>
+
       <FormField label="Descripción" hint="Opcional">
-        <Input value={descripcion ?? ''} onChange={e => setDesc(e.target.value)} />
+        <Input value={descripcion ?? ''} onChange={e => setDesc(e.target.value)}
+          placeholder="Descripción del producto" />
       </FormField>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <FormField label="Kg por unidad" required hint="Obligatorio">
-          <Input type="number" min="0.001" step="0.01" value={pesoKg} onChange={e => setPesoKg(e.target.value)} />
-        </FormField>
-        <FormField label="Precio (Bs)" required hint="Obligatorio">
-          <Input type="number" min="0" step="0.5" value={precio} onChange={e => setPrecio(e.target.value)} />
-        </FormField>
-      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FormField label="Stock mínimo" hint="Opcional">
-          <Input type="number" min="0" step="1" value={stockMinimo} onChange={e => setStockMin(e.target.value)} />
+          <Input type="number" min="0" step="1" value={stockMinimo}
+            onChange={e => setStockMin(e.target.value)} />
         </FormField>
-        <FormField label="Vida útil (meses)" hint="Opcional">
-          <Input type="number" min="1" step="1" value={vidaUtil} onChange={e => setVidaUtil(e.target.value)} />
+        <FormField label="Vida útil (meses)" hint="Obligatorio">
+          <Input type="number" min="1" step="1" value={vidaUtil}
+            onChange={e => setVidaUtil(e.target.value)} />
         </FormField>
       </div>
-      <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActivo(v => !v)}>
-        <div className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${activo ? 'bg-gr-primary' : 'bg-gr-border'}`}>
-          <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
+
+      {mode === 'edit' && (
+        <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActivo(v => !v)}>
+          <div className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${activo ? 'bg-gr-primary' : 'bg-gr-border'}`}>
+            <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
+          </div>
+          <span className="text-[13.5px] font-semibold text-gr-text">
+            Activo
+          </span>
         </div>
-        <span className="text-[13.5px] font-semibold text-gr-text">
-          Activo
-          <span className="ml-1 text-[12px] font-normal text-gr-muted">(Opcional · por defecto activo)</span>
-        </span>
-      </div>
+      )}
 
       {mode === 'edit' && producto && <ImagenesStrip producto={producto} />}
     </Modal>
@@ -434,6 +476,8 @@ export function TabProductos() {
   const unidadesQ  = useUnidades();
   const productos = productosQ.data ?? [];
   const unidades  = unidadesQ.data ?? [];
+
+  const codigosExistentes = useMemo(() => new Set(productos.map(p => p.codigo)), [productos]);
 
   const [modal, setModal]           = useState<{ mode: 'create' } | { mode: 'edit'; producto: Producto } | null>(null);
   const [imagenModal, setImagenModal] = useState<Producto | null>(null);
@@ -454,7 +498,7 @@ export function TabProductos() {
         <table className="w-full text-[13px]" style={{ minWidth: 760 }}>
           <thead>
             <tr style={{ background: 'var(--color-gr-primary)' }}>
-              {['Código', 'Nombre', 'Unidad', 'Kg/Unidad', 'Precio', 'Stock', 'Mínimo', 'Vida útil', ''].map(h => (
+              {['Código', 'Nombre', 'Unidad', 'Stock', 'Mínimo', 'Vida útil', ''].map(h => (
                 <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -465,9 +509,7 @@ export function TabProductos() {
                 className="border-b border-gr-border-lite">
                 <td className="px-4 py-3 font-mono font-700 text-[12.5px] text-gr-primary">{p.codigo}</td>
                 <td className="px-4 py-3 font-700">{p.nombre}</td>
-                <td className="px-4 py-3 text-[12px] text-gr-muted">{p.unidadVenta?.codigo ?? '—'}</td>
-                <td className="px-4 py-3">{Number(p.pesoKgPorUnidad).toFixed(2)}</td>
-                <td className="px-4 py-3">{formatBs(Number(p.precioUnitarioBs))}</td>
+                <td className="px-4 py-3 text-[12px] text-gr-muted">{p.unidadProduccion?.codigo ?? '—'}</td>
                 <td className="px-4 py-3 font-700">{Number(p.stockActual)}</td>
                 <td className="px-4 py-3">{Number(p.stockMinimo)}</td>
                 <td className="px-4 py-3">{p.vidaUtilMeses}m</td>
@@ -489,7 +531,7 @@ export function TabProductos() {
               </tr>
             ))}
             {productos.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-gr-muted">Sin productos cargados</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gr-muted">Sin productos cargados</td></tr>
             )}
           </tbody>
         </table>
@@ -501,6 +543,7 @@ export function TabProductos() {
           mode={modal.mode}
           producto={modal.mode === 'edit' ? modal.producto : undefined}
           unidades={unidades}
+          codigosExistentes={codigosExistentes}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); toast('Producto guardado', 'success'); }}
           onError={(msg) => toast(msg, 'error')}

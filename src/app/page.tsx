@@ -243,7 +243,7 @@ export default async function LandingPage() {
                           {p.nombre}
                         </h3>
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-                          <span className="font-800 text-[13px] text-gr-primary">{formatBs(Number(p.precioUnitarioBs))}</span>
+                          <span className="font-800 text-[13px] text-gr-primary">{p.precioUnitarioBs ? formatBs(Number(p.precioUnitarioBs)) : '—'}</span>
                           <span className="text-[11px] font-600 text-gray-400 flex items-center gap-0.5 group-hover:gap-1.5 transition-all">
                             Ver <ArrowRight size={11} />
                           </span>

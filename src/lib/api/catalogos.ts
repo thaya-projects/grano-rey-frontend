@@ -83,6 +83,32 @@ export function useUnidades() {
   });
 }
 
+export function useCreateUnidad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dto: { codigo: string; nombre: string; abreviatura?: string; tipo: string; factorABase: number }) =>
+      (await api.post<UnidadMedida>('/unidades-medida', dto)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: catalogosKeys.unidades }),
+  });
+}
+
+export function useUpdateUnidad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: Partial<{ codigo: string; nombre: string; abreviatura: string; tipo: string; factorABase: number }> }) =>
+      (await api.patch<UnidadMedida>(`/unidades-medida/${id}`, dto)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: catalogosKeys.unidades }),
+  });
+}
+
+export function useDeleteUnidad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => api.delete(`/unidades-medida/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: catalogosKeys.unidades }),
+  });
+}
+
 // ─── Categorías MP ───────────────────────────────────────────
 export function useCategoriasMP() {
   return useQuery({
