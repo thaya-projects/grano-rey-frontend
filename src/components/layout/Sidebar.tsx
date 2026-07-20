@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth-store';
 import Image from 'next/image';
 import {
   LayoutDashboard, Package, Wheat, ShoppingCart, Truck, BarChart3,
-  Settings, LogOut, ChevronRight, HardHat, Factory,
+  Settings, LogOut, ChevronRight, HardHat, Factory, Receipt,
 } from 'lucide-react';
 
 const NAV = [
@@ -17,6 +17,7 @@ const NAV = [
   { href: '/ventas',        label: 'Ventas',         icon: ShoppingCart,    roles: ['administradora','vendedor'] },
   { href: '/despachos',     label: 'Despachos',      icon: Truck,           roles: ['administradora','almacenero'] },
   { href: '/cargadores',    label: 'Cargadores',     icon: HardHat,         roles: ['administradora','almacenero'] },
+  { href: '/gastos',        label: 'Gastos',         icon: Receipt,         roles: ['administradora'] },
   { href: '/reportes',      label: 'Reportes',       icon: BarChart3,       roles: ['administradora'] },
   { href: '/configuracion', label: 'Configuración',  icon: Settings,        roles: ['administradora'] },
 ];

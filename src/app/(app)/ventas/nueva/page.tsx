@@ -7,7 +7,7 @@ import { useLotes } from '@/lib/api/produccion';
 import { useCreateVenta } from '@/lib/api/ventas';
 import { TipoFlete, type CreateVentaRequest, type LoteProduccion, type Producto } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
-import { formatBs, formatNum } from '@/lib/utils';
+import { formatBs, formatNum, equivPT } from '@/lib/utils';
 import { Btn, FormField, Input, Select, SearchBox, Spinner, useToast } from '@/components/ui';
 import {
   Plus, Minus, Trash2, ChevronRight, AlertTriangle,
@@ -92,7 +92,7 @@ export default function NuevaVentaPage() {
         productoId: prod.id,
         loteId: ls2[0]?.id ?? '',
         cantidad: 1,
-        precioUnitario: String(prod.precioUnitarioBs),
+        precioUnitario: prod.precioUnitarioBs != null ? String(prod.precioUnitarioBs) : '',
       }];
     });
   }
@@ -139,7 +139,7 @@ export default function NuevaVentaPage() {
 
   const totalQQ = lineasValidas.reduce((s, l) => {
     const prod = productos.find(p => p.id === l.productoId);
-    return s + l.cantidad * (Number(prod?.pesoKgPorUnidad) || 0) / 46;
+    return s + equivPT(l.cantidad, prod?.unidadProduccion?.factorABase, prod?.unidadProduccion?.tipo);
   }, 0);
 
   const fleteConMonto = tipoFlete === TipoFlete.INCLUIDO_EN_VENTA || tipoFlete === TipoFlete.GRANO_REY_PAGA;
@@ -160,8 +160,8 @@ export default function NuevaVentaPage() {
       productoId: prod.id,
       productoNombre: prod.nombre,
       cantidad: l.cantidad,
-      unidadId: prod.unidadVenta?.id ?? '',
-      unidadLabel: prod.unidadVenta?.abreviatura ?? prod.unidadVenta?.codigo ?? '',
+      unidadId: prod.unidadProduccion?.id ?? '',
+      unidadLabel: prod.unidadProduccion?.abreviatura ?? prod.unidadProduccion?.codigo ?? '',
       precioUnitario: parseFloat(l.precioUnitario),
       lote: lt,
       totalBs: l.cantidad * parseFloat(l.precioUnitario),
@@ -341,7 +341,7 @@ export default function NuevaVentaPage() {
                     <div className="flex-1 min-w-0">
                       <p className="font-700 text-[var(--color-gr-text)] text-[13px] truncate">{p.nombre}</p>
                       <p className="text-[11px] text-[var(--color-gr-muted)]">
-                        {formatBs(Number(p.precioUnitarioBs))} · Stock: {Number(p.stockActual)} {p.unidadVenta?.abreviatura ?? ''}
+                        {p.precioUnitarioBs ? formatBs(Number(p.precioUnitarioBs)) : '—'} · Stock: {Number(p.stockActual)} {p.unidadProduccion?.abreviatura ?? ''}
                       </p>
                     </div>
                     {enPedido > 0 ? (
@@ -392,7 +392,7 @@ export default function NuevaVentaPage() {
                         <div>
                           <p className="font-700 text-[var(--color-gr-text)] text-[13.5px]">{prod?.nombre}</p>
                           <p className="text-[11.5px] text-[var(--color-gr-muted)] mt-0.5">
-                            Stock: {Number(prod?.stockActual)} {prod?.unidadVenta?.abreviatura ?? ''}
+                            Stock: {Number(prod?.stockActual)} {prod?.unidadProduccion?.abreviatura ?? ''}
                           </p>
                         </div>
                         <button onClick={() => eliminarLinea(prod.id)}

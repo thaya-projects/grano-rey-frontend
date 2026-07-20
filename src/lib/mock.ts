@@ -3,7 +3,7 @@
 
 export interface Producto {
   id: string; codigo: string; nombre: string;
-  kgPorBolsa: number; bolsaEsQQ?: boolean;
+  factorABase: number; tipo?: string | null;
   precioUnitarioBs: number; stockActual: number; stockMinimo: number;
 }
 
@@ -31,7 +31,7 @@ export interface Venta {
   detalles: DetalleVentaLegacy[];
 }
 
-export type TipoMovimientoMP = 'ingreso' | 'salida' | 'ajuste' | 'devolucion';
+export type TipoMovimientoMP = 'ingreso' | 'salida' | 'merma' | 'desecho' | 'ajuste' | 'devolucion';
 
 export interface MovimientoMP {
   id: string;

@@ -30,3 +30,25 @@ export function useDeleteGasto() {
     onSuccess: () => qc.invalidateQueries({ queryKey: gastosKeys.all }),
   });
 }
+
+export function useUploadComprobante() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const form = new FormData();
+      form.append('comprobante', file);
+      return (await api.post<Gasto>(`/gastos/${id}/comprobante`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })).data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: gastosKeys.all }),
+  });
+}
+
+export function useDeleteComprobante() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/gastos/${id}/comprobante`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: gastosKeys.all }),
+  });
+}

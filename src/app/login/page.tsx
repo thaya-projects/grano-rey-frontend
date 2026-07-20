@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn, useSession } from 'next-auth/react';
 import { apiErrorMessage } from '@/lib/api';
-import { Mail, Lock, AlertCircle } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import Image from 'next/image';
 
@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState('');
+  const [showPwd, setShowPwd]   = useState(false);
 
   // Si ya tiene sesión válida, ir directo al dashboard
   useEffect(() => {
@@ -98,9 +99,9 @@ export default function LoginPage() {
                 <div style={{ position: 'relative' }}>
                   <Lock size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#8AA08A' }} />
                   <input
-                    type="password" value={password} onChange={e => setPassword(e.target.value)}
+                    type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                     style={{
-                      width: '100%', height: '44px', paddingLeft: '36px', paddingRight: '12px',
+                      width: '100%', height: '44px', paddingLeft: '36px', paddingRight: '40px',
                       borderRadius: '10px', border: '1.5px solid #D8E2D9', fontSize: '14px',
                       outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
                       transition: 'border-color 0.15s',
@@ -109,6 +110,18 @@ export default function LoginPage() {
                     onBlur={e => e.target.style.borderColor = '#D8E2D9'}
                     placeholder="••••••••" required
                   />
+                  <button
+                    type="button" onClick={() => setShowPwd(v => !v)}
+                    style={{
+                      position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
+                      color: '#8AA08A', display: 'flex', alignItems: 'center',
+                    }}
+                    tabIndex={-1}
+                    aria-label={showPwd ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
               </div>
 

@@ -2,6 +2,7 @@
 import { Document, Page, View, Text, StyleSheet, PDFDownloadLink } from '@react-pdf/renderer';
 import { Download } from 'lucide-react';
 import type { Producto, MateriaPrimaStock } from '@/lib/mock';
+import { KG_POR_QQ, equivPT, equivLabel } from '@/lib/utils';
 
 const GREEN  = '#3C5A44';
 const MUTED  = '#8AA08A';
@@ -22,7 +23,7 @@ const s = StyleSheet.create({
 });
 
 function fBs(n: number) { return `Bs ${n.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`; }
-function fQQ(n: number) { return `${n.toFixed(1)} QQ`; }
+function fEquiv(n: number, label: string) { return `${n.toFixed(1)} ${label}`; }
 
 function DocComp({ data }: { data: { productos: Producto[]; materiaPrima: MateriaPrimaStock[] } }) {
   const { productos, materiaPrima } = data;
@@ -46,13 +47,14 @@ function DocComp({ data }: { data: { productos: Producto[]; materiaPrima: Materi
         <View style={s.tHead}>
           <Text style={[s.tHcell, { width: 60 }]}>Código</Text>
           <Text style={[s.tHcell, { flex: 1 }]}>Producto</Text>
-          <Text style={[s.tHcell, { width: 60, textAlign: 'right' }]}>Bolsas</Text>
-          <Text style={[s.tHcell, { width: 55, textAlign: 'right' }]}>QQ equiv.</Text>
-          <Text style={[s.tHcell, { width: 70, textAlign: 'right' }]}>Precio/bol</Text>
+          <Text style={[s.tHcell, { width: 60, textAlign: 'right' }]}>Stock</Text>
+          <Text style={[s.tHcell, { width: 55, textAlign: 'right' }]}>Equiv.</Text>
+          <Text style={[s.tHcell, { width: 70, textAlign: 'right' }]}>Precio/u</Text>
           <Text style={[s.tHcell, { width: 50 }]}>Estado</Text>
         </View>
         {productos.map((p, i) => {
-          const qq = p.stockActual * p.kgPorBolsa / 46;
+          const equiv = equivPT(p.stockActual, p.factorABase, p.tipo);
+          const qlbl  = equivLabel(p.tipo) || 'u';
           const low = p.stockActual < p.stockMinimo;
           const warn = !low && p.stockActual < p.stockMinimo * 2;
           const estado = low ? 'Bajo' : warn ? 'Alerta' : 'OK';
@@ -62,7 +64,7 @@ function DocComp({ data }: { data: { productos: Producto[]; materiaPrima: Materi
               <Text style={[s.tCell, { width: 60, color: MUTED }]}>{p.codigo}</Text>
               <Text style={[s.tCell, { flex: 1, fontFamily: 'Helvetica-Bold' }]}>{p.nombre}</Text>
               <Text style={[s.tCell, { width: 60, textAlign: 'right', fontFamily: 'Helvetica-Bold', color: GREEN }]}>{p.stockActual.toLocaleString()}</Text>
-              <Text style={[s.tCell, { width: 55, textAlign: 'right' }]}>{fQQ(qq)}</Text>
+              <Text style={[s.tCell, { width: 55, textAlign: 'right' }]}>{fEquiv(equiv, qlbl)}</Text>
               <Text style={[s.tCell, { width: 70, textAlign: 'right', color: MUTED }]}>{fBs(p.precioUnitarioBs)}</Text>
               <Text style={[s.tCell, { width: 50, color: estadoColor, fontFamily: 'Helvetica-Bold' }]}>{estado}</Text>
             </View>
@@ -71,7 +73,7 @@ function DocComp({ data }: { data: { productos: Producto[]; materiaPrima: Materi
         <View style={{ flexDirection: 'row', padding: '8 10', backgroundColor: '#EBF2EC', borderRadius: 4, marginTop: 4 }}>
           <Text style={{ flex: 1, fontFamily: 'Helvetica-Bold', fontSize: 10, color: GREEN }}>{productos.length} productos</Text>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10, color: GREEN }}>
-            {productos.reduce((s, p) => s + p.stockActual, 0).toLocaleString()} bolsas totales
+            {productos.reduce((s, p) => s + p.stockActual, 0).toLocaleString()} unidades totales
           </Text>
         </View>
 
@@ -94,10 +96,10 @@ function DocComp({ data }: { data: { productos: Producto[]; materiaPrima: Materi
           return (
             <View key={mp.id} style={[s.tRow, i % 2 === 0 ? {} : { backgroundColor: '#F5F7F4' }]}>
               <Text style={[s.tCell, { flex: 1, fontFamily: 'Helvetica-Bold' }]}>{mp.nombre}</Text>
-              <Text style={[s.tCell, { width: 55, textAlign: 'right', color: MUTED }]}>{has ? fQQ(mp.stockEntero || 0) : '—'}</Text>
-              <Text style={[s.tCell, { width: 55, textAlign: 'right', color: MUTED }]}>{has ? fQQ(mp.stockParChico || 0) : '—'}</Text>
-              <Text style={[s.tCell, { width: 60, textAlign: 'right', color: MUTED }]}>{has ? fQQ(mp.stockParGrande || 0) : '—'}</Text>
-              <Text style={[s.tCell, { width: 55, textAlign: 'right', fontFamily: 'Helvetica-Bold', color: GREEN }]}>{fQQ(mp.stockTotal)}</Text>
+              <Text style={[s.tCell, { width: 55, textAlign: 'right', color: MUTED }]}>{has ? fEquiv(mp.stockEntero || 0, 'QQ') : '—'}</Text>
+              <Text style={[s.tCell, { width: 55, textAlign: 'right', color: MUTED }]}>{has ? fEquiv(mp.stockParChico || 0, 'QQ') : '—'}</Text>
+              <Text style={[s.tCell, { width: 60, textAlign: 'right', color: MUTED }]}>{has ? fEquiv(mp.stockParGrande || 0, 'QQ') : '—'}</Text>
+              <Text style={[s.tCell, { width: 55, textAlign: 'right', fontFamily: 'Helvetica-Bold', color: GREEN }]}>{fEquiv(mp.stockTotal, 'QQ')}</Text>
               <Text style={[s.tCell, { width: 50, color: estadoColor, fontFamily: 'Helvetica-Bold' }]}>{estado}</Text>
             </View>
           );
@@ -105,7 +107,7 @@ function DocComp({ data }: { data: { productos: Producto[]; materiaPrima: Materi
         <View style={{ flexDirection: 'row', padding: '8 10', backgroundColor: '#EBF2EC', borderRadius: 4, marginTop: 4 }}>
           <Text style={{ flex: 1, fontFamily: 'Helvetica-Bold', fontSize: 10, color: GREEN }}>{materiaPrima.length} materias primas</Text>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10, color: GREEN }}>
-            {fQQ(materiaPrima.reduce((s, m) => s + m.stockTotal, 0))} totales
+            {fEquiv(materiaPrima.reduce((s, m) => s + m.stockTotal, 0), 'QQ')} totales
           </Text>
         </View>
 
