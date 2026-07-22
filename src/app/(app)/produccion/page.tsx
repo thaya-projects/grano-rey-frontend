@@ -4,7 +4,8 @@ import { useProductos, useCreateKardexProducto } from '@/lib/api/productos';
 import { useLotes, useCreateLote } from '@/lib/api/produccion';
 import { useMateriasPrimas, useKardexMP } from '@/lib/api/materia-prima';
 import { useUnidades } from '@/lib/api/catalogos';
-import { type Producto, type MateriaPrima, type CreateLoteRequest, TipoMovimientoMP, TipoMovimientoPT, TipoUnidad } from '@/lib/types';
+import { useUsuarios } from '@/lib/api/usuarios';
+import { type Producto, type MateriaPrima, type CreateLoteRequest, TipoMovimientoMP, TipoMovimientoPT, TipoUnidad, RolUsuario } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatNum, formatBs, KG_POR_QQ, kgToQQ, equivPT, equivLabel } from '@/lib/utils';
 import {
@@ -357,8 +358,10 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
   const createLote = useCreateLote();
   const mpQuery = useMateriasPrimas();
   const unidadesQ = useUnidades();
+  const usuariosQ = useUsuarios();
   const materiasPrimas: MateriaPrima[] = mpQuery.data ?? [];
   const unidadesPeso = (unidadesQ.data ?? []).filter(u => u.tipo === TipoUnidad.PESO);
+  const personalProduccion = (usuariosQ.data ?? []).filter(u => u.rol === RolUsuario.PRODUCCION && u.activo);
 
   const [productoId, setProductoId]       = useState(productoIdInicial);
   const [mpId, setMpId]                   = useState('');
@@ -372,7 +375,8 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
   const [precioRefBs, setPrecioRefBs]     = useState('');
   const [margen, setMargen]               = useState('30');
   const [obs, setObs]                     = useState('');
-  const [unidadSalidaId, setUnidadSalidaId] = useState<string>('');
+  const [unidadSalidaId, setUnidadSalidaId]   = useState<string>('');
+  const [responsableId, setResponsableId]     = useState<string>('');
 
   const producto       = productos.find(p => p.id === productoId);
   const mpSeleccionada = materiasPrimas.find(m => m.id === mpId);
@@ -495,6 +499,7 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
       unidadId: unidadSalidaId,
       observaciones: obs || undefined,
       numeroLotePropio: numeroLotePropio.trim() || undefined,
+      responsableId: responsableId || undefined,
       mermaMpKg: mermaKg > 0 ? mermaKg : undefined,
       mermaObservaciones: mermaObs.trim() || undefined,
       costoMpBs: costoMpBs > 0 ? costoMpBs : undefined,
@@ -830,12 +835,21 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
       </div>
 
       {/* ── Fila 4: Detalles del lote ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
         <FormField label="Fecha" required>
           <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
         </FormField>
         <FormField label="N° de lote" hint="Editable">
           <Input value={numeroLotePropio} onChange={e => setNroLote(e.target.value)} />
+        </FormField>
+        <FormField label="Responsable" hint="Vacío = usuario actual">
+          <Select value={responsableId} onChange={e => setResponsableId(e.target.value)}
+            disabled={usuariosQ.isLoading}>
+            <option value="">— Auto (yo) —</option>
+            {personalProduccion.map(u => (
+              <option key={u.id} value={u.id}>{u.nombre}</option>
+            ))}
+          </Select>
         </FormField>
         <FormField label="Precio referencial (Bs)" hint="Opcional — se usa al vender">
           <div className="flex gap-1.5">

@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Building2, Package, Wheat, Users, Truck, Tag, HardHat, Scale } from 'lucide-react';
+import { Building2, Package, Wheat, Users, Truck, Tag, HardHat, Scale, UserCog } from 'lucide-react';
 import { TabEmpresa }        from './_components/TabEmpresa';
 import { TabProductos }      from './_components/TabProductos';
 import { TabMateriaPrima }   from './_components/TabMateriaPrima';
@@ -9,8 +9,9 @@ import { TabClientes }       from './_components/TabClientes';
 import { TabTransportistas } from './_components/TabTransportistas';
 import { TabProveedores }    from './_components/TabProveedores';
 import { TabCargadores }     from './_components/TabCargadores';
+import { TabUsuarios }       from './_components/TabUsuarios';
 
-type Tab = 'empresa' | 'productos' | 'mp' | 'unidades' | 'clientes' | 'transportistas' | 'proveedores' | 'cargadores';
+type Tab = 'empresa' | 'productos' | 'mp' | 'unidades' | 'clientes' | 'transportistas' | 'proveedores' | 'cargadores' | 'usuarios';
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'empresa',        label: 'Empresa',        icon: <Building2 size={15} /> },
@@ -20,7 +21,8 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'clientes',       label: 'Clientes',       icon: <Users size={15} /> },
   { id: 'transportistas', label: 'Transportistas', icon: <Truck size={15} /> },
   { id: 'proveedores',    label: 'Proveedores',    icon: <Tag size={15} /> },
-  { id: 'cargadores',     label: 'Cargadores',     icon: <HardHat size={15} /> },
+  { id: 'cargadores',     label: 'Personal',       icon: <HardHat size={15} /> },
+  { id: 'usuarios',       label: 'Usuarios',       icon: <UserCog size={15} /> },
 ];
 
 export default function ConfiguracionPage() {
@@ -57,6 +59,7 @@ export default function ConfiguracionPage() {
       {tab === 'transportistas' && <TabTransportistas />}
       {tab === 'proveedores'    && <TabProveedores />}
       {tab === 'cargadores'     && <TabCargadores />}
+      {tab === 'usuarios'       && <TabUsuarios />}
     </div>
   );
 }

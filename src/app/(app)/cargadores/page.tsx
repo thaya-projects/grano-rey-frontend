@@ -8,7 +8,8 @@ import {
 } from '@/lib/api/cargadores';
 import { apiErrorMessage } from '@/lib/api';
 import { formatBs, formatNum } from '@/lib/utils';
-import { TipoPagoCarga, type DeudaItem } from '@/lib/types';
+import { TipoPagoCarga, RolUsuario, type DeudaItem } from '@/lib/types';
+import { useAuth } from '@/lib/auth-store';
 import { Btn, Spinner, useToast, Input, ConfirmModal } from '@/components/ui';
 import {
   CheckCircle2, Wallet, Wheat, Truck, Pencil, Check, X, Calendar,
@@ -253,6 +254,8 @@ function GrupoCard({
   const pagarBulk = usePagarCargasBulk();
   const [confirmarLote, setConfirmarLote] = useState(false);
   const [open, setOpen] = useState(defaultOpen);
+  const { user } = useAuth();
+  const canEdit = user?.rol !== RolUsuario.PRODUCCION;
 
   const esVenta = grupo.origen === 'venta';
   const Icon    = esVenta ? Truck : Wheat;
@@ -333,8 +336,8 @@ function GrupoCard({
               <FilaCarga key={item.id} item={item} onSuccess={onSuccess} onError={onError} />
             ))}
 
-            {/* Footer con pagar todo el lote — solo si quedan pendientes */}
-            {idsPendientes.length > 1 && (
+            {/* Footer con pagar todo el lote — solo si quedan pendientes y tiene permisos */}
+            {canEdit && idsPendientes.length > 1 && (
               <div className="px-5 py-3.5 flex items-center justify-end gap-3 border-t border-[var(--color-gr-border-lite)]"
                 style={{ background: 'var(--color-gr-border-lite)' }}>
                 <p className="text-[12.5px] text-[var(--color-gr-muted)]">
@@ -374,6 +377,8 @@ function FilaCarga({
   const [cantidad, setCantidad] = useState(Number(item.cantidad));
   const [tarifa, setTarifa]     = useState(Number(item.tarifaBs));
   const [confirmarPago, setConfirmarPago] = useState(false);
+  const { user } = useAuth();
+  const canEdit = user?.rol !== RolUsuario.PRODUCCION;
 
   const totalActual = Number(item.cantidad) * Number(item.tarifaBs);
   const totalEdit   = cantidad * tarifa;
@@ -418,7 +423,7 @@ function FilaCarga({
           </p>
         </div>
 
-        {editing ? (
+        {editing && canEdit ? (
           <>
             <Input type="number" min="0" step="0.01" value={cantidad}
               onChange={e => setCantidad(parseFloat(e.target.value) || 0)}
@@ -456,13 +461,13 @@ function FilaCarga({
                 style={{ background: 'var(--color-gr-success-bg)', color: 'var(--color-gr-success)' }}>
                 <CheckCircle2 size={12} /> Pagado
               </span>
-            ) : (
+            ) : canEdit ? (
               <Btn size="sm" variant="green" onClick={() => setConfirmarPago(true)} loading={pagarUna.isPending}>
                 <Wallet size={12} /> Pagar
               </Btn>
-            )}
+            ) : <span />}
             <div className="flex justify-center">
-              {!item.pagado && (
+              {canEdit && !item.pagado && (
                 <button onClick={() => setEditing(true)}
                   title="Editar cantidad/tarifa"
                   className="w-9 h-9 rounded-full flex items-center justify-center border-2 border-[var(--color-gr-border)] hover:bg-[var(--color-gr-border-lite)]">
