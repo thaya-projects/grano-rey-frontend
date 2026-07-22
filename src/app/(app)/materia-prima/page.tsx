@@ -3,8 +3,9 @@ import { useMemo, useState } from 'react';
 import { useMateriasPrimas, useCreateKardexMP, useKardexMP, useKardexMPPendientesPago, usePagarKardexMP } from '@/lib/api/materia-prima';
 import { useProveedores, useUnidades, useSubtiposMP } from '@/lib/api/catalogos';
 import { useLotes } from '@/lib/api/produccion';
-import { TipoMovimientoMP, TipoPagoCarga, EstadoPagoMP, type MateriaPrima, type KardexMP, type LoteProduccion, type UnidadMedida } from '@/lib/types';
+import { TipoMovimientoMP, TipoPagoCarga, EstadoPagoMP, RolUsuario, type MateriaPrima, type KardexMP, type LoteProduccion, type UnidadMedida } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
+import { useAuth } from '@/lib/auth-store';
 import { formatNum, formatBs, kgToQQ } from '@/lib/utils';
 import { Btn, Modal, FormField, Input, Select, Textarea, Spinner, useToast } from '@/components/ui';
 import { Plus, CheckCircle, ChevronRight, ChevronDown, MinusCircle } from 'lucide-react';
@@ -39,13 +40,14 @@ function StockDot({ value, min }: { value: number; min: number }) {
 }
 
 // ─── Lotes de un MP (se monta cuando el acordeón está abierto) ────────────
-function LotesSection({ kardex, loading, stockActualKg, unidadMedida, onPagar, pagarPending }: {
+function LotesSection({ kardex, loading, stockActualKg, unidadMedida, onPagar, pagarPending, canEdit }: {
   kardex: KardexMP[];
   loading: boolean;
   stockActualKg: number;
   unidadMedida?: UnidadMedida | null;
   onPagar: (id: string) => void;
   pagarPending: boolean;
+  canEdit: boolean;
 }) {
   const factor    = unidadMedida?.factorABase ?? 46;
   const unitLabel = unidadMedida?.abreviatura ?? unidadMedida?.codigo ?? 'QQ';
@@ -181,12 +183,12 @@ function LotesSection({ kardex, loading, stockActualKg, unidadMedida, onPagar, p
                   style={{ color: '#2E7D52' }}>
                   <CheckCircle size={13} /> Pagado
                 </span>
-              ) : (
+              ) : canEdit ? (
                 <Btn size="sm" onClick={() => onPagar(k.id)} loading={pagarPending}
                   style={{ background: '#FFF3E0', color: '#e67e00', border: '1px solid #FFB74D' }}>
                   Pagar
                 </Btn>
-              )}
+              ) : null}
             </div>
           </div>
         );
@@ -206,6 +208,8 @@ function MPRow({ mp, kardex, kardexLoading, onEntrada, onMovimiento }: {
   const [open, setOpen] = useState(false);
   const toast = useToast(s => s.show);
   const pagarMut = usePagarKardexMP();
+  const { user } = useAuth();
+  const canEdit = user?.rol !== RolUsuario.PRODUCCION;
 
   const stockKg = Number(mp.stockActualKg);
   const minKg   = Number(mp.stockMinimoKg);
@@ -250,17 +254,21 @@ function MPRow({ mp, kardex, kardexLoading, onEntrada, onMovimiento }: {
         <span className="hidden sm:flex shrink-0">
           <StockDot value={stockKg} min={minKg} />
         </span>
-        <Btn size="sm" variant="ghost" onClick={e => { e.stopPropagation(); onMovimiento(); }}>
-          <MinusCircle size={12} /><span className="hidden sm:inline"> Baja</span>
-        </Btn>
-        <Btn size="sm" variant="primary" onClick={e => { e.stopPropagation(); onEntrada(); }}>
-          <Plus size={12} /><span className="hidden sm:inline"> Entrada</span>
-        </Btn>
+        {canEdit && (
+          <>
+            <Btn size="sm" variant="ghost" onClick={e => { e.stopPropagation(); onMovimiento(); }}>
+              <MinusCircle size={12} /><span className="hidden sm:inline"> Baja</span>
+            </Btn>
+            <Btn size="sm" variant="primary" onClick={e => { e.stopPropagation(); onEntrada(); }}>
+              <Plus size={12} /><span className="hidden sm:inline"> Entrada</span>
+            </Btn>
+          </>
+        )}
       </div>
       {open && (
         <LotesSection kardex={kardex} loading={kardexLoading} stockActualKg={stockKg}
           unidadMedida={mp.unidadMedida}
-          onPagar={handlePagar} pagarPending={pagarMut.isPending} />
+          onPagar={handlePagar} pagarPending={pagarMut.isPending} canEdit={canEdit} />
       )}
     </div>
   );
@@ -436,6 +444,7 @@ export default function MateriaPrimaPage() {
       {movimientoModal && (
         <MovimientoMPModal
           mp={movimientoModal}
+          kardex={allKardex.filter(k => k.materiaPrima.id === movimientoModal.id)}
           unidades={unidades}
           lotes={lotesQ.data ?? []}
           onClose={() => setMovimientoModal(null)}
@@ -650,30 +659,58 @@ const TIPO_CONFIG: Record<string, { label: string; color: string; hint: string }
   [TipoMovimientoMP.AJUSTE]:  { label: 'Ajuste',   color: '#2E7D52', hint: 'Corrección positiva por conteo físico. Suma al stock.' },
 };
 
-function MovimientoMPModal({ mp, unidades, lotes, onClose, onSaved, onError }: {
+function MovimientoMPModal({ mp, kardex, unidades, lotes, onClose, onSaved, onError }: {
   mp: MateriaPrima;
-  unidades: { id: string; codigo: string; nombre: string; abreviatura?: string | null }[];
+  kardex: KardexMP[];
+  unidades: UnidadMedida[];
   lotes: LoteProduccion[];
   onClose: () => void;
   onSaved: (tipo: TipoMovimientoMP) => void;
   onError: (msg: string) => void;
 }) {
   const createKardex = useCreateKardexMP();
-  const [tipo, setTipo]       = useState<TipoMovimientoMP>(TipoMovimientoMP.MERMA);
+  const [tipo, setTipo]         = useState<TipoMovimientoMP>(TipoMovimientoMP.MERMA);
   const [cantidad, setCantidad] = useState('');
   const [unidadId, setUnidadId] = useState(mp.unidadMedida?.id ?? '');
-  const [loteId, setLoteId]   = useState('');
-  const [obs, setObs]         = useState('');
-  const [fecha, setFecha]     = useState(new Date().toISOString().slice(0, 10));
+  const [loteId, setLoteId]     = useState('');
+  const [valorBs, setValorBs]   = useState('');
+  const [obs, setObs]           = useState('');
+  const [fecha, setFecha]       = useState(new Date().toISOString().slice(0, 10));
 
-  const cantNum   = parseFloat(cantidad) || 0;
-  const config    = TIPO_CONFIG[tipo];
-  const esMerma   = tipo === TipoMovimientoMP.MERMA;
-  const esAjuste  = tipo === TipoMovimientoMP.AJUSTE;
-  const valid     = cantNum > 0 && !!unidadId;
+  // Costo promedio ponderado por KG desde todos los ingresos con precio registrado
+  const costoPorKg = useMemo(() => {
+    const ingresos = kardex.filter(
+      k => k.tipoMovimiento === TipoMovimientoMP.INGRESO && k.costoUnitarioBs != null
+    );
+    const totalCost = ingresos.reduce((s, k) => s + Number(k.costoUnitarioBs!) * Number(k.cantidad), 0);
+    const totalKg   = ingresos.reduce((s, k) => s + Number(k.cantidadKg), 0);
+    return totalKg > 0 ? totalCost / totalKg : 0;
+  }, [kardex]);
+
+  const cantNum         = parseFloat(cantidad) || 0;
+  const config          = TIPO_CONFIG[tipo];
+  const esMerma         = tipo === TipoMovimientoMP.MERMA;
+  const esDesecho       = tipo === TipoMovimientoMP.DESECHO;
+  const esAjuste        = tipo === TipoMovimientoMP.AJUSTE;
+  const mostrarValor    = esMerma || esDesecho;
+  const valid           = cantNum > 0 && !!unidadId;
+
+  // Valor auto-calculado: cantidad convertida a KG × costo promedio
+  const selectedUnidad  = unidades.find(u => u.id === unidadId);
+  const factorABase     = selectedUnidad?.factorABase ?? 1;
+  const cantKg          = cantNum * factorABase;
+  const valorAuto       = costoPorKg > 0 && cantKg > 0
+    ? parseFloat((costoPorKg * cantKg).toFixed(2))
+    : 0;
+
+  // Si el usuario no escribió nada, usamos el calculado
+  const valorEfectivo   = valorBs ? parseFloat(valorBs) : valorAuto;
 
   async function handleSave() {
     if (!valid) return;
+    const costoUnitarioBs = mostrarValor && valorEfectivo > 0 && cantNum > 0
+      ? valorEfectivo / cantNum
+      : undefined;
     try {
       await createKardex.mutateAsync({
         fecha,
@@ -682,6 +719,7 @@ function MovimientoMPModal({ mp, unidades, lotes, onClose, onSaved, onError }: {
         materiaPrimaId: mp.id,
         unidadId,
         loteProduccionId: esMerma && loteId ? loteId : undefined,
+        costoUnitarioBs,
         observaciones: obs.trim() || undefined,
       });
       onSaved(tipo);
@@ -740,6 +778,36 @@ function MovimientoMPModal({ mp, unidades, lotes, onClose, onSaved, onError }: {
           </Select>
         </FormField>
       </div>
+
+      {mostrarValor && (
+        <FormField
+          label={`Pérdida estimada (Bs)`}
+          hint={
+            costoPorKg > 0
+              ? `Calculado desde precio de compra promedio (${formatBs(costoPorKg)}/kg). Podés ajustarlo si es necesario.`
+              : 'Sin precio de compra registrado — ingresá el valor manualmente si lo conocés.'
+          }>
+          <Input
+            type="number" min="0" step="0.01"
+            placeholder={valorAuto > 0 ? String(valorAuto) : '0.00'}
+            value={valorBs}
+            onChange={e => setValorBs(e.target.value)}
+          />
+          {valorAuto > 0 && !valorBs && (
+            <p className="text-[11.5px] mt-1" style={{ color: config.color }}>
+              Se registrará {formatBs(valorAuto)} como pérdida
+            </p>
+          )}
+          {valorBs && parseFloat(valorBs) !== valorAuto && valorAuto > 0 && (
+            <button type="button"
+              className="text-[11.5px] mt-1 underline"
+              style={{ color: 'var(--color-gr-primary)' }}
+              onClick={() => setValorBs('')}>
+              Volver al calculado ({formatBs(valorAuto)})
+            </button>
+          )}
+        </FormField>
+      )}
 
       <FormField label="Fecha" required>
         <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
