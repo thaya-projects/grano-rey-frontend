@@ -280,6 +280,36 @@ function ReporteCargadores() {
         <KPICard label="Cargadores activos" value={String(r?.cantidadCargadores ?? 0)} color="primary" />
       </div>
 
+      {/* Desglose por origen del trabajo */}
+      {r?.porOrigen && (r.porOrigen.materiaPrima.cantidad + r.porOrigen.despacho.cantidad > 0) && (
+        <div className="card-no-pad">
+          <div className="px-5 py-3.5 border-b border-[var(--color-gr-border)]">
+            <p className="font-800 text-[14px] text-[var(--color-gr-text)]">Desglose por tipo de trabajo</p>
+            <p className="text-[12px] text-[var(--color-gr-muted)] mt-0.5">
+              De dónde vienen los pagos a cargadores en el período
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-x divide-[var(--color-gr-border-lite)]">
+            <OrigenBox
+              label="Descarga de Materia Prima"
+              hint="Recepción y descarga de compras de MP"
+              cantidad={r.porOrigen.materiaPrima.cantidad}
+              pagadoBs={r.porOrigen.materiaPrima.totalPagadoBs}
+              pendienteBs={r.porOrigen.materiaPrima.pendienteBs}
+              color="var(--color-gr-primary)"
+            />
+            <OrigenBox
+              label="Despachos a clientes"
+              hint="Carga a camión para llevar al cliente"
+              cantidad={r.porOrigen.despacho.cantidad}
+              pagadoBs={r.porOrigen.despacho.totalPagadoBs}
+              pendienteBs={r.porOrigen.despacho.pendienteBs}
+              color="var(--color-gr-info)"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Desglose por cargador */}
       <div className="card-no-pad">
         <div className="px-5 py-3.5 border-b border-[var(--color-gr-border)]">
@@ -340,6 +370,44 @@ function ReporteCargadores() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function OrigenBox({
+  label, hint, cantidad, pagadoBs, pendienteBs, color,
+}: {
+  label: string; hint: string; cantidad: number;
+  pagadoBs: number; pendienteBs: number; color: string;
+}) {
+  return (
+    <div className="px-5 py-4 space-y-2">
+      <div>
+        <p className="font-800 text-[13.5px]" style={{ color }}>{label}</p>
+        <p className="text-[11.5px] text-[var(--color-gr-muted)]">{hint}</p>
+      </div>
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-[10.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">
+            Pagado
+          </p>
+          <p className="font-900 text-[18px]" style={{ color: 'var(--color-gr-success)' }}>
+            {formatBs(pagadoBs)}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">
+            Pendiente
+          </p>
+          <p className="font-800 text-[14.5px]"
+            style={{ color: pendienteBs > 0 ? 'var(--color-gr-danger)' : 'var(--color-gr-muted)' }}>
+            {formatBs(pendienteBs)}
+          </p>
+        </div>
+      </div>
+      <p className="text-[11px] text-[var(--color-gr-muted)]">
+        {cantidad} movimiento{cantidad !== 1 ? 's' : ''} de carga
+      </p>
     </div>
   );
 }
@@ -502,6 +570,14 @@ function ReporteVentas() {
   }), [ventas, search, filterCliente, filterEstado, fechaDesde, fechaHasta]);
 
   const totalFiltered = filtered.reduce((s, v) => s + Number(v.totalBs), 0);
+  const totalQQ       = filtered.reduce(
+    (s, v) => s + v.detalles.reduce((ss, d) => ss + Number(d.totalQq ?? 0), 0),
+    0,
+  );
+  const totalBolsas   = filtered.reduce(
+    (s, v) => s + v.detalles.reduce((ss, d) => ss + Number(d.cantidad ?? 0), 0),
+    0,
+  );
 
   // Top clientes por monto total
   const topClientes = useMemo(() => {
@@ -549,10 +625,20 @@ function ReporteVentas() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="font-900 text-[16px] text-gr-text">Ventas</h2>
-          <p className="text-[12.5px] text-gr-muted">{filtered.length} ventas · {formatBs(totalFiltered)}</p>
+          <p className="text-[12.5px] text-gr-muted">
+            {filtered.length} ventas · {formatNum(totalBolsas, 0)} bolsas · {formatNum(totalQQ, 2)} QQ · {formatBs(totalFiltered)}
+          </p>
         </div>
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <VentasPDFLink data={{ ventas: ventasLegacy as any, total: totalFiltered }} />
+      </div>
+
+      {/* KPIs de la selección */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KPICard label="Ventas" value={String(filtered.length)} color="primary" />
+        <KPICard label="Bolsas" value={formatNum(totalBolsas, 0)} color="primary" />
+        <KPICard label="Quintales (QQ)" value={formatNum(totalQQ, 2)} color="primary" />
+        <KPICard label="Total Bs" value={formatBs(totalFiltered)} color="success" />
       </div>
 
       {/* Top clientes */}
@@ -625,36 +711,44 @@ function ReporteVentas() {
       {/* Tabla */}
       <div className="card-no-pad">
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px] border-collapse" style={{ minWidth: 580 }}>
+          <table className="w-full text-[13px] border-collapse" style={{ minWidth: 680 }}>
             <thead>
               <tr style={{ background: 'var(--color-gr-border-lite)' }}>
-                {['N°', 'Cliente', 'Productos', 'Total', 'Estado', 'Fecha'].map(h => (
+                {['N°', 'Cliente', 'Productos', 'Bolsas', 'QQ', 'Total', 'Estado', 'Fecha'].map(h => (
                   <th key={h} className="px-4 py-3 text-[11px] font-700 text-gr-muted uppercase tracking-wide text-left whitespace-nowrap border-b border-gr-border">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((v, i) => (
-                <tr key={v.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
-                  className="border-b border-gr-border-lite">
-                  <td className="px-4 py-3 font-700 text-gr-primary whitespace-nowrap">N°{v.numeroNota}</td>
-                  <td className="px-4 py-3 font-700 whitespace-nowrap">{v.cliente?.nombre ?? '—'}</td>
-                  <td className="px-4 py-3 text-gr-muted text-[12px]">
-                    {v.detalles.map(d => `${d.producto?.nombre ?? ''} ×${Number(d.cantidad)}`).join(' · ')}
-                  </td>
-                  <td className="px-4 py-3 text-right font-700 whitespace-nowrap">{formatBs(Number(v.totalBs))}</td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <Badge color={ESTADO_COLORS[v.estado] ?? 'gray'}>{ESTADO_LABELS[v.estado] ?? v.estado}</Badge>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-gr-muted">{v.fecha}</td>
-                </tr>
-              ))}
+              {filtered.map((v, i) => {
+                const bolsas = v.detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
+                const qq     = v.detalles.reduce((s, d) => s + Number(d.totalQq ?? 0), 0);
+                return (
+                  <tr key={v.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
+                    className="border-b border-gr-border-lite">
+                    <td className="px-4 py-3 font-700 text-gr-primary whitespace-nowrap">N°{v.numeroNota}</td>
+                    <td className="px-4 py-3 font-700 whitespace-nowrap">{v.cliente?.nombre ?? '—'}</td>
+                    <td className="px-4 py-3 text-gr-muted text-[12px]">
+                      {v.detalles.map(d => `${d.producto?.nombre ?? ''} ×${Number(d.cantidad)}`).join(' · ')}
+                    </td>
+                    <td className="px-4 py-3 text-right font-700 whitespace-nowrap">{formatNum(bolsas, 0)}</td>
+                    <td className="px-4 py-3 text-right font-700 whitespace-nowrap">{formatNum(qq, 2)}</td>
+                    <td className="px-4 py-3 text-right font-700 whitespace-nowrap">{formatBs(Number(v.totalBs))}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Badge color={ESTADO_COLORS[v.estado] ?? 'gray'}>{ESTADO_LABELS[v.estado] ?? v.estado}</Badge>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-gr-muted">{v.fecha}</td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr style={{ background: 'var(--color-gr-border-lite)', borderTop: '2px solid var(--color-gr-border)' }}>
                 <td colSpan={3} className="px-4 py-3 text-[12.5px] text-gr-muted">{filtered.length} ventas</td>
+                <td className="px-4 py-3 text-right font-900 text-[13px] text-gr-text">{formatNum(totalBolsas, 0)}</td>
+                <td className="px-4 py-3 text-right font-900 text-[13px] text-gr-primary">{formatNum(totalQQ, 2)}</td>
                 <td colSpan={3} className="px-4 py-3 text-right font-900 text-[14px] text-gr-primary">
-                  Total: {formatBs(totalFiltered)}
+                  {formatBs(totalFiltered)}
                 </td>
               </tr>
             </tfoot>
