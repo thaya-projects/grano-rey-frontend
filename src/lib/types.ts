@@ -251,6 +251,10 @@ export interface ReporteCargadores {
   totalPendienteBs: number;
   cantidadCargadores: number;
   porCargador: ReporteCargadoresItem[];
+  porOrigen?: {
+    materiaPrima: { totalPagadoBs: number; pendienteBs: number; cantidad: number };
+    despacho:     { totalPagadoBs: number; pendienteBs: number; cantidad: number };
+  };
 }
 
 export interface MateriaPrima extends AuditFields {
@@ -569,6 +573,7 @@ export interface CreateLoteRequest {
   cantidadProducida: number;
   productoId: string;
   unidadId: string;
+  responsableId?: string;
   costoMpBs?: number;
   precioReferencialBs?: number;
   numeroLotePropio?: string;
@@ -621,4 +626,20 @@ export interface CreateGastoRequest {
   descripcion: string;
   montoBs: number;
   comprobante?: string;
+}
+
+export interface CreateUsuarioRequest {
+  nombre: string;
+  email: string;
+  password: string;
+  rol?: RolUsuario;
+  telefono?: string;
+}
+
+export interface UpdateUsuarioRequest {
+  nombre?: string;
+  email?: string;
+  rol?: RolUsuario;
+  telefono?: string;
+  activo?: boolean;
 }

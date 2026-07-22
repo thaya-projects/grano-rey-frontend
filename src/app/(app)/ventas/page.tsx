@@ -5,7 +5,7 @@ import { useVentas, useCambiarEstadoVenta, useCobrarVenta } from '@/lib/api/vent
 import type { NotaVenta } from '@/lib/types';
 import { EstadoVenta, EstadoPagoVenta, MetodoPago } from '@/lib/types';
 import { formatBs } from '@/lib/utils';
-import { EstadoBadge, Btn, Modal, SearchBox, Spinner, FormField, Select, Input, useToast } from '@/components/ui';
+import { EstadoBadge, Btn, Modal, SearchBox, Spinner, FormField, Select, Input, useToast, IconBtn } from '@/components/ui';
 import { Plus, ShoppingCart, Printer, Eye, CheckCircle, Banknote } from 'lucide-react';
 import { apiErrorMessage } from '@/lib/api';
 import Image from 'next/image';
@@ -186,7 +186,7 @@ export default function VentasPage() {
         <table className="w-full text-[13px]" style={{ minWidth: 680 }}>
           <thead>
             <tr style={{ background: 'var(--color-gr-primary)' }}>
-              {['Nota', 'Cliente', 'Producto(s)', 'Total', 'Estado', 'Cobro', ''].map(h => (
+              {['Nota', 'Guía', 'Cliente', 'Producto(s)', 'Total', 'Estado', 'Cobro', ''].map(h => (
                 <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -194,7 +194,7 @@ export default function VentasPage() {
           <tbody>
             {filtradas.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-16 text-center text-[var(--color-gr-muted)]">Sin resultados para este filtro</td>
+                <td colSpan={8} className="py-16 text-center text-[var(--color-gr-muted)]">Sin resultados para este filtro</td>
               </tr>
             ) : filtradas.map((v, i) => (
               <tr key={v.id}
@@ -202,6 +202,13 @@ export default function VentasPage() {
                 style={{ background: i % 2 === 1 ? 'var(--color-gr-border-lite)' : '#fff' }}
                 onClick={() => setDetalleVenta(v)}>
                 <td className="px-4 py-3 font-800 whitespace-nowrap">NV-{v.numeroNota}</td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  {v.numeroGuia ? (
+                    <span className="font-700 text-[var(--color-gr-gold-dark)]">G-{v.numeroGuia}</span>
+                  ) : (
+                    <span className="text-[var(--color-gr-muted)]">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <p className="font-600 text-[var(--color-gr-text)] whitespace-nowrap">{v.cliente?.nombre ?? '—'}</p>
                   <p className="text-[11.5px] text-[var(--color-gr-muted)]">{v.fecha}</p>
@@ -217,17 +224,16 @@ export default function VentasPage() {
                 <td className="px-4 py-3 whitespace-nowrap"><PagoBadge estado={v.estadoPago} metodo={v.metodoPago} /></td>
                 <td className="px-4 py-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                   <div className="flex gap-1.5 justify-end">
-                    <Btn size="sm" variant="ghost" className="px-2.5" onClick={() => setDetalleVenta(v)}>
-                      <Eye size={13} />
-                    </Btn>
-                    <Btn size="sm" variant="secondary" className="px-2.5" onClick={() => cambiarEstado(v.id)}>
-                      <ShoppingCart size={13} />
-                    </Btn>
+                    <IconBtn tooltip="Ver detalle" onClick={() => setDetalleVenta(v)}>
+                      <Eye size={15} />
+                    </IconBtn>
+                    <IconBtn tooltip="Cambiar estado (despachar/entregar)" variant="primary" onClick={() => cambiarEstado(v.id)}>
+                      <ShoppingCart size={15} />
+                    </IconBtn>
                     {v.estadoPago === EstadoPagoVenta.PENDIENTE && (
-                      <Btn size="sm" variant="ghost" className="px-2.5" title="Registrar cobro"
-                        onClick={() => setCobrarVenta(v)}>
-                        <Banknote size={13} className="text-[#e67e00]" />
-                      </Btn>
+                      <IconBtn tooltip="Registrar cobro" variant="gold" onClick={() => setCobrarVenta(v)}>
+                        <Banknote size={15} />
+                      </IconBtn>
                     )}
                   </div>
                 </td>

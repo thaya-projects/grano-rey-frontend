@@ -501,48 +501,64 @@ function RemisionModal({ venta: v, onClose, onDespachar }: {
         </div>
 
         <div className="bg-white px-6 py-5 space-y-4">
+          {/* Destinatario + chofer — sin datos comerciales */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1.5">Cliente / Destinatario</p>
+              <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1.5">Destinatario</p>
               <p className="font-800 text-[var(--color-gr-text)] text-[15px]">{cliente?.nombre ?? '—'}</p>
-              <p className="text-[12.5px] text-[var(--color-gr-muted)]">{cliente?.ciudad ?? ''}</p>
+              {cliente?.ciudad && (
+                <p className="text-[12.5px] text-[var(--color-gr-muted)]">{cliente.ciudad}</p>
+              )}
+              {cliente?.direccion && (
+                <p className="text-[12.5px] text-[var(--color-gr-muted)]">{cliente.direccion}</p>
+              )}
             </div>
             <div>
-              <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1.5">Transportista</p>
+              <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1.5">Chofer / Transportista</p>
               {transp ? (
                 <>
                   <p className="font-800 text-[var(--color-gr-text)]">{transp.nombre}</p>
+                  {transp.ci && (
+                    <p className="text-[12.5px] text-[var(--color-gr-muted)]">CI {transp.ci}</p>
+                  )}
                   <p className="text-[12.5px] text-[var(--color-gr-muted)]">
-                    {transp.marca ?? ''}{transp.placa ? ` · Placa: ` : ''}{transp.placa && <strong>{transp.placa}</strong>}
+                    {transp.marca ?? ''}
+                    {transp.placa ? ` · Placa: ` : ''}
+                    {transp.placa && <strong>{transp.placa}</strong>}
                   </p>
                 </>
               ) : <p className="text-[var(--color-gr-muted)] text-[13px]">Sin asignar</p>}
             </div>
           </div>
 
+          {/* Tabla de productos — SIN precios, solo cantidad de bolsas y lote */}
           <div className="border border-[var(--color-gr-border)] rounded-[10px] overflow-hidden">
-            <div className="grid grid-cols-[1fr_auto_auto_auto] px-4 py-2.5 gap-3 text-[11px] font-700 text-white/80 uppercase"
-              style={{ background: 'var(--color-gr-primary)' }}>
-              <span>Producto</span><span>Lote</span><span>Cantidad</span><span>Total Bs</span>
+            <div
+              className="px-4 py-2.5 gap-3 text-[11px] font-700 text-white/85 uppercase tracking-wide"
+              style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 120px 100px', background: 'var(--color-gr-primary)' }}
+            >
+              <span>Producto</span>
+              <span>Lote</span>
+              <span className="text-right">Bolsas</span>
             </div>
             {v.detalles.map((d, i) => (
-              <div key={d.id ?? i} className={`grid grid-cols-[1fr_auto_auto_auto] px-4 py-3 gap-3 text-[13px] ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
-                <span className="font-600">{d.producto?.nombre ?? '—'}</span>
-                <span className="text-[var(--color-gr-muted)]">{d.lote?.codigoLote ?? '—'}</span>
-                <span className="font-700">{Number(d.cantidad)} {d.unidad?.abreviatura ?? ''}</span>
-                <span className="font-800 text-[var(--color-gr-primary)]">{formatBs(Number(d.valorTotalBs))}</span>
+              <div key={d.id ?? i}
+                className={`px-4 py-3 gap-3 text-[13px] ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}
+                style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 120px 100px', alignItems: 'center' }}
+              >
+                <span className="font-600 truncate">{d.producto?.nombre ?? '—'}</span>
+                <span className="text-[var(--color-gr-muted)] text-[12px] truncate">{d.lote?.codigoLote ?? '—'}</span>
+                <span className="font-800 text-right whitespace-nowrap">
+                  {Number(d.cantidad)} {d.unidad?.abreviatura ?? ''}
+                </span>
               </div>
             ))}
           </div>
 
-          {v.tipoFlete === TipoFlete.INCLUIDO_EN_VENTA && Number(v.fleteBs) > 0 && (
-            <div className="flex justify-between text-[13px] text-[var(--color-gr-info)]">
-              <span>Flete incluido</span><span>+{formatBs(Number(v.fleteBs))}</span>
-            </div>
-          )}
-
-          <div className="flex justify-between font-900 text-[18px] text-[var(--color-gr-primary)] border-t border-[var(--color-gr-border)] pt-3">
-            <span>TOTAL</span><span>{formatBs(Number(v.totalBs))}</span>
+          {/* Total de bolsas — sin monto Bs */}
+          <div className="flex justify-between font-900 text-[16px] text-[var(--color-gr-primary)] border-t border-[var(--color-gr-border)] pt-3">
+            <span>TOTAL BOLSAS</span>
+            <span>{v.detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0)}</span>
           </div>
 
           <div className="grid grid-cols-2 gap-4 pt-2">
