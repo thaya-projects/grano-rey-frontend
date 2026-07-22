@@ -251,6 +251,10 @@ export interface ReporteCargadores {
   totalPendienteBs: number;
   cantidadCargadores: number;
   porCargador: ReporteCargadoresItem[];
+  porOrigen?: {
+    materiaPrima: { totalPagadoBs: number; pendienteBs: number; cantidad: number };
+    despacho:     { totalPagadoBs: number; pendienteBs: number; cantidad: number };
+  };
 }
 
 export interface MateriaPrima extends AuditFields {

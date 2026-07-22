@@ -281,6 +281,36 @@ function ReporteCargadores() {
         <KPICard label="Cargadores activos" value={String(r?.cantidadCargadores ?? 0)} color="primary" />
       </div>
 
+      {/* Desglose por origen del trabajo */}
+      {r?.porOrigen && (r.porOrigen.materiaPrima.cantidad + r.porOrigen.despacho.cantidad > 0) && (
+        <div className="card-no-pad">
+          <div className="px-5 py-3.5 border-b border-[var(--color-gr-border)]">
+            <p className="font-800 text-[14px] text-[var(--color-gr-text)]">Desglose por tipo de trabajo</p>
+            <p className="text-[12px] text-[var(--color-gr-muted)] mt-0.5">
+              De dónde vienen los pagos a cargadores en el período
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-x divide-[var(--color-gr-border-lite)]">
+            <OrigenBox
+              label="Descarga de Materia Prima"
+              hint="Recepción y descarga de compras de MP"
+              cantidad={r.porOrigen.materiaPrima.cantidad}
+              pagadoBs={r.porOrigen.materiaPrima.totalPagadoBs}
+              pendienteBs={r.porOrigen.materiaPrima.pendienteBs}
+              color="var(--color-gr-primary)"
+            />
+            <OrigenBox
+              label="Despachos a clientes"
+              hint="Carga a camión para llevar al cliente"
+              cantidad={r.porOrigen.despacho.cantidad}
+              pagadoBs={r.porOrigen.despacho.totalPagadoBs}
+              pendienteBs={r.porOrigen.despacho.pendienteBs}
+              color="var(--color-gr-info)"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Desglose por cargador */}
       <div className="card-no-pad">
         <div className="px-5 py-3.5 border-b border-gr-border">
@@ -341,6 +371,44 @@ function ReporteCargadores() {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function OrigenBox({
+  label, hint, cantidad, pagadoBs, pendienteBs, color,
+}: {
+  label: string; hint: string; cantidad: number;
+  pagadoBs: number; pendienteBs: number; color: string;
+}) {
+  return (
+    <div className="px-5 py-4 space-y-2">
+      <div>
+        <p className="font-800 text-[13.5px]" style={{ color }}>{label}</p>
+        <p className="text-[11.5px] text-[var(--color-gr-muted)]">{hint}</p>
+      </div>
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-[10.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">
+            Pagado
+          </p>
+          <p className="font-900 text-[18px]" style={{ color: 'var(--color-gr-success)' }}>
+            {formatBs(pagadoBs)}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide">
+            Pendiente
+          </p>
+          <p className="font-800 text-[14.5px]"
+            style={{ color: pendienteBs > 0 ? 'var(--color-gr-danger)' : 'var(--color-gr-muted)' }}>
+            {formatBs(pendienteBs)}
+          </p>
+        </div>
+      </div>
+      <p className="text-[11px] text-[var(--color-gr-muted)]">
+        {cantidad} movimiento{cantidad !== 1 ? 's' : ''} de carga
+      </p>
     </div>
   );
 }
@@ -559,6 +627,14 @@ function ReporteVentas() {
         </div>
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <VentasPDFLink data={{ ventas: ventasLegacy as any, total: totalBs }} />
+      </div>
+
+      {/* KPIs de la selección */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KPICard label="Ventas" value={String(filtered.length)} color="primary" />
+        <KPICard label="Bolsas" value={formatNum(totalBolsas, 0)} color="primary" />
+        <KPICard label="Quintales (QQ)" value={formatNum(totalQQ, 2)} color="primary" />
+        <KPICard label="Total Bs" value={formatBs(totalFiltered)} color="success" />
       </div>
 
       {/* Top clientes */}

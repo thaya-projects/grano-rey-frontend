@@ -357,3 +357,85 @@ export function EmptyState({ icon, title, description }: { icon?: React.ReactNod
     </div>
   );
 }
+
+// ─── Tooltip ───────────────────────────────────────────────────────────────────
+/**
+ * Tooltip minimalista sin JS — solo CSS con :hover en un wrapper `group`.
+ * Aparece con fade suave, con flecha, arriba del elemento hijo.
+ * Uso: <Tooltip label="Ver detalle"><button>...</button></Tooltip>
+ */
+type TooltipSide = 'top' | 'bottom' | 'left' | 'right';
+export function Tooltip({
+  label, children, side = 'top', className,
+}: {
+  label: React.ReactNode;
+  children: React.ReactNode;
+  side?: TooltipSide;
+  className?: string;
+}) {
+  const posClass =
+    side === 'top'    ? 'bottom-full mb-1.5 left-1/2 -translate-x-1/2' :
+    side === 'bottom' ? 'top-full mt-1.5 left-1/2 -translate-x-1/2' :
+    side === 'left'   ? 'right-full mr-1.5 top-1/2 -translate-y-1/2' :
+                        'left-full  ml-1.5 top-1/2 -translate-y-1/2';
+  return (
+    <span className={cn('relative inline-flex group', className)}>
+      {children}
+      <span
+        role="tooltip"
+        className={cn(
+          'pointer-events-none absolute z-50 whitespace-nowrap',
+          'rounded-[8px] px-2.5 py-1.5 text-[11.5px] font-600 text-white',
+          'shadow-lg',
+          'opacity-0 scale-95 translate-y-0.5',
+          'group-hover:opacity-100 group-hover:scale-100 group-hover:translate-y-0',
+          'transition-all duration-150 ease-out delay-100',
+          posClass,
+        )}
+        style={{ background: 'var(--color-gr-text)' }}
+      >
+        {label}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Botón cuadrado icon-only con tooltip incorporado — el patrón más frecuente
+ * en tablas de acciones.
+ */
+type IconBtnVariant = 'ghost' | 'primary' | 'gold' | 'danger';
+const iconBtnStyles: Record<IconBtnVariant, string> = {
+  ghost:   'border-[var(--color-gr-border)] text-[var(--color-gr-muted)] hover:bg-[var(--color-gr-border-lite)] hover:text-[var(--color-gr-text)]',
+  primary: 'border-[var(--color-gr-primary)] bg-[var(--color-gr-primary-lite)] text-[var(--color-gr-primary)] hover:bg-[var(--color-gr-primary)] hover:text-white',
+  gold:    'border-[var(--color-gr-gold)] bg-[var(--color-gr-gold-lite)] text-[var(--color-gr-gold-dark)] hover:bg-[var(--color-gr-gold)] hover:text-white',
+  danger:  'border-[var(--color-gr-danger)] text-[var(--color-gr-danger)] hover:bg-[var(--color-gr-danger)] hover:text-white',
+};
+export function IconBtn({
+  tooltip, variant = 'ghost', onClick, disabled, children, tooltipSide = 'top',
+}: {
+  tooltip: string;
+  variant?: IconBtnVariant;
+  onClick?: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+  tooltipSide?: TooltipSide;
+}) {
+  return (
+    <Tooltip label={tooltip} side={tooltipSide}>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={tooltip}
+        className={cn(
+          'w-9 h-9 rounded-[10px] border-2 flex items-center justify-center transition-all',
+          'disabled:opacity-40 disabled:cursor-not-allowed',
+          iconBtnStyles[variant],
+        )}
+      >
+        {children}
+      </button>
+    </Tooltip>
+  );
+}
