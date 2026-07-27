@@ -57,7 +57,7 @@ export default function ImprimirVentaPage() {
         <Btn onClick={() => window.print()}><Printer size={14} /> Imprimir</Btn>
       </div>
 
-      <div className={modo === 'combinada' ? 'print-only-target' : 'print-only-target max-w-[800px] mx-auto'}>
+      <div className="print-only-target max-w-[800px] mx-auto">
         <DocumentoVenta venta={venta} modo={modo} />
       </div>
     </div>
