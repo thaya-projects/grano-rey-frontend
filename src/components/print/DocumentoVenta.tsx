@@ -10,11 +10,27 @@ interface Props {
   modo: ModoDocumento;
 }
 
+/**
+ * Reglas de negocio de cada documento:
+ * - NOTA DE VENTA: documento comercial → CON precios y total Bs.
+ * - PROFORMA: documento de carga → SIN precios; solo productos, lote y bolsas.
+ * - COMBINADA: nota arriba + proforma abajo (vertical) para imprimir juntas
+ *   y cortar la hoja — cada mitad va a un destinatario distinto.
+ * Ambas llevan datos completos del cliente y del chofer.
+ */
 export function DocumentoVenta({ venta, modo }: Props) {
   if (modo === 'combinada') {
     return (
-      <div className="print-combined" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6mm' }}>
+      <div className="space-y-4">
         <DocumentoVentaSimple venta={venta} tipo="nota" compact />
+        <div
+          className="border-t-2 border-dashed border-[var(--color-gr-border)] relative"
+          aria-hidden
+        >
+          <span className="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-white px-3 text-[10px] text-[var(--color-gr-muted)] uppercase tracking-widest">
+            ✂ cortar aquí
+          </span>
+        </div>
         <DocumentoVentaSimple venta={venta} tipo="proforma" compact />
       </div>
     );
@@ -27,22 +43,32 @@ function DocumentoVentaSimple({
 }: { venta: NotaVenta; tipo: 'nota' | 'proforma'; compact?: boolean }) {
   const v = venta;
   const transp = v.transportista;
+  const cliente = v.cliente;
   const esProforma = tipo === 'proforma';
 
-  // Tipografías más chicas cuando va a 2 columnas
-  const tHeader   = compact ? 'text-[10px]'   : 'text-[12px]';
-  const tNumero   = compact ? 'text-[18px]'   : 'text-[22px]';
-  const tFecha    = compact ? 'text-[10px]'   : 'text-[12px]';
-  const tBody     = compact ? 'text-[11px]'   : 'text-[13px]';
-  const tRow      = compact ? 'text-[10.5px]' : 'text-[12.5px]';
-  const tTotal    = compact ? 'text-[14px]'   : 'text-[16px]';
-  const logoW     = compact ? 70             : 90;
-  const logoH     = compact ? 30             : 40;
-  const padHead   = compact ? 'px-4 py-3'    : 'px-6 py-4';
-  const padBody   = compact ? 'px-4 py-3'    : 'px-6 py-4';
+  const totalBolsas = v.detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
+
+  // Responsable de producción: del primer lote que tenga uno; si no, el vendedor.
+  const responsableProduccion =
+    v.detalles.map(d => d.lote?.responsable?.nombre).find(Boolean) ?? null;
+
+  // Tipografías compactas cuando va apilado en la combinada
+  const tNumero = compact ? 'text-[17px]'   : 'text-[22px]';
+  const tBody   = compact ? 'text-[11px]'   : 'text-[13px]';
+  const tRow    = compact ? 'text-[10.5px]' : 'text-[12.5px]';
+  const tTotal  = compact ? 'text-[13.5px]' : 'text-[16px]';
+  const logoW   = compact ? 64 : 90;
+  const logoH   = compact ? 28 : 40;
+  const padHead = compact ? 'px-4 py-2.5' : 'px-6 py-4';
+  const padBody = compact ? 'px-4 py-3'   : 'px-6 py-4';
+
+  // Grillas de la tabla según el documento
+  const gridNota     = 'minmax(0, 1fr) 90px 55px 62px 72px';
+  const gridProforma = 'minmax(0, 1fr) 120px 90px';
 
   return (
-    <div className="border-[1.5px] border-[var(--color-gr-border)] rounded-[12px] overflow-hidden bg-white">
+    <div className="print-doc border-[1.5px] border-[var(--color-gr-border)] rounded-[12px] overflow-hidden bg-white">
+      {/* ── Header ── */}
       <div className={`${padHead} flex items-center justify-between ${esProforma ? 'bg-[var(--color-gr-gold-dark)]' : 'bg-[var(--color-gr-primary)]'}`}>
         <div className="flex items-center gap-3 min-w-0">
           <div className="bg-white rounded-[10px] p-1.5 shrink-0">
@@ -57,97 +83,145 @@ function DocumentoVentaSimple({
           )}
         </div>
         <div className="text-right shrink-0 pl-2">
-          <p className={`font-800 whitespace-nowrap ${tHeader} ${esProforma ? 'text-white' : 'text-[var(--color-gr-gold)]'}`}>
-            {esProforma ? 'PROFORMA' : 'NOTA DE VENTA'}
+          <p className={`font-800 whitespace-nowrap ${compact ? 'text-[10px]' : 'text-[12px]'} ${esProforma ? 'text-white' : 'text-[var(--color-gr-gold)]'}`}>
+            {esProforma ? 'PROFORMA DE CARGA' : 'NOTA DE VENTA'}
           </p>
           <p className={`text-white font-900 ${tNumero} whitespace-nowrap leading-tight`}>
             {esProforma ? `P-${v.numeroNota}` : `NV-${v.numeroNota}`}
           </p>
-          <p className={`text-white/60 ${tFecha} whitespace-nowrap`}>{v.fecha}</p>
+          <p className={`text-white/60 whitespace-nowrap ${compact ? 'text-[10px]' : 'text-[12px]'}`}>
+            {v.fecha}{v.numeroGuia ? ` · Guía G-${v.numeroGuia}` : ''}
+          </p>
         </div>
       </div>
 
       <div className={`${padBody} space-y-3 bg-white ${tBody}`}>
+        {/* ── Cliente completo + chofer ── */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <p className="text-[9.5px] font-700 text-[var(--color-gr-muted)] uppercase mb-1 tracking-wide">Cliente</p>
-            <p className="font-800 text-[var(--color-gr-text)]">{v.cliente?.nombre ?? '—'}</p>
-            {v.cliente?.ciudad && <p className="text-[10.5px] text-[var(--color-gr-muted)]">{v.cliente.ciudad}</p>}
-            {v.cliente?.nit && <p className="text-[10.5px] text-[var(--color-gr-muted)]">NIT: {v.cliente.nit}</p>}
+            <p className="font-800 text-[var(--color-gr-text)]">{cliente?.nombre ?? '—'}</p>
+            {(cliente?.ciudad || cliente?.direccion) && (
+              <p className="text-[10.5px] text-[var(--color-gr-muted)]">
+                {[cliente?.ciudad, cliente?.direccion].filter(Boolean).join(' · ')}
+              </p>
+            )}
+            {cliente?.telefono && (
+              <p className="text-[10.5px] text-[var(--color-gr-muted)]">Cel: {cliente.telefono}</p>
+            )}
+            {!esProforma && cliente?.nit && (
+              <p className="text-[10.5px] text-[var(--color-gr-muted)]">NIT: {cliente.nit}</p>
+            )}
           </div>
           <div>
-            <p className="text-[9.5px] font-700 text-[var(--color-gr-muted)] uppercase mb-1 tracking-wide">N° Guía</p>
-            <p className="font-800 text-[var(--color-gr-text)]">{v.numeroGuia ? `G-${v.numeroGuia}` : '—'}</p>
-          </div>
-        </div>
-
-        {transp && (
-          <div className="bg-[var(--color-gr-border-lite)] rounded-[8px] px-3 py-2">
             <p className="text-[9.5px] font-700 text-[var(--color-gr-muted)] uppercase mb-1 tracking-wide">
               Chofer / Transportista
             </p>
-            <p className="font-700 text-[var(--color-gr-text)]">
-              {transp.nombre}
-              {transp.ci ? ` · CI ${transp.ci}` : ''}
-            </p>
-            <p className="text-[10.5px] text-[var(--color-gr-sub)]">
-              {transp.empresa ?? ''}
-              {transp.empresa && (transp.marca || transp.placa || transp.color) ? ' · ' : ''}
-              {transp.marca ?? ''}
-              {transp.marca && transp.placa ? ' · ' : ''}
-              {transp.placa ? `Placa: ${transp.placa}` : ''}
-              {transp.color ? ` · ${transp.color}` : ''}
-            </p>
-            {transp.telefono && (
-              <p className="text-[10.5px] text-[var(--color-gr-muted)]">Tel: {transp.telefono}</p>
-            )}
+            {transp ? (
+              <>
+                <p className="font-700 text-[var(--color-gr-text)]">
+                  {transp.nombre}{transp.ci ? ` · CI ${transp.ci}` : ''}
+                </p>
+                <p className="text-[10.5px] text-[var(--color-gr-sub)]">
+                  {[transp.marca, transp.placa ? `Placa ${transp.placa}` : null, transp.color]
+                    .filter(Boolean).join(' · ')}
+                </p>
+                {transp.telefono && (
+                  <p className="text-[10.5px] text-[var(--color-gr-muted)]">Cel: {transp.telefono}</p>
+                )}
+              </>
+            ) : <p className="text-[var(--color-gr-muted)]">Sin asignar</p>}
+          </div>
+        </div>
+
+        {/* ── Tabla de productos ── */}
+        {esProforma ? (
+          /* PROFORMA: sin precios — solo producto, lote y bolsas */
+          <div className="border border-[var(--color-gr-border)] rounded-[8px] overflow-hidden">
+            <div
+              className="bg-[var(--color-gr-gold-dark)] px-3 py-2 gap-2 text-[9.5px] font-700 text-white/90 uppercase tracking-wide"
+              style={{ display: 'grid', gridTemplateColumns: gridProforma }}
+            >
+              <span>Producto</span>
+              <span>Lote</span>
+              <span className="text-right">Bolsas</span>
+            </div>
+            {v.detalles.map((d, i) => (
+              <div key={d.id ?? i}
+                className={`px-3 py-2 gap-2 ${tRow} ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}
+                style={{ display: 'grid', gridTemplateColumns: gridProforma, alignItems: 'center' }}
+              >
+                <p className="font-600 truncate">{d.producto?.nombre ?? '—'}</p>
+                <p className="text-[var(--color-gr-muted)] truncate">{d.lote?.codigoLote ?? '—'}</p>
+                <p className="text-right font-800 whitespace-nowrap">
+                  {Number(d.cantidad)} {d.unidad?.abreviatura ?? ''}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* NOTA DE VENTA: con precios */
+          <div className="border border-[var(--color-gr-border)] rounded-[8px] overflow-hidden">
+            <div
+              className="bg-[var(--color-gr-primary)] px-3 py-2 gap-2 text-[9.5px] font-700 text-white/90 uppercase tracking-wide"
+              style={{ display: 'grid', gridTemplateColumns: gridNota }}
+            >
+              <span>Producto</span>
+              <span>Lote</span>
+              <span className="text-right">Cant.</span>
+              <span className="text-right">Precio</span>
+              <span className="text-right">Total</span>
+            </div>
+            {v.detalles.map((d, i) => (
+              <div key={d.id ?? i}
+                className={`px-3 py-2 gap-2 ${tRow} ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}
+                style={{ display: 'grid', gridTemplateColumns: gridNota, alignItems: 'center' }}
+              >
+                <p className="font-600 truncate">{d.producto?.nombre ?? '—'}</p>
+                <p className="text-[var(--color-gr-muted)] text-[9.5px] truncate">{d.lote?.codigoLote ?? '—'}</p>
+                <p className="text-right whitespace-nowrap">{Number(d.cantidad)} {d.unidad?.abreviatura ?? ''}</p>
+                <p className="text-right whitespace-nowrap">{formatBs(Number(d.precioUnitarioBs))}</p>
+                <p className="text-right font-800 whitespace-nowrap">{formatBs(Number(d.valorTotalBs))}</p>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* Tabla de productos con grid de anchos fijos → siempre alineado */}
-        <div className="border border-[var(--color-gr-border)] rounded-[8px] overflow-hidden">
-          <div
-            className="bg-[var(--color-gr-primary)] px-3 py-2 gap-2 text-[9.5px] font-700 text-white/90 uppercase tracking-wide"
-            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 50px 60px 70px' }}
-          >
-            <span>Producto</span>
-            <span className="text-right">Cant.</span>
-            <span className="text-right">Precio</span>
-            <span className="text-right">Total</span>
+        {/* ── Totales ── */}
+        {esProforma ? (
+          <div className={`flex justify-between font-900 ${tTotal} text-[var(--color-gr-gold-dark)] pt-1 border-t border-[var(--color-gr-border)]`}>
+            <span>TOTAL BOLSAS</span>
+            <span>{totalBolsas}</span>
           </div>
-          {v.detalles.map((d, i) => (
-            <div key={d.id ?? i}
-              className={`px-3 py-2 gap-2 ${tRow} ${i < v.detalles.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}
-              style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 50px 60px 70px', alignItems: 'center' }}
-            >
-              <div className="min-w-0">
-                <p className="font-600 truncate">{d.producto?.nombre ?? '—'}</p>
-                {d.lote && (
-                  <p className="text-[9.5px] text-[var(--color-gr-muted)] truncate">Lote {d.lote.codigoLote}</p>
-                )}
+        ) : (
+          <div className={`space-y-1 ${tRow}`}>
+            {Number(v.descuentoBs) > 0 && (
+              <div className="flex justify-between text-[var(--color-gr-muted)]">
+                <span>Descuento</span><span>-{formatBs(Number(v.descuentoBs))}</span>
               </div>
-              <span className="text-right whitespace-nowrap">{Number(d.cantidad)} {d.unidad?.abreviatura ?? ''}</span>
-              <span className="text-right whitespace-nowrap">{formatBs(Number(d.precioUnitarioBs))}</span>
-              <span className="text-right font-800 whitespace-nowrap">{formatBs(Number(d.valorTotalBs))}</span>
+            )}
+            {Number(v.fleteBs) > 0 && (
+              <div className="flex justify-between text-[var(--color-gr-muted)]">
+                <span>Flete</span><span>{formatBs(Number(v.fleteBs))}</span>
+              </div>
+            )}
+            <div className={`flex justify-between font-900 ${tTotal} text-[var(--color-gr-primary)] pt-1 border-t border-[var(--color-gr-border)]`}>
+              <span>TOTAL</span><span className="whitespace-nowrap">{formatBs(Number(v.totalBs))}</span>
             </div>
-          ))}
-        </div>
-
-        <div className={`space-y-1 ${tRow}`}>
-          {Number(v.descuentoBs) > 0 && (
-            <div className="flex justify-between text-[var(--color-gr-muted)]">
-              <span>Descuento</span><span>-{formatBs(Number(v.descuentoBs))}</span>
-            </div>
-          )}
-          {Number(v.fleteBs) > 0 && (
-            <div className="flex justify-between text-[var(--color-gr-muted)]">
-              <span>Flete</span><span>{formatBs(Number(v.fleteBs))}</span>
-            </div>
-          )}
-          <div className={`flex justify-between font-900 ${tTotal} text-[var(--color-gr-primary)] pt-1 border-t border-[var(--color-gr-border)]`}>
-            <span>TOTAL</span><span className="whitespace-nowrap">{formatBs(Number(v.totalBs))}</span>
           </div>
-        </div>
+        )}
+
+        {/* ── Responsables (solo nota de venta) ── */}
+        {!esProforma && (v.vendedor?.nombre || responsableProduccion) && (
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10.5px] text-[var(--color-gr-muted)]">
+            {v.vendedor?.nombre && (
+              <p><strong className="text-[var(--color-gr-sub)]">Responsable venta:</strong> {v.vendedor.nombre}</p>
+            )}
+            {responsableProduccion && (
+              <p><strong className="text-[var(--color-gr-sub)]">Responsable producción:</strong> {responsableProduccion}</p>
+            )}
+          </div>
+        )}
 
         {v.observaciones && (
           <div className="text-[10.5px] text-[var(--color-gr-muted)]">
@@ -155,12 +229,13 @@ function DocumentoVentaSimple({
           </div>
         )}
 
+        {/* ── Firmas ── */}
         <div className="grid grid-cols-2 gap-3 pt-3">
           <div className="border-t border-[var(--color-gr-border)] pt-2 text-center text-[9.5px] uppercase tracking-wide text-[var(--color-gr-muted)] font-700 leading-snug">
             Firma Responsable Grano Rey
           </div>
           <div className="border-t border-[var(--color-gr-border)] pt-2 text-center text-[9.5px] uppercase tracking-wide text-[var(--color-gr-muted)] font-700 leading-snug">
-            {esProforma ? 'Recibido conforme — Cliente' : 'Recibido conforme'}
+            {esProforma ? 'Recibido conforme — Chofer' : 'Recibido conforme — Cliente'}
           </div>
         </div>
       </div>

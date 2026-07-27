@@ -506,11 +506,13 @@ function RemisionModal({ venta: v, onClose, onDespachar }: {
             <div>
               <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1.5">Destinatario</p>
               <p className="font-800 text-[var(--color-gr-text)] text-[15px]">{cliente?.nombre ?? '—'}</p>
-              {cliente?.ciudad && (
-                <p className="text-[12.5px] text-[var(--color-gr-muted)]">{cliente.ciudad}</p>
+              {(cliente?.ciudad || cliente?.direccion) && (
+                <p className="text-[12.5px] text-[var(--color-gr-muted)]">
+                  {[cliente?.ciudad, cliente?.direccion].filter(Boolean).join(' · ')}
+                </p>
               )}
-              {cliente?.direccion && (
-                <p className="text-[12.5px] text-[var(--color-gr-muted)]">{cliente.direccion}</p>
+              {cliente?.telefono && (
+                <p className="text-[12.5px] text-[var(--color-gr-muted)]">Cel: <strong>{cliente.telefono}</strong></p>
               )}
             </div>
             <div>
@@ -526,6 +528,9 @@ function RemisionModal({ venta: v, onClose, onDespachar }: {
                     {transp.placa ? ` · Placa: ` : ''}
                     {transp.placa && <strong>{transp.placa}</strong>}
                   </p>
+                  {transp.telefono && (
+                    <p className="text-[12.5px] text-[var(--color-gr-muted)]">Cel: {transp.telefono}</p>
+                  )}
                 </>
               ) : <p className="text-[var(--color-gr-muted)] text-[13px]">Sin asignar</p>}
             </div>
@@ -561,14 +566,25 @@ function RemisionModal({ venta: v, onClose, onDespachar }: {
             <span>{v.detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0)}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pt-2">
-            <div className="border border-[var(--color-gr-border)] rounded-[10px] px-4 py-8 text-center">
-              <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase">Firma Responsable Producción</p>
-            </div>
-            <div className="border border-[var(--color-gr-border)] rounded-[10px] px-4 py-8 text-center">
-              <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase">Firma Transportista / Receptor</p>
-            </div>
-          </div>
+          {(() => {
+            const responsableProd = v.detalles.map(d => d.lote?.responsable?.nombre).find(Boolean);
+            return (
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="border border-[var(--color-gr-border)] rounded-[10px] px-4 pt-8 pb-3 text-center">
+                  <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase">Firma Responsable Producción</p>
+                  {responsableProd && (
+                    <p className="text-[12px] font-700 text-[var(--color-gr-text)] mt-1">{responsableProd}</p>
+                  )}
+                </div>
+                <div className="border border-[var(--color-gr-border)] rounded-[10px] px-4 pt-8 pb-3 text-center">
+                  <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase">Firma Transportista / Receptor</p>
+                  {transp?.nombre && (
+                    <p className="text-[12px] font-700 text-[var(--color-gr-text)] mt-1">{transp.nombre}</p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="flex items-center justify-between pt-1 border-t border-[var(--color-gr-border-lite)]">
             <EstadoBadge estado={v.estado} />

@@ -3,17 +3,13 @@ import { api } from '../api';
 import type {
   Producto,
   ProductoImagen,
-  KardexProducto,
   CreateProductoRequest,
   UpdateProductoRequest,
-  CreateKardexProductoRequest,
 } from '../types';
 
 export const productosKeys = {
   all: ['productos'] as const,
   detail: (id: string) => ['productos', id] as const,
-  kardex: (productoId?: string) =>
-    productoId ? (['kardex-productos', productoId] as const) : (['kardex-productos'] as const),
 };
 
 export function useProductos() {
@@ -46,18 +42,6 @@ export function useUpdateProducto() {
     mutationFn: async ({ id, dto }: { id: string; dto: UpdateProductoRequest }) =>
       (await api.patch<Producto>(`/productos/${id}`, dto)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: productosKeys.all }),
-  });
-}
-
-export function useKardexProductos(productoId?: string) {
-  return useQuery({
-    queryKey: productosKeys.kardex(productoId),
-    queryFn: async () =>
-      (
-        await api.get<KardexProducto[]>('/kardex-productos', {
-          params: productoId ? { productoId } : undefined,
-        })
-      ).data,
   });
 }
 
@@ -104,14 +88,18 @@ export function useDeleteProductoImagen() {
   });
 }
 
-export function useCreateKardexProducto() {
+/**
+ * Ajuste manual de stock (corrección de inventario / bajas por pérdida).
+ * `cantidad` negativa = decremento, positiva = incremento.
+ */
+export function useAjusteStock() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (dto: CreateKardexProductoRequest) =>
-      (await api.post<KardexProducto>('/kardex-productos', dto)).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: productosKeys.kardex() });
+    mutationFn: async ({ id, cantidad, motivo }: { id: string; cantidad: number; motivo?: string }) =>
+      (await api.patch<Producto>(`/productos/${id}/ajuste-stock`, { cantidad, motivo })).data,
+    onSuccess: (_, { id }) => {
       qc.invalidateQueries({ queryKey: productosKeys.all });
+      qc.invalidateQueries({ queryKey: productosKeys.detail(id) });
     },
   });
 }
