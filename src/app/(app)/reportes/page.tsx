@@ -575,6 +575,8 @@ function ReporteVentas() {
   const totalBs = filtered.reduce((s, v) => s + Number(v.totalBs), 0);
   const totalQQ = filtered.reduce((s, v) =>
     s + v.detalles.reduce((ds, d) => ds + kgToQQ(Number(d.totalKg)), 0), 0);
+  const totalBolsas = filtered.reduce((s, v) =>
+    s + v.detalles.reduce((ds, d) => ds + Number(d.cantidad ?? 0), 0), 0);
 
   const topClientes = useMemo(() => {
     const acc: Record<string, { nombre: string; total: number; pedidos: number }> = {};

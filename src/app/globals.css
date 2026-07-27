@@ -98,14 +98,14 @@
     .print-only-target,
     .print-only-target > * { margin-top: 0 !important; }
 
-    /* Evitar que el documento se parta a la mitad */
-    .print-only-target > *,
-    .print-combined > * {
+    /* Cada documento (nota o proforma) se imprime entero, sin partirse.
+       En la combinada, si no caben ambos en una hoja, la proforma fluye
+       completa a la siguiente página. */
+    .print-doc {
       break-inside: avoid;
       page-break-inside: avoid;
     }
 
-    .print-combined { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 8mm; }
     .print-page-break { page-break-after: always; }
 
     @page { size: A4; margin: 10mm; }
