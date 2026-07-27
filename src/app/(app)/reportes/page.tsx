@@ -632,9 +632,8 @@ function ReporteVentas() {
       </div>
 
       {/* KPIs de la selección */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <KPICard label="Ventas" value={String(filtered.length)} color="primary" />
-        <KPICard label="Bolsas" value={formatNum(totalBolsas, 0)} color="primary" />
         <KPICard label="Quintales (QQ)" value={formatNum(totalQQ, 2)} color="primary" />
         <KPICard label="Total Bs" value={formatBs(totalBs)} color="success" />
       </div>
