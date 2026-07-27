@@ -1,11 +1,11 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
-import { useProductos, useCreateKardexProducto } from '@/lib/api/productos';
+import { useProductos, useAjusteStock } from '@/lib/api/productos';
 import { useLotes, useCreateLote } from '@/lib/api/produccion';
 import { useMateriasPrimas, useKardexMP } from '@/lib/api/materia-prima';
 import { useUnidades } from '@/lib/api/catalogos';
 import { useUsuarios } from '@/lib/api/usuarios';
-import { type Producto, type MateriaPrima, type CreateLoteRequest, TipoMovimientoMP, TipoMovimientoPT, TipoUnidad, RolUsuario } from '@/lib/types';
+import { type Producto, type MateriaPrima, type CreateLoteRequest, TipoMovimientoMP, TipoUnidad, RolUsuario } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatNum, formatBs, KG_POR_QQ, kgToQQ, equivPT, equivLabel } from '@/lib/utils';
 import {
@@ -910,29 +910,24 @@ function BajaModal({ productos, onClose, onSaved, onError }: {
   onSaved: () => void;
   onError: (msg: string) => void;
 }) {
-  const createKardex = useCreateKardexProducto();
+  const ajusteStock = useAjusteStock();
   const [productoId, setProductoId] = useState(productos[0]?.id ?? '');
   const [motivo, setMotivo]         = useState('');
   const [cantidad, setCantidad]     = useState('');
   const [desc, setDesc]             = useState('');
-  const [fecha, setFecha]           = useState(new Date().toISOString().slice(0, 10));
 
   const producto = productos.find(p => p.id === productoId) ?? null;
   const cantNum  = parseFloat(cantidad) || 0;
   const valid    = !!productoId && !!motivo && cantNum > 0
-    && cantNum <= Number(producto?.stockActual ?? 0)
-    && !!producto?.unidadProduccion?.id;
+    && cantNum <= Number(producto?.stockActual ?? 0);
 
   async function handleSave() {
     if (!valid || !producto) return;
     try {
-      await createKardex.mutateAsync({
-        fecha,
-        tipoMovimiento: TipoMovimientoPT.SALIDA,
-        cantidad: cantNum,
-        productoId: producto.id,
-        unidadId: producto.unidadProduccion!.id,
-        detalle: `${motivo}${desc ? ` — ${desc}` : ''}`,
+      await ajusteStock.mutateAsync({
+        id: producto.id,
+        cantidad: -cantNum, // negativo = baja de stock
+        motivo: `${motivo}${desc ? ` — ${desc}` : ''}`,
       });
       onSaved();
     } catch (err) {
@@ -944,7 +939,7 @@ function BajaModal({ productos, onClose, onSaved, onError }: {
     <Modal open title="Registrar baja de producto" onClose={onClose}
       footer={<>
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-        <Btn variant="danger" onClick={handleSave} disabled={!valid} loading={createKardex.isPending}>
+        <Btn variant="danger" onClick={handleSave} disabled={!valid} loading={ajusteStock.isPending}>
           Confirmar baja
         </Btn>
       </>}>
@@ -982,9 +977,6 @@ function BajaModal({ productos, onClose, onSaved, onError }: {
                 value={cantidad} onChange={e => setCantidad(e.target.value)} />
             </FormField>
           </div>
-          <FormField label="Fecha" required>
-            <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
-          </FormField>
           <FormField label="Descripción">
             <Textarea placeholder="Describir qué ocurrió..." value={desc}
               onChange={e => setDesc(e.target.value)} />

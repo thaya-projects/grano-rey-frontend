@@ -575,6 +575,8 @@ function ReporteVentas() {
   const totalBs = filtered.reduce((s, v) => s + Number(v.totalBs), 0);
   const totalQQ = filtered.reduce((s, v) =>
     s + v.detalles.reduce((ds, d) => ds + kgToQQ(Number(d.totalKg)), 0), 0);
+  const totalBolsas = filtered.reduce((s, v) =>
+    s + v.detalles.reduce((ds, d) => ds + Number(d.cantidad ?? 0), 0), 0);
 
   const topClientes = useMemo(() => {
     const acc: Record<string, { nombre: string; total: number; pedidos: number }> = {};
@@ -634,7 +636,7 @@ function ReporteVentas() {
         <KPICard label="Ventas" value={String(filtered.length)} color="primary" />
         <KPICard label="Bolsas" value={formatNum(totalBolsas, 0)} color="primary" />
         <KPICard label="Quintales (QQ)" value={formatNum(totalQQ, 2)} color="primary" />
-        <KPICard label="Total Bs" value={formatBs(totalFiltered)} color="success" />
+        <KPICard label="Total Bs" value={formatBs(totalBs)} color="success" />
       </div>
 
       {/* Top clientes */}
