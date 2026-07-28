@@ -294,6 +294,9 @@ function CobrarModal({ venta, onClose, onCobrada }: {
       <div className="rounded-[10px] px-4 py-3 text-[13.5px]" style={{ background: 'var(--color-gr-primary-lite)' }}>
         <p className="text-[var(--color-gr-muted)]">Cliente</p>
         <p className="font-800 text-[var(--color-gr-text)]">{venta.cliente?.nombre}</p>
+        {venta.cliente?.telefono && (
+          <p className="text-[12px] text-[var(--color-gr-muted)]">Cel: {venta.cliente.telefono}</p>
+        )}
         <p className="text-[22px] font-900 text-[var(--color-gr-primary)] mt-1">{formatBs(Number(venta.totalBs))}</p>
       </div>
       <FormField label="Método de pago" required>
@@ -342,6 +345,19 @@ function DetalleModal({ venta: v, onClose, onCambiarEstado, onCobrar }: {
             <div>
               <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Cliente</p>
               <p className="font-800 text-[var(--color-gr-text)]">{v.cliente?.nombre ?? '—'}</p>
+              {(v.cliente?.ciudad || v.cliente?.direccion) && (
+                <p className="text-[12.5px] text-[var(--color-gr-muted)]">
+                  {[v.cliente?.ciudad, v.cliente?.direccion].filter(Boolean).join(' · ')}
+                </p>
+              )}
+              {v.cliente?.telefono && (
+                <p className="text-[12.5px] text-[var(--color-gr-muted)]">
+                  Cel: <strong className="text-[var(--color-gr-text)]">{v.cliente.telefono}</strong>
+                </p>
+              )}
+              {v.cliente?.nit && (
+                <p className="text-[12.5px] text-[var(--color-gr-muted)]">NIT: {v.cliente.nit}</p>
+              )}
             </div>
             <div>
               <p className="text-[11px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">N° Guía</p>
