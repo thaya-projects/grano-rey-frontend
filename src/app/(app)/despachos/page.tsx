@@ -342,7 +342,12 @@ function ReporteFila({ venta: v, color }: { venta: NotaVenta; color: string }) {
 
       {/* Recuadros informativos */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-        <InfoBox icon={<User size={13} />} label="Cliente" value={v.cliente?.nombre ?? '—'} />
+        <InfoBox
+          icon={<User size={13} />}
+          label="Cliente"
+          value={[v.cliente?.nombre, v.cliente?.telefono ? `Cel ${v.cliente.telefono}` : null]
+            .filter(Boolean).join(' · ') || '—'}
+        />
         <InfoBox icon={<Calendar size={13} />} label="Fecha" value={v.fecha} />
         <InfoBox
           icon={<Truck size={13} />}
@@ -419,7 +424,11 @@ function RemisionCard({ venta: v, onVerRemision, onDespachar }: {
             )}
           </div>
           <p className="font-600 text-gr-text text-[13.5px] truncate">{v.cliente?.nombre ?? '—'}</p>
-          <p className="text-[12px] text-gr-muted">{v.fecha}</p>
+          <p className="text-[12px] text-gr-muted">
+            {v.fecha}
+            {v.cliente?.telefono && <> · Cel: {v.cliente.telefono}</>}
+            {v.cliente?.ciudad && <> · {v.cliente.ciudad}</>}
+          </p>
         </div>
         <p className="font-900 text-[var(--color-gr-primary)] text-[18px] whitespace-nowrap shrink-0">{formatBs(Number(v.totalBs))}</p>
       </div>
@@ -668,9 +677,13 @@ function DespacharModal({ venta, onClose, onSaved, onError }: {
         <div>
           <p className="font-700 text-[var(--color-gr-primary)] text-[14px]">
             {venta.cliente?.nombre ?? '—'}
+            {venta.cliente?.telefono && (
+              <span className="font-600 text-[12.5px] text-[var(--color-gr-muted)]"> · Cel: {venta.cliente.telefono}</span>
+            )}
           </p>
           <p className="text-[12px] text-[var(--color-gr-muted)]">
             {venta.fecha} · {totalUnidades} unid. · {formatBs(Number(venta.totalBs))}
+            {venta.cliente?.ciudad && <> · {venta.cliente.ciudad}</>}
           </p>
         </div>
       </div>
