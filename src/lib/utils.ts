@@ -53,6 +53,20 @@ export function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * Genera una contraseña aleatoria válida para el backend (regla única: mínimo 6 caracteres,
+ * sin restricciones de mayúsculas/números/símbolos — @MinLength(6), bcrypt al guardar).
+ * 8 caracteres, sin ambiguos (0/O, 1/l/I), mezcla letras y números para que sea fácil de leer/dictar.
+ */
+export function generarPassword(length = 8): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let out = '';
+  for (let i = 0; i < length; i++) {
+    out += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return out;
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' });
 }

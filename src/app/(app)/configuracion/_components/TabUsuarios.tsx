@@ -3,10 +3,11 @@ import { useState, useMemo } from 'react';
 import { useUsuarios, useCreateUsuario, useUpdateUsuario, useDeleteUsuario } from '@/lib/api/usuarios';
 import { RolUsuario, type Usuario } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
+import { generarPassword } from '@/lib/utils';
 import {
   Btn, Modal, FormField, Input, Select, Badge, Spinner, useToast,
 } from '@/components/ui';
-import { Plus, Trash2, Pencil, Users, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Trash2, Pencil, Users, CheckCircle2, XCircle, Wand2, Eye, EyeOff } from 'lucide-react';
 
 const ROL_LABELS: Record<RolUsuario, string> = {
   administradora: 'Administrador',
@@ -32,10 +33,16 @@ function NuevoUsuarioModal({ onClose, onSaved, onError }: {
   const [nombre, setNombre]     = useState('');
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
+  const [verPassword, setVerPassword] = useState(false);
   const [rol, setRol]           = useState<RolUsuario>(RolUsuario.VENDEDOR);
   const [telefono, setTelefono] = useState('');
 
   const valid = !!nombre.trim() && !!email.trim() && password.length >= 6;
+
+  function handleGenerar() {
+    setPassword(generarPassword());
+    setVerPassword(true);
+  }
 
   async function handleSave() {
     if (!valid) return;
@@ -71,8 +78,19 @@ function NuevoUsuarioModal({ onClose, onSaved, onError }: {
             placeholder="carlos@granorey.bo" />
         </FormField>
         <FormField label="Contraseña" required hint="Mínimo 6 caracteres">
-          <Input type="password" value={password} onChange={e => setPassword(e.target.value)}
-            placeholder="••••••" />
+          <div className="flex gap-1.5">
+            <div className="relative flex-1">
+              <Input type={verPassword ? 'text' : 'password'} value={password}
+                onChange={e => setPassword(e.target.value)} placeholder="••••••" className="pr-9" />
+              <button type="button" onClick={() => setVerPassword(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gr-muted hover:text-gr-text">
+                {verPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            <Btn type="button" size="sm" variant="ghost" onClick={handleGenerar} title="Generar contraseña">
+              <Wand2 size={14} />
+            </Btn>
+          </div>
         </FormField>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -105,8 +123,15 @@ function EditarUsuarioModal({ usuario, onClose, onSaved, onError }: {
   const [rol, setRol]           = useState<RolUsuario>(usuario.rol);
   const [telefono, setTelefono] = useState(usuario.telefono ?? '');
   const [activo, setActivo]     = useState(usuario.activo);
+  const [password, setPassword] = useState('');
+  const [verPassword, setVerPassword] = useState(false);
 
-  const valid = !!nombre.trim() && !!email.trim();
+  const valid = !!nombre.trim() && !!email.trim() && (password === '' || password.length >= 6);
+
+  function handleGenerar() {
+    setPassword(generarPassword());
+    setVerPassword(true);
+  }
 
   async function handleSave() {
     if (!valid) return;
@@ -119,6 +144,7 @@ function EditarUsuarioModal({ usuario, onClose, onSaved, onError }: {
           rol,
           telefono: telefono.trim() || undefined,
           activo,
+          password: password || undefined,
         },
       });
       onSaved();
@@ -147,6 +173,22 @@ function EditarUsuarioModal({ usuario, onClose, onSaved, onError }: {
             placeholder="76012345" />
         </FormField>
       </div>
+      <FormField label="Nueva contraseña" hint={password && password.length < 6 ? 'Mínimo 6 caracteres' : 'Dejar en blanco para no cambiarla'}
+        error={password && password.length < 6 ? 'Mínimo 6 caracteres' : undefined}>
+        <div className="flex gap-1.5">
+          <div className="relative flex-1">
+            <Input type={verPassword ? 'text' : 'password'} value={password}
+              onChange={e => setPassword(e.target.value)} placeholder="••••••" className="pr-9" />
+            <button type="button" onClick={() => setVerPassword(v => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gr-muted hover:text-gr-text">
+              {verPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+            </button>
+          </div>
+          <Btn type="button" size="sm" variant="ghost" onClick={handleGenerar} title="Generar contraseña">
+            <Wand2 size={14} />
+          </Btn>
+        </div>
+      </FormField>
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Rol" required>
           <Select value={rol} onChange={e => setRol(e.target.value as RolUsuario)}>
