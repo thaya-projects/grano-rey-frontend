@@ -3,12 +3,14 @@ import { useState } from 'react';
 import { useClientes } from '@/lib/api/catalogos';
 import { Btn, Spinner } from '@/components/ui';
 import { NuevoClienteModal } from '@/components/NuevoClienteModal';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil } from 'lucide-react';
+import type { Cliente } from '@/lib/types';
 
 export function TabClientes() {
   const q = useClientes();
   const clientes = q.data ?? [];
   const [open, setOpen] = useState(false);
+  const [editCliente, setEditCliente] = useState<Cliente | null>(null);
 
   if (q.isLoading) return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
 
@@ -23,7 +25,7 @@ export function TabClientes() {
         <table className="w-full text-[13px]" style={{ minWidth: 400 }}>
           <thead>
             <tr style={{ background: 'var(--color-gr-primary)' }}>
-              {['Nombre', 'Ciudad', 'Teléfono', 'NIT'].map(h => (
+              {['Nombre', 'Ciudad', 'Teléfono', 'NIT', ''].map(h => (
                 <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -36,6 +38,11 @@ export function TabClientes() {
                 <td className="px-4 py-3 whitespace-nowrap">{c.ciudad ?? '—'}</td>
                 <td className="px-4 py-3 whitespace-nowrap">{c.telefono ?? '—'}</td>
                 <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">{c.nit ?? '—'}</td>
+                <td className="px-4 py-3 text-right">
+                  <Btn size="sm" variant="ghost" onClick={() => setEditCliente(c)}>
+                    <Pencil size={12} />
+                  </Btn>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -43,6 +50,9 @@ export function TabClientes() {
         </div>
       </div>
       {open && <NuevoClienteModal onClose={() => setOpen(false)} />}
+      {editCliente && (
+        <NuevoClienteModal cliente={editCliente} onClose={() => setEditCliente(null)} />
+      )}
     </div>
   );
 }
