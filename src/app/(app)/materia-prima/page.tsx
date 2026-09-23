@@ -1,6 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { useMateriasPrimas, useCreateKardexMP, useKardexMP, useKardexMPPendientesPago, usePagarKardexMP } from '@/lib/api/materia-prima';
+import { useMateriasPrimas, useCreateKardexMP, useKardexMP, useKardexMPPendientesPago, usePagarKardexMP, useAnularKardexMP } from '@/lib/api/materia-prima';
 import { useProveedores, useUnidades, useSubtiposMP } from '@/lib/api/catalogos';
 import { useLotes } from '@/lib/api/produccion';
 import { TipoMovimientoMP, TipoPagoCarga, EstadoPagoMP, RolUsuario, type MateriaPrima, type KardexMP, type LoteProduccion, type UnidadMedida } from '@/lib/types';
@@ -8,7 +8,7 @@ import { apiErrorMessage } from '@/lib/api';
 import { useAuth } from '@/lib/auth-store';
 import { formatNum, formatBs, kgToQQ } from '@/lib/utils';
 import { Btn, Modal, FormField, Input, Select, Textarea, Spinner, useToast } from '@/components/ui';
-import { Plus, CheckCircle, ChevronRight, ChevronDown, MinusCircle } from 'lucide-react';
+import { Plus, CheckCircle, ChevronRight, ChevronDown, MinusCircle, Ban } from 'lucide-react';
 import { CargasSection, type CargaDraft } from '@/components/CargasSection';
 
 /**
@@ -40,24 +40,29 @@ function StockDot({ value, min }: { value: number; min: number }) {
 }
 
 // ─── Lotes de un MP (se monta cuando el acordeón está abierto) ────────────
-function LotesSection({ kardex, loading, stockActualKg, unidadMedida, onPagar, pagarPending, canEdit }: {
+function LotesSection({ kardex, loading, stockActualKg, unidadMedida, onPagar, pagarPending, onAnular, canEdit }: {
   kardex: KardexMP[];
   loading: boolean;
   stockActualKg: number;
   unidadMedida?: UnidadMedida | null;
   onPagar: (id: string) => void;
   pagarPending: boolean;
+  onAnular: (k: KardexMP) => void;
   canEdit: boolean;
 }) {
   const factor    = unidadMedida?.factorABase ?? 46;
   const unitLabel = unidadMedida?.abreviatura ?? unidadMedida?.codigo ?? 'QQ';
-  // Ingresos ordenados FIFO (más viejo primero) para cómputo
+  // Ingresos ordenados FIFO (más viejo primero) para cómputo — excluye anuladas: ya no aportan stock.
   const ingresosOrdenados = kardex
-    .filter(k => k.tipoMovimiento === TipoMovimientoMP.INGRESO)
+    .filter(k => k.tipoMovimiento === TipoMovimientoMP.INGRESO && !k.anulado)
     .sort((a, b) => {
       const d = a.fecha.localeCompare(b.fecha);
       return d !== 0 ? d : a.createdAt.localeCompare(b.createdAt);
     });
+  // Anuladas se muestran aparte, al final, solo como registro de auditoría.
+  const anuladas = kardex
+    .filter(k => k.tipoMovimiento === TipoMovimientoMP.INGRESO && k.anulado)
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
 
   // ── FIFO: asignar disponible por lote ──────────────────────────
   const totalIngresadoKg = ingresosOrdenados.reduce((s, k) => s + Number(k.cantidadKg), 0);
@@ -83,7 +88,7 @@ function LotesSection({ kardex, loading, stockActualKg, unidadMedida, onPagar, p
     );
   }
 
-  if (ingresosDisplay.length === 0) {
+  if (ingresosDisplay.length === 0 && anuladas.length === 0) {
     return (
       <div className="px-6 py-5 text-[13px] text-gr-muted text-center bg-gr-border-lite/40">
         Sin lotes registrados · registrá una entrada para agregar stock
@@ -177,7 +182,7 @@ function LotesSection({ kardex, loading, stockActualKg, unidadMedida, onPagar, p
                 </div>
               </div>
             </div>
-            <div className="shrink-0 mt-0.5">
+            <div className="shrink-0 mt-0.5 flex flex-col items-end gap-1.5">
               {pagado ? (
                 <span className="text-[11.5px] font-600 flex items-center gap-1 whitespace-nowrap"
                   style={{ color: '#2E7D52' }}>
@@ -189,10 +194,46 @@ function LotesSection({ kardex, loading, stockActualKg, unidadMedida, onPagar, p
                   Pagar
                 </Btn>
               ) : null}
+              {!pagado && canEdit && (
+                <Btn size="sm" variant="ghost" onClick={() => onAnular(k)}>
+                  <Ban size={12} /> Anular
+                </Btn>
+              )}
             </div>
           </div>
         );
       })}
+
+      {/* ── Compras anuladas (registro de auditoría) ── */}
+      {anuladas.length > 0 && (
+        <div className="pt-2 space-y-2">
+          <p className="text-[10.5px] font-700 text-gr-muted uppercase tracking-wide">
+            Anuladas
+          </p>
+          {anuladas.map(k => (
+            <div key={k.id} className="flex items-start gap-3 px-3 py-2.5 rounded-lg bg-white border border-gr-border opacity-55">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-700 text-[13.5px] text-gr-text line-through">
+                    {k.numeroLotePropio ?? 'Sin N°'}
+                  </span>
+                  <span className="text-[11px] text-gr-muted">{k.fecha}</span>
+                  <span className="text-[10px] font-700 px-1.5 py-0.5 rounded-full"
+                    style={{ background: 'var(--color-gr-danger-bg)', color: 'var(--color-gr-danger)' }}>
+                    Anulada
+                  </span>
+                </div>
+                <p className="font-700 text-gr-muted text-[13px] mt-0.5 line-through">
+                  {formatNum(k.cantidad, 1)} {k.unidad?.codigo ?? ''}
+                </p>
+                {k.motivoAnulacion && (
+                  <p className="text-[11px] text-gr-muted mt-0.5 italic">Motivo: {k.motivoAnulacion}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -206,6 +247,7 @@ function MPRow({ mp, kardex, kardexLoading, onEntrada, onMovimiento }: {
   onMovimiento: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [anularKardex, setAnularKardex] = useState<KardexMP | null>(null);
   const toast = useToast(s => s.show);
   const pagarMut = usePagarKardexMP();
   const { user } = useAuth();
@@ -268,9 +310,68 @@ function MPRow({ mp, kardex, kardexLoading, onEntrada, onMovimiento }: {
       {open && (
         <LotesSection kardex={kardex} loading={kardexLoading} stockActualKg={stockKg}
           unidadMedida={mp.unidadMedida}
-          onPagar={handlePagar} pagarPending={pagarMut.isPending} canEdit={canEdit} />
+          onPagar={handlePagar} pagarPending={pagarMut.isPending}
+          onAnular={setAnularKardex} canEdit={canEdit} />
+      )}
+      {anularKardex && (
+        <AnularCompraModal
+          kardex={anularKardex}
+          onClose={() => setAnularKardex(null)}
+          onAnulada={() => { setAnularKardex(null); toast('Compra anulada', 'warning'); }}
+        />
       )}
     </div>
+  );
+}
+
+// ─── Anular Compra Modal ───────────────────────────────────────────────────
+function AnularCompraModal({ kardex, onClose, onAnulada }: {
+  kardex: KardexMP;
+  onClose: () => void;
+  onAnulada: () => void;
+}) {
+  const anular = useAnularKardexMP();
+  const toast  = useToast(s => s.show);
+  const [motivo, setMotivo] = useState('');
+
+  async function handleAnular() {
+    if (!motivo.trim()) return;
+    try {
+      await anular.mutateAsync({ id: kardex.id, motivo: motivo.trim() });
+      onAnulada();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'No se pudo anular la compra'), 'error');
+    }
+  }
+
+  return (
+    <Modal open title={`Anular compra — ${kardex.numeroLotePropio ?? kardex.materiaPrima?.nombre}`} onClose={onClose}
+      footer={<>
+        <Btn variant="ghost" onClick={onClose}>Cerrar</Btn>
+        <Btn variant="danger" onClick={handleAnular} disabled={!motivo.trim()} loading={anular.isPending}>
+          <Ban size={14} /> Confirmar anulación
+        </Btn>
+      </>}>
+      <div className="rounded-[10px] px-4 py-3 flex items-start gap-2"
+        style={{ background: 'var(--color-gr-danger-bg)', border: '1px solid rgba(181,61,53,0.15)' }}>
+        <Ban size={15} className="text-gr-danger shrink-0 mt-0.5" />
+        <p className="font-600 text-[13px] text-gr-danger">
+          Solo se puede anular una compra que aún no se pagó. El stock que sumó esta entrada se resta automáticamente.
+        </p>
+      </div>
+      <div className="text-[13.5px]">
+        <p className="text-gr-muted">Materia prima</p>
+        <p className="font-800 text-gr-text">{kardex.materiaPrima?.nombre ?? '—'}</p>
+        <p className="text-gr-muted mt-1">
+          Cantidad: <strong className="text-gr-text">{formatNum(kardex.cantidad, 1)} {kardex.unidad?.codigo ?? ''}</strong>
+          {kardex.proveedor && <> · Proveedor: <strong className="text-gr-text">{kardex.proveedor.nombre}</strong></>}
+        </p>
+      </div>
+      <FormField label="Motivo de la anulación" required hint="Obligatorio">
+        <Textarea placeholder="Ej. El proveedor no entregó, error al registrar la compra..."
+          value={motivo} onChange={e => setMotivo(e.target.value)} />
+      </FormField>
+    </Modal>
   );
 }
 

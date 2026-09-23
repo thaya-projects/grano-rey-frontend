@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Building2, Package, Wheat, Users, Truck, Tag, HardHat, Scale, UserCog } from 'lucide-react';
+import { Building2, Boxes, Wheat, Users, Car, Tag, HardHat, Scale, UserCog } from 'lucide-react';
 import { TabEmpresa }        from './_components/TabEmpresa';
 import { TabProductos }      from './_components/TabProductos';
 import { TabMateriaPrima }   from './_components/TabMateriaPrima';
@@ -15,11 +15,11 @@ type Tab = 'empresa' | 'productos' | 'mp' | 'unidades' | 'clientes' | 'transport
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'empresa',        label: 'Empresa',        icon: <Building2 size={15} /> },
-  { id: 'productos',      label: 'Productos',      icon: <Package size={15} /> },
+  { id: 'productos',      label: 'Productos',      icon: <Boxes size={15} /> },
   { id: 'mp',             label: 'Materia Prima',  icon: <Wheat size={15} /> },
   { id: 'unidades',       label: 'Unidades',       icon: <Scale size={15} /> },
   { id: 'clientes',       label: 'Clientes',       icon: <Users size={15} /> },
-  { id: 'transportistas', label: 'Transportistas', icon: <Truck size={15} /> },
+  { id: 'transportistas', label: 'Transportistas', icon: <Car size={15} /> },
   { id: 'proveedores',    label: 'Proveedores',    icon: <Tag size={15} /> },
   { id: 'cargadores',     label: 'Personal',       icon: <HardHat size={15} /> },
   { id: 'usuarios',       label: 'Usuarios',       icon: <UserCog size={15} /> },

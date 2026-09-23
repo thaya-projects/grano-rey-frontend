@@ -3,10 +3,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useVentas, useCambiarEstadoVenta, useCobrarVenta } from '@/lib/api/ventas';
 import type { NotaVenta } from '@/lib/types';
-import { EstadoVenta, EstadoPagoVenta, MetodoPago } from '@/lib/types';
+import { EstadoVenta, EstadoPagoVenta, MetodoPago, TipoFlete } from '@/lib/types';
 import { formatBs } from '@/lib/utils';
-import { EstadoBadge, Btn, Modal, SearchBox, Spinner, FormField, Select, Input, useToast, IconBtn } from '@/components/ui';
-import { Plus, ShoppingCart, Printer, Eye, CheckCircle, Banknote } from 'lucide-react';
+import { EstadoBadge, Btn, Modal, SearchBox, Spinner, FormField, Select, Input, Textarea, useToast, IconBtn } from '@/components/ui';
+import { Plus, ShoppingCart, Printer, Eye, CheckCircle, Banknote, Ban } from 'lucide-react';
 import { apiErrorMessage } from '@/lib/api';
 import Image from 'next/image';
 
@@ -44,6 +44,7 @@ export default function VentasPage() {
   const [search, setSearch]             = useState('');
   const [detalleVenta, setDetalleVenta] = useState<NotaVenta | null>(null);
   const [cobrarVenta, setCobrarVenta]   = useState<NotaVenta | null>(null);
+  const [anularVenta, setAnularVenta]   = useState<NotaVenta | null>(null);
   const [fechaDesde, setFechaDesde]     = useState('');
   const [fechaHasta, setFechaHasta]     = useState('');
 
@@ -235,6 +236,11 @@ export default function VentasPage() {
                         <Banknote size={15} />
                       </IconBtn>
                     )}
+                    {v.estado === EstadoVenta.PENDIENTE && (
+                      <IconBtn tooltip="Anular venta" variant="danger" onClick={() => setAnularVenta(v)}>
+                        <Ban size={15} />
+                      </IconBtn>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -249,6 +255,7 @@ export default function VentasPage() {
           onClose={() => setDetalleVenta(null)}
           onCambiarEstado={cambiarEstado}
           onCobrar={(v) => { setDetalleVenta(null); setCobrarVenta(v); }}
+          onAnular={(v) => { setDetalleVenta(null); setAnularVenta(v); }}
         />
       )}
 
@@ -259,7 +266,63 @@ export default function VentasPage() {
           onCobrada={() => { setCobrarVenta(null); toast('Cobro registrado', 'success'); }}
         />
       )}
+
+      {anularVenta && (
+        <AnularVentaModal
+          venta={anularVenta}
+          onClose={() => setAnularVenta(null)}
+          onAnulada={() => { setAnularVenta(null); toast('Venta anulada', 'warning'); }}
+        />
+      )}
     </div>
+  );
+}
+
+// ─── Anular Venta Modal ────────────────────────────────────────────────────
+function AnularVentaModal({ venta, onClose, onAnulada }: {
+  venta: NotaVenta;
+  onClose: () => void;
+  onAnulada: () => void;
+}) {
+  const cambiar = useCambiarEstadoVenta();
+  const toast   = useToast(s => s.show);
+  const [motivo, setMotivo] = useState('');
+
+  async function handleAnular() {
+    if (!motivo.trim()) return;
+    try {
+      await cambiar.mutateAsync({ id: venta.id, estado: EstadoVenta.CANCELADA, motivo: motivo.trim() });
+      onAnulada();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'No se pudo anular la venta'), 'error');
+    }
+  }
+
+  return (
+    <Modal open title={`Anular NV-${venta.numeroNota}`} onClose={onClose}
+      footer={<>
+        <Btn variant="ghost" onClick={onClose}>Cerrar</Btn>
+        <Btn variant="danger" onClick={handleAnular} disabled={!motivo.trim()} loading={cambiar.isPending}>
+          <Ban size={14} /> Confirmar anulación
+        </Btn>
+      </>}>
+      <div className="rounded-[10px] px-4 py-3 flex items-start gap-2"
+        style={{ background: 'var(--color-gr-danger-bg)', border: '1px solid rgba(181,61,53,0.15)' }}>
+        <Ban size={15} className="text-[var(--color-gr-danger)] shrink-0 mt-0.5" />
+        <p className="font-600 text-[13px] text-[var(--color-gr-danger)]">
+          Solo se puede anular una venta pendiente (aún no despachada). El stock de los productos se repone automáticamente.
+        </p>
+      </div>
+      <div className="text-[13.5px]">
+        <p className="text-[var(--color-gr-muted)]">Cliente</p>
+        <p className="font-800 text-[var(--color-gr-text)]">{venta.cliente?.nombre ?? '—'}</p>
+        <p className="text-[var(--color-gr-muted)] mt-1">Total: <strong className="text-[var(--color-gr-text)]">{formatBs(Number(venta.totalBs))}</strong></p>
+      </div>
+      <FormField label="Motivo de la anulación" required hint="Obligatorio">
+        <Textarea placeholder="Ej. El cliente canceló el pedido, error al registrar la venta..."
+          value={motivo} onChange={e => setMotivo(e.target.value)} />
+      </FormField>
+    </Modal>
   );
 }
 
@@ -298,6 +361,22 @@ function CobrarModal({ venta, onClose, onCobrada }: {
           <p className="text-[12px] text-[var(--color-gr-muted)]">Cel: {venta.cliente.telefono}</p>
         )}
         <p className="text-[22px] font-900 text-[var(--color-gr-primary)] mt-1">{formatBs(Number(venta.totalBs))}</p>
+        {venta.tipoFlete === TipoFlete.INCLUIDO_EN_VENTA && Number(venta.fleteBs) > 0
+          && Math.abs(Number(venta.subtotalBs) + Number(venta.fleteBs) - (Number(venta.descuentoBs) || 0) - Number(venta.totalBs)) >= 0.01 && (
+          <p className="text-[11px] font-700 mt-0.5" style={{ color: 'var(--color-gr-danger)' }}>
+            ⚠ Este total no incluye el flete de {formatBs(Number(venta.fleteBs))} — debería ser {formatBs(Number(venta.subtotalBs) + Number(venta.fleteBs) - (Number(venta.descuentoBs) || 0))}. Revisa con el backend antes de cobrar.
+          </p>
+        )}
+        {venta.tipoFlete === TipoFlete.GRANO_REY_PAGA && Number(venta.fleteBs) > 0 && (
+          <p className="text-[11px] italic mt-0.5" style={{ color: 'var(--color-gr-warning)' }}>
+            No incluye el flete ({formatBs(Number(venta.fleteBs))}) — lo asume Grano Rey aparte
+          </p>
+        )}
+        {venta.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
+          <p className="text-[11px] italic mt-0.5" style={{ color: 'var(--color-gr-info)' }}>
+            No incluye flete — el cliente lo paga directo al transportista
+          </p>
+        )}
       </div>
       <FormField label="Método de pago" required>
         <Select value={metodo} onChange={e => setMetodo(e.target.value as MetodoPago)}>
@@ -314,11 +393,12 @@ function CobrarModal({ venta, onClose, onCobrada }: {
 }
 
 // ─── Detalle Modal ─────────────────────────────────────────────────────────
-function DetalleModal({ venta: v, onClose, onCambiarEstado, onCobrar }: {
+function DetalleModal({ venta: v, onClose, onCambiarEstado, onCobrar, onAnular }: {
   venta: NotaVenta;
   onClose: () => void;
   onCambiarEstado: (id: string) => void;
   onCobrar: (v: NotaVenta) => void;
+  onAnular: (v: NotaVenta) => void;
 }) {
   const transportista = v.transportista;
   return (
@@ -394,18 +474,37 @@ function DetalleModal({ venta: v, onClose, onCambiarEstado, onCobrar }: {
           </div>
 
           <div className="space-y-1.5 text-[13.5px]">
+            <div className="flex justify-between text-[var(--color-gr-muted)]">
+              <span>Subtotal productos</span><span>{formatBs(Number(v.subtotalBs))}</span>
+            </div>
             {Number(v.descuentoBs) > 0 && (
               <div className="flex justify-between text-[var(--color-gr-muted)]">
                 <span>Descuento</span><span>-{formatBs(Number(v.descuentoBs))}</span>
               </div>
             )}
-            {Number(v.fleteBs) > 0 && (
-              <div className="flex justify-between text-[var(--color-gr-muted)]">
-                <span>Flete</span><span>{formatBs(Number(v.fleteBs))}</span>
+            {v.tipoFlete === TipoFlete.INCLUIDO_EN_VENTA && Number(v.fleteBs) > 0 && (
+              <div className="flex justify-between" style={{ color: 'var(--color-gr-info)' }}>
+                <span>Flete (incluido)</span><span>+{formatBs(Number(v.fleteBs))}</span>
               </div>
             )}
+            {v.tipoFlete === TipoFlete.GRANO_REY_PAGA && Number(v.fleteBs) > 0 && (
+              <div className="flex justify-between text-[11.5px] italic" style={{ color: 'var(--color-gr-warning)' }}>
+                <span>Flete Grano Rey (egreso — no incluido en el total)</span><span>{formatBs(Number(v.fleteBs))}</span>
+              </div>
+            )}
+            {v.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
+              <p className="text-[11.5px] italic" style={{ color: 'var(--color-gr-info)' }}>
+                El cliente paga el flete directo al transportista (no incluido en el total)
+              </p>
+            )}
+            {v.tipoFlete === TipoFlete.INCLUIDO_EN_VENTA && Number(v.fleteBs) > 0
+              && Math.abs(Number(v.subtotalBs) + Number(v.fleteBs) - (Number(v.descuentoBs) || 0) - Number(v.totalBs)) >= 0.01 && (
+              <p className="text-[11.5px] font-700 text-[var(--color-gr-danger)]">
+                ⚠ Subtotal + Flete no coincide con el Total registrado en el sistema
+              </p>
+            )}
             <div className="flex justify-between font-900 text-[18px] text-[var(--color-gr-primary)] pt-1 border-t border-[var(--color-gr-border)]">
-              <span>TOTAL</span><span>{formatBs(Number(v.totalBs))}</span>
+              <span>TOTAL A COBRAR</span><span>{formatBs(Number(v.totalBs))}</span>
             </div>
           </div>
 
@@ -432,8 +531,13 @@ function DetalleModal({ venta: v, onClose, onCambiarEstado, onCobrar }: {
         </div>
       </div>
 
-      <div className="flex gap-3 justify-end">
+      <div className="flex gap-3 justify-end flex-wrap">
         <Btn variant="ghost" onClick={onClose}>Cerrar</Btn>
+        {v.estado === EstadoVenta.PENDIENTE && (
+          <Btn variant="danger" onClick={() => onAnular(v)}>
+            <Ban size={14} /> Anular venta
+          </Btn>
+        )}
         {v.estadoPago === EstadoPagoVenta.PENDIENTE && (
           <Btn variant="green" onClick={() => onCobrar(v)}>
             <Banknote size={14} /> Cobrar

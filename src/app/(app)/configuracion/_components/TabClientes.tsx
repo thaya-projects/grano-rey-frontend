@@ -1,36 +1,14 @@
 'use client';
 import { useState } from 'react';
-import { useClientes, useCreateCliente } from '@/lib/api/catalogos';
-import { apiErrorMessage } from '@/lib/api';
-import { Btn, Modal, FormField, Input, PhoneInput, Spinner, useToast } from '@/components/ui';
+import { useClientes } from '@/lib/api/catalogos';
+import { Btn, Spinner } from '@/components/ui';
+import { NuevoClienteModal } from '@/components/NuevoClienteModal';
 import { Plus } from 'lucide-react';
 
 export function TabClientes() {
-  const toast = useToast(s => s.show);
   const q = useClientes();
-  const create = useCreateCliente();
   const clientes = q.data ?? [];
   const [open, setOpen] = useState(false);
-  const [nombre, setNombre] = useState('');
-  const [telefono, setTel] = useState('');
-  const [direccion, setDir] = useState('');
-  const [ciudad, setCiudad] = useState('');
-  const [nit, setNit] = useState('');
-
-  async function handleSave() {
-    if (!nombre) return;
-    try {
-      await create.mutateAsync({
-        nombre,
-        telefono: telefono || undefined,
-        direccion: direccion || undefined,
-        ciudad: ciudad || undefined,
-        nit: nit || undefined,
-      });
-      setOpen(false); setNombre(''); setTel(''); setDir(''); setCiudad(''); setNit('');
-      toast('Cliente creado', 'success');
-    } catch (err) { toast(apiErrorMessage(err, 'No se pudo crear'), 'error'); }
-  }
 
   if (q.isLoading) return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
 
@@ -64,21 +42,7 @@ export function TabClientes() {
         </table>
         </div>
       </div>
-      {open && (
-        <Modal open title="Nuevo cliente" onClose={() => setOpen(false)}
-          footer={<>
-            <Btn variant="ghost" onClick={() => setOpen(false)}>Cancelar</Btn>
-            <Btn onClick={handleSave} disabled={!nombre} loading={create.isPending}>Crear</Btn>
-          </>}>
-          <FormField label="Nombre" required hint="Obligatorio"><Input value={nombre} onChange={e => setNombre(e.target.value)} /></FormField>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField label="Teléfono" hint="Opcional"><PhoneInput value={telefono} onChange={setTel} /></FormField>
-            <FormField label="Ciudad" hint="Opcional"><Input value={ciudad} onChange={e => setCiudad(e.target.value)} /></FormField>
-          </div>
-          <FormField label="Dirección" hint="Opcional"><Input value={direccion} onChange={e => setDir(e.target.value)} /></FormField>
-          <FormField label="NIT" hint="Opcional"><Input value={nit} onChange={e => setNit(e.target.value)} /></FormField>
-        </Modal>
-      )}
+      {open && <NuevoClienteModal onClose={() => setOpen(false)} />}
     </div>
   );
 }
