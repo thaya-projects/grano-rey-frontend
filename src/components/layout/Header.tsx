@@ -6,10 +6,13 @@ import { ChevronRight } from 'lucide-react';
 const PAGE_NAMES: Record<string, string> = {
   '/dashboard':     'Inicio',
   '/stock':         'Stock',
+  '/produccion':    'Producción',
   '/materia-prima': 'Materia Prima',
   '/ventas':        'Ventas',
   '/ventas/nueva':  'Nueva Venta',
   '/despachos':     'Despachos',
+  '/cargadores':    'Personal',
+  '/gastos':        'Gastos',
   '/reportes':      'Reportes',
   '/configuracion': 'Configuración',
 };
