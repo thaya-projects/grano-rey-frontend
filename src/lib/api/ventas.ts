@@ -49,6 +49,10 @@ interface CambiarEstadoVentaInput {
   id: string;
   estado: EstadoVenta;
   cargas?: CreateCargaTrabajoRequest[];
+  /** Permite asignar el transportista en el momento de despachar, si la venta no traía uno. */
+  transportistaId?: string;
+  /** Motivo de la anulación (obligatorio al pasar a CANCELADA). */
+  motivo?: string;
 }
 
 export function useCambiarEstadoVenta() {
@@ -59,6 +63,9 @@ export function useCambiarEstadoVenta() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ventasKeys.all });
       qc.invalidateQueries({ queryKey: ['cargadores', 'deuda'] });
+      // Anular repone stock — refrescamos productos/lotes por si el estado cambió a cancelada.
+      qc.invalidateQueries({ queryKey: productosKeys.all });
+      qc.invalidateQueries({ queryKey: lotesKeys.all });
     },
   });
 }

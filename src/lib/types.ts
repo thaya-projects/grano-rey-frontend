@@ -295,6 +295,8 @@ export interface KardexMP extends AuditFields {
   responsable?: Usuario;
   cargas?: CargaTrabajo[];
   loteProduccion?: LoteProduccionRef | null;
+  anulado?: boolean;
+  motivoAnulacion?: string | null;
 }
 
 export interface ProductoImagen {

@@ -6,12 +6,13 @@ import { DocumentoVenta, type ModoDocumento } from '@/components/print/Documento
 import { Spinner, Btn } from '@/components/ui';
 import { ArrowLeft, Printer } from 'lucide-react';
 
-const MODOS_VALIDOS: ModoDocumento[] = ['nota', 'proforma', 'combinada'];
+const MODOS_VALIDOS: ModoDocumento[] = ['nota', 'proforma', 'combinada', 'remision-doble'];
 
 const TITULOS: Record<ModoDocumento, string> = {
-  nota:      'Nota de venta',
-  proforma:  'Proforma (con datos del chofer)',
-  combinada: 'Nota + Proforma para Grano Rey (uso interno)',
+  nota:            'Nota de venta',
+  proforma:        'Proforma (con datos del chofer)',
+  combinada:       'Nota + Proforma para Grano Rey (uso interno)',
+  'remision-doble': 'Remisión — copia cliente + copia Grano Rey',
 };
 
 export default function ImprimirVentaPage() {

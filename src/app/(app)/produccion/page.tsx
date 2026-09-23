@@ -2,10 +2,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useProductos, useAjusteStock } from '@/lib/api/productos';
 import { useLotes, useCreateLote } from '@/lib/api/produccion';
-import { useMateriasPrimas, useKardexMP } from '@/lib/api/materia-prima';
-import { useUnidades } from '@/lib/api/catalogos';
+import { useMateriasPrimas, useCreateMateriaPrima, useCreateKardexMP, useKardexMP } from '@/lib/api/materia-prima';
+import { useUnidades, useCategoriasMP } from '@/lib/api/catalogos';
 import { useUsuarios } from '@/lib/api/usuarios';
-import { type Producto, type MateriaPrima, type CreateLoteRequest, TipoMovimientoMP, TipoUnidad, RolUsuario } from '@/lib/types';
+import { type Producto, type MateriaPrima, type LoteProduccion, type CreateLoteRequest, TipoMovimientoMP, TipoUnidad, RolUsuario } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatNum, formatBs, KG_POR_QQ, kgToQQ, equivPT, equivLabel } from '@/lib/utils';
 import {
@@ -45,6 +45,7 @@ export default function ProduccionPage() {
   const [showModal, setShowModal] = useState(false);
   const [productoIdInicial, setProductoIdInicial] = useState<string>('');
   const [showBajaModal, setShowBajaModal] = useState(false);
+  const [residuoLote, setResiduoLote] = useState<LoteProduccion | null>(null);
   const [filtro, setFiltro] = useState<typeof FILTROS[number]>('Este mes');
   const [search, setSearch] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
@@ -302,6 +303,14 @@ export default function ProduccionPage() {
                     {l.fechaVencimiento}
                   </span>
                 </div>
+
+                {hasMerma && (
+                  <div className="mt-2 flex justify-end">
+                    <Btn size="sm" variant="ghost" onClick={() => setResiduoLote(l)}>
+                      <ArrowDownCircle size={13} /> Registrar residuo como materia prima
+                    </Btn>
+                  </div>
+                )}
               </div>
             );
           })
@@ -327,6 +336,17 @@ export default function ProduccionPage() {
           onSaved={() => {
             setShowBajaModal(false);
             toast('Baja registrada', 'warning');
+          }}
+          onError={(msg) => toast(msg, 'error')}
+        />
+      )}
+      {residuoLote && (
+        <ResiduoAMPModal
+          lote={residuoLote}
+          onClose={() => setResiduoLote(null)}
+          onSaved={() => {
+            setResiduoLote(null);
+            toast('Residuo registrado como materia prima', 'success');
           }}
           onError={(msg) => toast(msg, 'error')}
         />
@@ -983,6 +1003,159 @@ function BajaModal({ productos, onClose, onSaved, onError }: {
           </FormField>
         </>
       )}
+    </Modal>
+  );
+}
+
+function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
+  lote: LoteProduccion;
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (msg: string) => void;
+}) {
+  const mpQuery = useMateriasPrimas();
+  const unidadesQ = useUnidades();
+  const categoriasQ = useCategoriasMP();
+  const createMp = useCreateMateriaPrima();
+  const createKardex = useCreateKardexMP();
+
+  const materiasPrimas = mpQuery.data ?? [];
+  const unidades = unidadesQ.data ?? [];
+  const categorias = categoriasQ.data ?? [];
+
+  const mermaMp = Number(lote.mermaMpKg || 0);
+  const mermaUn = Number(lote.mermaUnidades || 0);
+
+  const [modo, setModo] = useState<'existente' | 'nueva'>('existente');
+  const [materiaPrimaId, setMateriaPrimaId] = useState('');
+
+  // Campos para dar de alta una MP nueva en el mismo paso
+  const [nombreNueva, setNombreNueva]   = useState('');
+  const [codigoNueva, setCodigoNueva]   = useState('');
+  const [categoriaId, setCategoriaId]   = useState('');
+
+  const [cantidad, setCantidad] = useState(mermaMp > 0 ? String(mermaMp) : '');
+  const [unidadId, setUnidadId] = useState('');
+  const [observaciones, setObs] = useState(`Residuo aprovechable del lote ${lote.codigoLote}`);
+
+  const cantNum = parseFloat(cantidad) || 0;
+  const validNueva = !!nombreNueva && !!codigoNueva && !!categoriaId;
+  const valid = cantNum > 0 && !!unidadId
+    && (modo === 'existente' ? !!materiaPrimaId : validNueva);
+  const saving = createMp.isPending || createKardex.isPending;
+
+  function elegirExistente(id: string) {
+    setMateriaPrimaId(id);
+    const mp = materiasPrimas.find(m => m.id === id);
+    if (mp?.unidadMedida?.id) setUnidadId(mp.unidadMedida.id);
+  }
+
+  async function handleSave() {
+    if (!valid) return;
+    try {
+      let mpId = materiaPrimaId;
+      if (modo === 'nueva') {
+        const nuevaMp = await createMp.mutateAsync({
+          codigo: codigoNueva.toUpperCase(),
+          nombre: nombreNueva,
+          categoriaId,
+          unidadMedidaId: unidadId,
+        });
+        mpId = nuevaMp.id;
+      }
+      await createKardex.mutateAsync({
+        fecha: new Date().toISOString().slice(0, 10),
+        tipoMovimiento: TipoMovimientoMP.INGRESO,
+        cantidad: cantNum,
+        materiaPrimaId: mpId,
+        unidadId,
+        loteProduccionId: lote.id,
+        observaciones: observaciones || undefined,
+      });
+      onSaved();
+    } catch (err) {
+      onError(apiErrorMessage(err, 'No se pudo registrar el residuo'));
+    }
+  }
+
+  return (
+    <Modal open title="Registrar residuo como materia prima" onClose={onClose}
+      footer={<>
+        <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
+        <Btn onClick={handleSave} disabled={!valid} loading={saving}>
+          <ArrowDownCircle size={14} /> Registrar ingreso
+        </Btn>
+      </>}>
+
+      <div className="rounded-md px-4 py-3 text-[13px]" style={{ background: 'var(--color-gr-primary-lite)' }}>
+        <p className="font-600 text-gr-primary">
+          Del lote <strong className="font-mono">{lote.codigoLote}</strong> ({lote.producto?.nombre})
+          {(mermaMp > 0 || mermaUn > 0) && (
+            <>
+              {' '}— merma registrada: {mermaMp > 0 && `${formatNum(mermaMp, 1)} kg`}
+              {mermaMp > 0 && mermaUn > 0 && ' / '}
+              {mermaUn > 0 && `${formatNum(mermaUn, 0)} u`}
+            </>
+          )}
+        </p>
+      </div>
+
+      <div className="flex rounded-[10px] overflow-hidden border border-gr-border">
+        <button type="button" onClick={() => setModo('existente')}
+          className={`flex-1 py-2 text-[13px] font-700 transition-all ${modo === 'existente' ? 'bg-gr-primary text-white' : 'bg-white text-gr-muted hover:text-gr-text'}`}>
+          Materia prima existente
+        </button>
+        <button type="button" onClick={() => setModo('nueva')}
+          className={`flex-1 py-2 text-[13px] font-700 transition-all ${modo === 'nueva' ? 'bg-gr-primary text-white' : 'bg-white text-gr-muted hover:text-gr-text'}`}>
+          + Nueva materia prima
+        </button>
+      </div>
+
+      {modo === 'existente' ? (
+        <FormField label="Materia prima" required>
+          <Select value={materiaPrimaId} onChange={e => elegirExistente(e.target.value)}>
+            <option value="">— Seleccionar —</option>
+            {materiasPrimas.map(m => (
+              <option key={m.id} value={m.id}>{m.codigo} · {m.nombre}</option>
+            ))}
+          </Select>
+        </FormField>
+      ) : (
+        <>
+          <FormField label="Nombre" required>
+            <Input autoFocus value={nombreNueva} onChange={e => setNombreNueva(e.target.value)}
+              placeholder="Ej. Cascarilla de arroz" />
+          </FormField>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <FormField label="Código" required hint="Ej. CASC-AR">
+              <Input value={codigoNueva} onChange={e => setCodigoNueva(e.target.value.toUpperCase())} />
+            </FormField>
+            <FormField label="Categoría" required>
+              <Select value={categoriaId} onChange={e => setCategoriaId(e.target.value)}>
+                <option value="">— Seleccionar —</option>
+                {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </Select>
+            </FormField>
+          </div>
+        </>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Cantidad" required hint={mermaMp > 0 ? 'Sugerida según la merma del lote · editable' : undefined}>
+          <Input type="number" min="0" step="0.01" value={cantidad} onChange={e => setCantidad(e.target.value)}
+            className="text-[16px] font-700" />
+        </FormField>
+        <FormField label="Unidad" required>
+          <Select value={unidadId} onChange={e => setUnidadId(e.target.value)}>
+            <option value="">— Seleccionar —</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>{u.codigo} · {u.nombre}</option>)}
+          </Select>
+        </FormField>
+      </div>
+
+      <FormField label="Observaciones">
+        <Textarea value={observaciones} onChange={e => setObs(e.target.value)} />
+      </FormField>
     </Modal>
   );
 }

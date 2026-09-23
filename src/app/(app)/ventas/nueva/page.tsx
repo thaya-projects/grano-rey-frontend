@@ -9,6 +9,8 @@ import { TipoFlete, type CreateVentaRequest, type LoteProduccion, type Producto 
 import { apiErrorMessage } from '@/lib/api';
 import { formatBs, formatNum, equivPT } from '@/lib/utils';
 import { Btn, FormField, Input, Select, SearchBox, Spinner, useToast } from '@/components/ui';
+import { NuevoClienteModal } from '@/components/NuevoClienteModal';
+import { NuevoTransportistaModal } from '@/components/NuevoTransportistaModal';
 import {
   Plus, Minus, Trash2, ChevronRight, AlertTriangle,
   Package, CheckCircle2, Truck, User, MapPin, Phone,
@@ -55,6 +57,8 @@ export default function NuevaVentaPage() {
   const [step, setStep]             = useState<Step>(0);
   const [clienteId, setClienteId]   = useState('');
   const [searchCliente, setSearchC] = useState('');
+  const [showNuevoCliente, setShowNuevoCliente] = useState(false);
+  const [showNuevoTransportista, setShowNuevoTransportista] = useState(false);
   const [searchProducto, setSearchP]= useState('');
   const [lineas, setLineas]         = useState<LineaDetalle[]>([]);
   const [descuento, setDescuento]   = useState('0');
@@ -247,8 +251,15 @@ export default function NuevaVentaPage() {
       {step === 0 && (
         <div className="space-y-4 animate-fade-up">
           <div className="card">
-            <p className="font-700 text-[var(--color-gr-text)] text-[15px] mb-1">¿A quién le vendemos?</p>
-            <p className="text-[var(--color-gr-muted)] text-[12.5px] mb-4">Selecciona o busca el cliente</p>
+            <div className="flex items-start justify-between gap-3 mb-1">
+              <div>
+                <p className="font-700 text-[var(--color-gr-text)] text-[15px]">¿A quién le vendemos?</p>
+                <p className="text-[var(--color-gr-muted)] text-[12.5px]">Selecciona o busca el cliente</p>
+              </div>
+              <Btn variant="ghost" onClick={() => setShowNuevoCliente(true)} className="shrink-0">
+                <Plus size={14} /> Nuevo cliente
+              </Btn>
+            </div>
 
             <SearchBox value={searchCliente} onChange={setSearchC} placeholder="Buscar por nombre o ciudad..." />
 
@@ -536,15 +547,20 @@ export default function NuevaVentaPage() {
               </div>
             )}
 
-            <FormField label="Transportista" hint="Opcional">
-              <Select value={transportistaId} onChange={e => setTransp(e.target.value)}>
-                <option value="">— Sin asignar —</option>
-                {transportistas.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.nombre}{t.placa ? ` · ${t.placa}` : ''}{t.marca ? ` · ${t.marca}` : ''}
-                  </option>
-                ))}
-              </Select>
+            <FormField label="Transportista" hint="Opcional — puedes dejarlo en blanco y asignarlo después">
+              <div className="flex gap-2">
+                <Select value={transportistaId} onChange={e => setTransp(e.target.value)} className="flex-1">
+                  <option value="">— Sin asignar —</option>
+                  {transportistas.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.nombre}{t.placa ? ` · ${t.placa}` : ''}{t.marca ? ` · ${t.marca}` : ''}
+                    </option>
+                  ))}
+                </Select>
+                <Btn type="button" variant="ghost" onClick={() => setShowNuevoTransportista(true)} className="shrink-0">
+                  <Plus size={14} /> Nuevo
+                </Btn>
+              </div>
             </FormField>
 
             <FormField label="Observaciones" hint="Opcional">
@@ -696,6 +712,20 @@ export default function NuevaVentaPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showNuevoCliente && (
+        <NuevoClienteModal
+          onClose={() => setShowNuevoCliente(false)}
+          onCreated={cliente => setClienteId(cliente.id)}
+        />
+      )}
+
+      {showNuevoTransportista && (
+        <NuevoTransportistaModal
+          onClose={() => setShowNuevoTransportista(false)}
+          onCreated={transportista => setTransp(transportista.id)}
+        />
       )}
     </div>
   );

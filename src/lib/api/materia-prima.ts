@@ -85,3 +85,17 @@ export function usePagarKardexMP() {
     },
   });
 }
+
+export function useAnularKardexMP() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, motivo }: { id: string; motivo: string }) =>
+      (await api.patch<KardexMP>(`/kardex-mp/${id}/anular`, { motivo })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: mpKeys.kardex() });
+      // Anular repone stock — refrescamos materias primas para reflejar el nuevo stockActualKg.
+      qc.invalidateQueries({ queryKey: mpKeys.all });
+      qc.invalidateQueries({ queryKey: mpKeys.pendientesPago });
+    },
+  });
+}

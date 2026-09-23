@@ -2,15 +2,35 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useVentas, useCambiarEstadoVenta } from '@/lib/api/ventas';
+import { useTransportistas } from '@/lib/api/catalogos';
 import { type NotaVenta, EstadoVenta, TipoFlete, TipoPagoCarga } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatBs } from '@/lib/utils';
-import { Btn, Modal, EstadoBadge, Badge, Spinner, useToast } from '@/components/ui';
-import { Truck, CheckCircle2, Clock, Printer, ArrowRight, Package, Zap, User, Calendar, HardHat, Receipt } from 'lucide-react';
+import { Btn, Modal, EstadoBadge, Badge, Spinner, useToast, FormField, Select } from '@/components/ui';
+import { NuevoTransportistaModal } from '@/components/NuevoTransportistaModal';
+import { Truck, CheckCircle2, Clock, Printer, ArrowRight, Package, Zap, User, Calendar, HardHat, Receipt, Plus } from 'lucide-react';
 import Image from 'next/image';
 import { CargasSection, type CargaDraft } from '@/components/CargasSection';
 
 const FILTROS_FECHA = ['Hoy', 'Esta semana', 'Este mes', 'Personalizado', 'Todos'] as const;
+
+/**
+ * Desglose del total cuando el flete ya está sumado adentro (INCLUIDO_EN_VENTA),
+ * para que la cuenta cierre visualmente y no se lea como "+ flete aparte".
+ * `coincide` compara la suma calculada contra el totalBs que manda el backend —
+ * si no coincide, es una inconsistencia real de datos, no solo de redacción.
+ */
+function desgloseFleteIncluido(v: NotaVenta): { texto: string; coincide: boolean } | null {
+  if (v.tipoFlete !== TipoFlete.INCLUIDO_EN_VENTA || Number(v.fleteBs) <= 0) return null;
+  const subtotal = Number(v.subtotalBs);
+  const flete = Number(v.fleteBs);
+  const descuento = Number(v.descuentoBs) || 0;
+  const suma = subtotal + flete - descuento;
+  const partes = [`${formatBs(subtotal)} productos`, `${formatBs(flete)} flete`];
+  if (descuento > 0) partes.push(`-${formatBs(descuento)} desc.`);
+  const texto = `${partes.join(' + ').replace('+ -', '- ')} = ${formatBs(suma)}`;
+  return { texto, coincide: Math.abs(suma - Number(v.totalBs)) < 0.01 };
+}
 
 export default function DespachosPage() {
   const toast              = useToast(s => s.show);
@@ -329,6 +349,9 @@ function ReporteFila({ venta: v, color }: { venta: NotaVenta; color: string }) {
             {v.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
               <Badge color="blue">Cliente paga flete</Badge>
             )}
+            {v.tipoFlete === TipoFlete.GRANO_REY_PAGA && Number(v.fleteBs) > 0 && (
+              <Badge color="yellow">Grano Rey paga flete ({formatBs(Number(v.fleteBs))})</Badge>
+            )}
           </div>
           <p className="text-[12.5px] text-[var(--color-gr-muted)] mt-0.5">
             {productos || 'Sin productos'}
@@ -337,6 +360,18 @@ function ReporteFila({ venta: v, color }: { venta: NotaVenta; color: string }) {
         <div className="text-right shrink-0">
           <p className="text-[10.5px] font-700 text-[var(--color-gr-muted)] uppercase">Total</p>
           <p className="font-900 text-[18px]" style={{ color }}>{formatBs(Number(v.totalBs))}</p>
+          {(() => {
+            const d = desgloseFleteIncluido(v);
+            if (!d) return null;
+            return (
+              <>
+                <p className="text-[10px] text-[var(--color-gr-muted)]">{d.texto}</p>
+                {!d.coincide && (
+                  <p className="text-[10px] font-700 text-[var(--color-gr-danger)]">⚠ no coincide con el total del sistema</p>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -422,6 +457,12 @@ function RemisionCard({ venta: v, onVerRemision, onDespachar }: {
                 <Truck size={10} /> Cliente paga flete
               </span>
             )}
+            {v.tipoFlete === TipoFlete.GRANO_REY_PAGA && Number(v.fleteBs) > 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-600 px-2 py-0.5 rounded-full"
+                style={{ background: 'var(--color-gr-gold-lite)', color: 'var(--color-gr-gold-dark)' }}>
+                <Truck size={10} /> Grano Rey paga flete ({formatBs(Number(v.fleteBs))})
+              </span>
+            )}
           </div>
           <p className="font-600 text-gr-text text-[13.5px] truncate">{v.cliente?.nombre ?? '—'}</p>
           <p className="text-[12px] text-gr-muted">
@@ -430,7 +471,23 @@ function RemisionCard({ venta: v, onVerRemision, onDespachar }: {
             {v.cliente?.ciudad && <> · {v.cliente.ciudad}</>}
           </p>
         </div>
-        <p className="font-900 text-[var(--color-gr-primary)] text-[18px] whitespace-nowrap shrink-0">{formatBs(Number(v.totalBs))}</p>
+        <div className="text-right shrink-0">
+          <p className="font-900 text-[var(--color-gr-primary)] text-[18px] whitespace-nowrap">{formatBs(Number(v.totalBs))}</p>
+          {(() => {
+            const d = desgloseFleteIncluido(v);
+            if (!d) return null;
+            return (
+              <>
+                <p className="text-[10px] text-[var(--color-gr-muted)] whitespace-nowrap">{d.texto}</p>
+                {!d.coincide && (
+                  <p className="text-[10px] font-700 text-[var(--color-gr-danger)] whitespace-nowrap">
+                    ⚠ no coincide con el total del sistema
+                  </p>
+                )}
+              </>
+            );
+          })()}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -611,8 +668,13 @@ function RemisionModal({ venta: v, onClose, onDespachar }: {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 justify-end">
+      <div className="flex flex-wrap gap-2 justify-end items-center">
         <Btn variant="ghost" onClick={onClose}>Cerrar</Btn>
+        <Link href={`/ventas/${v.id}/imprimir?modo=remision-doble`}
+          className="inline-flex items-center gap-2 bg-[var(--color-gr-primary)] hover:bg-[var(--color-gr-primary-mid)] text-white font-700 px-3.5 py-2 rounded-[10px] text-[13px]">
+          <Printer size={14} /> Imprimir remisión (cliente + comprobante)
+        </Link>
+        <span className="text-[11px] text-[var(--color-gr-muted)] mx-1">u otras opciones:</span>
         <Link href={`/ventas/${v.id}/imprimir?modo=proforma`}
           className="inline-flex items-center gap-2 bg-[var(--color-gr-gold-lite)] hover:bg-[var(--color-gr-gold)] text-[var(--color-gr-gold-dark)] font-700 px-3 py-2 rounded-[10px] text-[13px]">
           <Printer size={14} /> Proforma
@@ -622,8 +684,8 @@ function RemisionModal({ venta: v, onClose, onDespachar }: {
           <Printer size={14} /> Nota
         </Link>
         <Link href={`/ventas/${v.id}/imprimir?modo=combinada`}
-          className="inline-flex items-center gap-2 bg-[var(--color-gr-primary)] hover:bg-[var(--color-gr-primary-mid)] text-white font-700 px-3 py-2 rounded-[10px] text-[13px]">
-          <Printer size={14} /> Combinada
+          className="inline-flex items-center gap-2 bg-[var(--color-gr-border-lite)] hover:bg-[var(--color-gr-border)] text-[var(--color-gr-text)] font-700 px-3 py-2 rounded-[10px] text-[13px]">
+          <Printer size={14} /> Combinada (nota + proforma)
         </Link>
         {v.estado === EstadoVenta.PENDIENTE && (
           <Btn onClick={() => onDespachar(v.id)}>
@@ -648,10 +710,14 @@ function DespacharModal({ venta, onClose, onSaved, onError }: {
   onError: (msg: string) => void;
 }) {
   const cambiar = useCambiarEstadoVenta();
+  const transportistasQ = useTransportistas();
+  const transportistas = transportistasQ.data ?? [];
 
   const [tipoPago, setTipoPago] = useState<TipoPagoCarga>(TipoPagoCarga.BOLSA);
   const [tarifaBs, setTarifaBs] = useState(0);
   const [cargas, setCargas]     = useState<CargaDraft[]>([]);
+  const [transportistaId, setTransportistaId] = useState('');
+  const [showNuevoTransportista, setShowNuevoTransportista] = useState(false);
 
   const totalUnidades = venta.detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
 
@@ -660,6 +726,7 @@ function DespacharModal({ venta, onClose, onSaved, onError }: {
       await cambiar.mutateAsync({
         id: venta.id,
         estado: EstadoVenta.DESPACHADA,
+        transportistaId: !venta.transportista && transportistaId ? transportistaId : undefined,
         cargas: cargas.length > 0
           ? cargas.map(({ _id: _drop, ...c }) => c)
           : undefined,
@@ -685,8 +752,54 @@ function DespacharModal({ venta, onClose, onSaved, onError }: {
             {venta.fecha} · {totalUnidades} unid. · {formatBs(Number(venta.totalBs))}
             {venta.cliente?.ciudad && <> · {venta.cliente.ciudad}</>}
           </p>
+          {(() => {
+            const d = desgloseFleteIncluido(venta);
+            if (!d) return null;
+            return (
+              <>
+                <p className="text-[11px] text-[var(--color-gr-muted)]">{d.texto}</p>
+                {!d.coincide && (
+                  <p className="text-[11px] font-700 text-[var(--color-gr-danger)]">⚠ no coincide con el total del sistema</p>
+                )}
+              </>
+            );
+          })()}
+          {venta.tipoFlete === TipoFlete.GRANO_REY_PAGA && Number(venta.fleteBs) > 0 && (
+            <p className="text-[11px] italic mt-0.5" style={{ color: 'var(--color-gr-warning)' }}>
+              Flete a cargo de Grano Rey: {formatBs(Number(venta.fleteBs))} (no está en el total de la venta)
+            </p>
+          )}
+          {venta.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
+            <p className="text-[11px] italic mt-0.5" style={{ color: 'var(--color-gr-info)' }}>
+              El cliente paga el flete directo al transportista
+            </p>
+          )}
         </div>
       </div>
+
+      {!venta.transportista && (
+        <div className="rounded-[10px] px-4 py-3 space-y-2"
+          style={{ background: 'var(--color-gr-gold-lite)' }}>
+          <p className="text-[12.5px] font-700 text-[var(--color-gr-text)]">
+            Esta venta no tiene transportista asignado — puedes hacerlo ahora o dejarlo en blanco.
+          </p>
+          <FormField label="Transportista" hint="Opcional">
+            <div className="flex gap-2">
+              <Select value={transportistaId} onChange={e => setTransportistaId(e.target.value)} className="flex-1">
+                <option value="">— Sin asignar —</option>
+                {transportistas.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}{t.placa ? ` · ${t.placa}` : ''}{t.marca ? ` · ${t.marca}` : ''}
+                  </option>
+                ))}
+              </Select>
+              <Btn type="button" variant="ghost" onClick={() => setShowNuevoTransportista(true)} className="shrink-0">
+                <Plus size={14} /> Nuevo
+              </Btn>
+            </div>
+          </FormField>
+        </div>
+      )}
 
       <CargasSection
         totalEsperado={totalUnidades}
@@ -705,6 +818,13 @@ function DespacharModal({ venta, onClose, onSaved, onError }: {
           <Truck size={14} /> Confirmar despacho
         </Btn>
       </div>
+
+      {showNuevoTransportista && (
+        <NuevoTransportistaModal
+          onClose={() => setShowNuevoTransportista(false)}
+          onCreated={t => setTransportistaId(t.id)}
+        />
+      )}
     </Modal>
   );
 }

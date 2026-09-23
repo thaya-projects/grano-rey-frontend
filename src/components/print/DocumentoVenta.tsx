@@ -1,14 +1,22 @@
 'use client';
-import type { NotaVenta } from '@/lib/types';
+import { TipoFlete, type NotaVenta } from '@/lib/types';
 import { formatBs } from '@/lib/utils';
 import Image from 'next/image';
 
-export type ModoDocumento = 'nota' | 'proforma' | 'combinada';
+export type ModoDocumento = 'nota' | 'proforma' | 'combinada' | 'remision-doble';
 
 interface Props {
   venta: NotaVenta;
   modo: ModoDocumento;
 }
+
+const CUT_LINE = (
+  <div className="border-t-2 border-dashed border-[var(--color-gr-border)] relative" aria-hidden>
+    <span className="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-white px-3 text-[10px] text-[var(--color-gr-muted)] uppercase tracking-widest">
+      ✂ cortar aquí
+    </span>
+  </div>
+);
 
 /**
  * Reglas de negocio de cada documento:
@@ -16,6 +24,9 @@ interface Props {
  * - PROFORMA: documento de carga → SIN precios; solo productos, lote y bolsas.
  * - COMBINADA: nota arriba + proforma abajo (vertical) para imprimir juntas
  *   y cortar la hoja — cada mitad va a un destinatario distinto.
+ * - REMISIÓN DOBLE: dos proformas idénticas (sin precios), etiquetadas
+ *   "COPIA CLIENTE" y "COPIA GRANO REY", para repartir en la entrega:
+ *   una se la queda el cliente/chofer, la otra vuelve como comprobante.
  * Ambas llevan datos completos del cliente y del chofer.
  */
 export function DocumentoVenta({ venta, modo }: Props) {
@@ -23,15 +34,17 @@ export function DocumentoVenta({ venta, modo }: Props) {
     return (
       <div className="space-y-4">
         <DocumentoVentaSimple venta={venta} tipo="nota" compact />
-        <div
-          className="border-t-2 border-dashed border-[var(--color-gr-border)] relative"
-          aria-hidden
-        >
-          <span className="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-white px-3 text-[10px] text-[var(--color-gr-muted)] uppercase tracking-widest">
-            ✂ cortar aquí
-          </span>
-        </div>
+        {CUT_LINE}
         <DocumentoVentaSimple venta={venta} tipo="proforma" compact />
+      </div>
+    );
+  }
+  if (modo === 'remision-doble') {
+    return (
+      <div className="space-y-4">
+        <DocumentoVentaSimple venta={venta} tipo="proforma" compact copiaLabel="COPIA CLIENTE" />
+        {CUT_LINE}
+        <DocumentoVentaSimple venta={venta} tipo="proforma" compact copiaLabel="COPIA GRANO REY" />
       </div>
     );
   }
@@ -39,8 +52,8 @@ export function DocumentoVenta({ venta, modo }: Props) {
 }
 
 function DocumentoVentaSimple({
-  venta, tipo, compact = false,
-}: { venta: NotaVenta; tipo: 'nota' | 'proforma'; compact?: boolean }) {
+  venta, tipo, compact = false, copiaLabel,
+}: { venta: NotaVenta; tipo: 'nota' | 'proforma'; compact?: boolean; copiaLabel?: string }) {
   const v = venta;
   const transp = v.transportista;
   const cliente = v.cliente;
@@ -68,6 +81,11 @@ function DocumentoVentaSimple({
 
   return (
     <div className="print-doc border-[1.5px] border-[var(--color-gr-border)] rounded-[12px] overflow-hidden bg-white">
+      {copiaLabel && (
+        <div className={`text-center text-[10px] font-800 uppercase tracking-widest py-1 ${esProforma ? 'bg-[var(--color-gr-gold)] text-[#1a0e00]' : 'bg-[var(--color-gr-primary-lite)] text-[var(--color-gr-primary)]'}`}>
+          {copiaLabel}
+        </div>
+      )}
       {/* ── Header ── */}
       <div className={`${padHead} flex items-center justify-between ${esProforma ? 'bg-[var(--color-gr-gold-dark)]' : 'bg-[var(--color-gr-primary)]'}`}>
         <div className="flex items-center gap-3 min-w-0">
@@ -195,18 +213,32 @@ function DocumentoVentaSimple({
           </div>
         ) : (
           <div className={`space-y-1 ${tRow}`}>
+            <div className="flex justify-between text-[var(--color-gr-muted)]">
+              <span>Subtotal productos</span><span>{formatBs(Number(v.subtotalBs))}</span>
+            </div>
             {Number(v.descuentoBs) > 0 && (
               <div className="flex justify-between text-[var(--color-gr-muted)]">
                 <span>Descuento</span><span>-{formatBs(Number(v.descuentoBs))}</span>
               </div>
             )}
-            {Number(v.fleteBs) > 0 && (
+            {v.tipoFlete === TipoFlete.INCLUIDO_EN_VENTA && Number(v.fleteBs) > 0 && (
               <div className="flex justify-between text-[var(--color-gr-muted)]">
-                <span>Flete</span><span>{formatBs(Number(v.fleteBs))}</span>
+                <span>Flete (incluido)</span><span>+{formatBs(Number(v.fleteBs))}</span>
               </div>
             )}
+            {v.tipoFlete === TipoFlete.GRANO_REY_PAGA && Number(v.fleteBs) > 0 && (
+              <div className="flex justify-between font-700 text-[10.5px]" style={{ color: 'var(--color-gr-warning)' }}>
+                <span>Flete Grano Rey — NO incluido en el total</span>
+                <span>{formatBs(Number(v.fleteBs))}</span>
+              </div>
+            )}
+            {v.tipoFlete === TipoFlete.CLIENTE_PAGA_DIRECTO && (
+              <p className="text-[10.5px] italic text-[var(--color-gr-muted)]">
+                El cliente paga el flete directo al transportista (no incluido en el total)
+              </p>
+            )}
             <div className={`flex justify-between font-900 ${tTotal} text-[var(--color-gr-primary)] pt-1 border-t border-[var(--color-gr-border)]`}>
-              <span>TOTAL</span><span className="whitespace-nowrap">{formatBs(Number(v.totalBs))}</span>
+              <span>TOTAL A COBRAR</span><span className="whitespace-nowrap">{formatBs(Number(v.totalBs))}</span>
             </div>
           </div>
         )}
