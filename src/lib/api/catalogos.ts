@@ -8,8 +8,11 @@ import type {
   CategoriaMP,
   SubtipoMP,
   CreateClienteRequest,
+  UpdateClienteRequest,
   CreateProveedorRequest,
+  UpdateProveedorRequest,
   CreateTransportistaRequest,
+  UpdateTransportistaRequest,
   CreateCategoriaMPRequest,
 } from '../types';
 
@@ -41,6 +44,15 @@ export function useCreateCliente() {
   });
 }
 
+export function useUpdateCliente() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: UpdateClienteRequest }) =>
+      (await api.patch<Cliente>(`/clientes/${id}`, dto)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: catalogosKeys.clientes }),
+  });
+}
+
 // ─── Proveedores ─────────────────────────────────────────────
 export function useProveedores() {
   return useQuery({
@@ -58,6 +70,15 @@ export function useCreateProveedor() {
   });
 }
 
+export function useUpdateProveedor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: UpdateProveedorRequest }) =>
+      (await api.patch<Proveedor>(`/proveedores/${id}`, dto)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: catalogosKeys.proveedores }),
+  });
+}
+
 // ─── Transportistas ──────────────────────────────────────────
 export function useTransportistas() {
   return useQuery({
@@ -71,6 +92,15 @@ export function useCreateTransportista() {
   return useMutation({
     mutationFn: async (dto: CreateTransportistaRequest) =>
       (await api.post<Transportista>('/transportistas', dto)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: catalogosKeys.transportistas }),
+  });
+}
+
+export function useUpdateTransportista() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dto }: { id: string; dto: UpdateTransportistaRequest }) =>
+      (await api.patch<Transportista>(`/transportistas/${id}`, dto)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: catalogosKeys.transportistas }),
   });
 }

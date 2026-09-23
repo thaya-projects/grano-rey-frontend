@@ -444,6 +444,14 @@ export interface CreateClienteRequest {
   nit?: string;
 }
 
+export interface UpdateClienteRequest {
+  nombre?: string;
+  telefono?: string;
+  direccion?: string;
+  ciudad?: string;
+  nit?: string;
+}
+
 export interface CreateProveedorRequest {
   nombre: string;
   contacto?: string;
@@ -452,8 +460,27 @@ export interface CreateProveedorRequest {
   nit?: string;
 }
 
+export interface UpdateProveedorRequest {
+  nombre?: string;
+  contacto?: string;
+  telefono?: string;
+  ciudad?: string;
+  nit?: string;
+}
+
 export interface CreateTransportistaRequest {
   nombre: string;
+  ci?: string;
+  empresa?: string;
+  telefono?: string;
+  placa?: string;
+  marca?: string;
+  color?: string;
+  destinoHabitual?: string;
+}
+
+export interface UpdateTransportistaRequest {
+  nombre?: string;
   ci?: string;
   empresa?: string;
   telefono?: string;
@@ -641,6 +668,7 @@ export interface CreateUsuarioRequest {
 export interface UpdateUsuarioRequest {
   nombre?: string;
   email?: string;
+  password?: string;
   rol?: RolUsuario;
   telefono?: string;
   activo?: boolean;

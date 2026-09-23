@@ -1,51 +1,62 @@
 'use client';
 import { useState } from 'react';
-import { useCreateTransportista } from '@/lib/api/catalogos';
+import { useCreateTransportista, useUpdateTransportista } from '@/lib/api/catalogos';
 import { apiErrorMessage } from '@/lib/api';
 import { Btn, Modal, FormField, Input, PhoneInput, useToast } from '@/components/ui';
 import type { Transportista } from '@/lib/types';
 
 interface NuevoTransportistaModalProps {
+  /** Si se pasa, el modal edita este transportista en vez de crear uno nuevo. */
+  transportista?: Transportista;
   onClose: () => void;
   onCreated?: (transportista: Transportista) => void;
 }
 
-export function NuevoTransportistaModal({ onClose, onCreated }: NuevoTransportistaModalProps) {
+export function NuevoTransportistaModal({ transportista, onClose, onCreated }: NuevoTransportistaModalProps) {
+  const editando = !!transportista;
   const toast = useToast(s => s.show);
   const create = useCreateTransportista();
-  const [nombre, setNombre] = useState('');
-  const [telefono, setTel] = useState('');
-  const [empresa, setEmpresa] = useState('');
-  const [placa, setPlaca] = useState('');
-  const [marca, setMarca] = useState('');
-  const [color, setColor] = useState('');
-  const [destinoHabitual, setDestino] = useState('');
-  const [ci, setCi] = useState('');
+  const update = useUpdateTransportista();
+  const [nombre, setNombre] = useState(transportista?.nombre ?? '');
+  const [telefono, setTel] = useState(transportista?.telefono ?? '');
+  const [empresa, setEmpresa] = useState(transportista?.empresa ?? '');
+  const [placa, setPlaca] = useState(transportista?.placa ?? '');
+  const [marca, setMarca] = useState(transportista?.marca ?? '');
+  const [color, setColor] = useState(transportista?.color ?? '');
+  const [destinoHabitual, setDestino] = useState(transportista?.destinoHabitual ?? '');
+  const [ci, setCi] = useState(transportista?.ci ?? '');
+
+  const pending = create.isPending || update.isPending;
 
   async function handleSave() {
     if (!nombre) return;
+    const dto = {
+      nombre,
+      ci: ci || undefined,
+      empresa: empresa || undefined,
+      telefono: telefono || undefined,
+      placa: placa || undefined,
+      marca: marca || undefined,
+      color: color || undefined,
+      destinoHabitual: destinoHabitual || undefined,
+    };
     try {
-      const transportista = await create.mutateAsync({
-        nombre,
-        ci: ci || undefined,
-        empresa: empresa || undefined,
-        telefono: telefono || undefined,
-        placa: placa || undefined,
-        marca: marca || undefined,
-        color: color || undefined,
-        destinoHabitual: destinoHabitual || undefined,
-      });
-      toast('Transportista creado', 'success');
-      onCreated?.(transportista);
+      const resultado = editando
+        ? await update.mutateAsync({ id: transportista.id, dto })
+        : await create.mutateAsync(dto);
+      toast(editando ? 'Transportista actualizado' : 'Transportista creado', 'success');
+      onCreated?.(resultado);
       onClose();
-    } catch (err) { toast(apiErrorMessage(err, 'No se pudo crear'), 'error'); }
+    } catch (err) { toast(apiErrorMessage(err, 'No se pudo guardar'), 'error'); }
   }
 
   return (
-    <Modal open title="Nuevo transportista" onClose={onClose}
+    <Modal open title={editando ? 'Editar transportista' : 'Nuevo transportista'} onClose={onClose}
       footer={<>
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-        <Btn onClick={handleSave} disabled={!nombre} loading={create.isPending}>Crear</Btn>
+        <Btn onClick={handleSave} disabled={!nombre} loading={pending}>
+          {editando ? 'Guardar cambios' : 'Crear'}
+        </Btn>
       </>}>
       <FormField label="Nombre" required hint="Obligatorio">
         <Input value={nombre} onChange={e => setNombre(e.target.value)} autoFocus />
