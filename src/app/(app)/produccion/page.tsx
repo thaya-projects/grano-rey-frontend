@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useProductos, useAjusteStock } from '@/lib/api/productos';
 import { useLotes, useCreateLote } from '@/lib/api/produccion';
 import { useMateriasPrimas, useCreateMateriaPrima, useCreateKardexMP, useKardexMP } from '@/lib/api/materia-prima';
-import { useUnidades, useCategoriasMP } from '@/lib/api/catalogos';
+import { useUnidades, useCategoriasMP, useProveedores } from '@/lib/api/catalogos';
 import { useUsuarios } from '@/lib/api/usuarios';
 import { type Producto, type MateriaPrima, type LoteProduccion, type CreateLoteRequest, TipoMovimientoMP, TipoUnidad, RolUsuario } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
@@ -12,6 +12,7 @@ import {
   Btn, Modal, FormField, Input, Select, Textarea, Badge,
   Spinner, SearchBox, useToast,
 } from '@/components/ui';
+import { NuevoProveedorModal } from '@/components/NuevoProveedorModal';
 import {
   Package, Plus, ShieldCheck, AlertTriangle, TrendingDown, Wheat, Coins, X, ArrowDownCircle,
 } from 'lucide-react';
@@ -1016,12 +1017,14 @@ function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
   const mpQuery = useMateriasPrimas();
   const unidadesQ = useUnidades();
   const categoriasQ = useCategoriasMP();
+  const proveedoresQ = useProveedores();
   const createMp = useCreateMateriaPrima();
   const createKardex = useCreateKardexMP();
 
   const materiasPrimas = mpQuery.data ?? [];
   const unidades = unidadesQ.data ?? [];
   const categorias = categoriasQ.data ?? [];
+  const proveedores = proveedoresQ.data ?? [];
 
   const mermaMp = Number(lote.mermaMpKg || 0);
   const mermaUn = Number(lote.mermaUnidades || 0);
@@ -1038,7 +1041,18 @@ function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
   const [unidadId, setUnidadId] = useState('');
   const [observaciones, setObs] = useState(`Residuo aprovechable del lote ${lote.codigoLote}`);
 
+  // Origen (opcional) y costo — un residuo interno puede no tener proveedor ni costo,
+  // pero si se vendió/compró a alguien o tiene un valor, hay que poder registrarlo.
+  const [proveedorId, setProveedorId] = useState('');
+  const [showNuevoProveedor, setShowNuevoProveedor] = useState(false);
+  const [costoModo, setCostoModo] = useState<'unitario' | 'total'>('unitario');
+  const [costoValor, setCostoValor] = useState('');
+
   const cantNum = parseFloat(cantidad) || 0;
+  const costoNum = parseFloat(costoValor) || 0;
+  const costoUnitarioBs = costoNum > 0
+    ? (costoModo === 'total' && cantNum > 0 ? costoNum / cantNum : costoNum)
+    : undefined;
   const validNueva = !!nombreNueva && !!codigoNueva && !!categoriaId;
   const valid = cantNum > 0 && !!unidadId
     && (modo === 'existente' ? !!materiaPrimaId : validNueva);
@@ -1070,6 +1084,8 @@ function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
         materiaPrimaId: mpId,
         unidadId,
         loteProduccionId: lote.id,
+        proveedorId: proveedorId || undefined,
+        costoUnitarioBs,
         observaciones: observaciones || undefined,
       });
       onSaved();
@@ -1153,9 +1169,50 @@ function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
         </FormField>
       </div>
 
+      <FormField label="Proveedor / origen" hint="Opcional — deja en blanco si es 100% interno (sin proveedor externo)">
+        <div className="flex gap-2">
+          <Select value={proveedorId} onChange={e => setProveedorId(e.target.value)} className="flex-1">
+            <option value="">— Sin proveedor —</option>
+            {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </Select>
+          <Btn type="button" variant="ghost" onClick={() => setShowNuevoProveedor(true)} className="shrink-0">
+            <Plus size={14} /> Nuevo
+          </Btn>
+        </div>
+      </FormField>
+
+      <FormField label="Costo" hint="Opcional — déjalo en 0 si el residuo no tiene un costo asignado">
+        <div className="flex gap-2">
+          <div className="flex rounded-[10px] overflow-hidden border border-gr-border shrink-0">
+            <button type="button" onClick={() => setCostoModo('unitario')}
+              className={`px-3 py-2 text-[12px] font-700 transition-all ${costoModo === 'unitario' ? 'bg-gr-primary text-white' : 'bg-white text-gr-muted hover:text-gr-text'}`}>
+              Por unidad
+            </button>
+            <button type="button" onClick={() => setCostoModo('total')}
+              className={`px-3 py-2 text-[12px] font-700 transition-all ${costoModo === 'total' ? 'bg-gr-primary text-white' : 'bg-white text-gr-muted hover:text-gr-text'}`}>
+              Total
+            </button>
+          </div>
+          <Input type="number" min="0" step="0.01" placeholder="0" value={costoValor}
+            onChange={e => setCostoValor(e.target.value)} className="flex-1" />
+        </div>
+        {costoNum > 0 && costoModo === 'total' && cantNum > 0 && (
+          <p className="text-[11.5px] text-gr-muted mt-1">
+            = {formatBs(costoUnitarioBs ?? 0)} por unidad
+          </p>
+        )}
+      </FormField>
+
       <FormField label="Observaciones">
         <Textarea value={observaciones} onChange={e => setObs(e.target.value)} />
       </FormField>
+
+      {showNuevoProveedor && (
+        <NuevoProveedorModal
+          onClose={() => setShowNuevoProveedor(false)}
+          onCreated={p => setProveedorId(p.id)}
+        />
+      )}
     </Modal>
   );
 }

@@ -441,7 +441,7 @@ export default function MateriaPrimaPage() {
       <div>
         <h1 className="text-[22px] font-900 text-gr-text">Materia Prima</h1>
         <p className="text-gr-muted text-[13.5px] mt-0.5">
-          {materiasPrimas.length} ítems · {formatNum(kgToQQ(totalKg), 1)} QQ en stock
+          {materiasPrimas.length} ítems · {formatNum(kgToQQ(totalKg), 2)} QQ en stock
         </p>
       </div>
 
@@ -451,7 +451,7 @@ export default function MateriaPrimaPage() {
         <div className="card">
           <p className="text-[10px] sm:text-[11.5px] font-700 text-gr-muted uppercase tracking-wide mb-1">Ingresado</p>
           <p className="text-[20px] sm:text-[28px] font-900 text-gr-text leading-none">
-            {allKardexQ.isLoading ? '…' : formatNum(kgToQQ(totalIngresadoKg), 1)}
+            {allKardexQ.isLoading ? '…' : formatNum(kgToQQ(totalIngresadoKg), 2)}
           </p>
           <p className="text-[10px] sm:text-[12px] text-gr-muted mt-1">QQ total</p>
           <p className="text-[10px] sm:text-[11px] text-gr-muted hidden sm:block">{formatNum(totalIngresadoKg, 0)} kg</p>
@@ -462,7 +462,7 @@ export default function MateriaPrimaPage() {
           <p className="text-[10px] sm:text-[11.5px] font-700 text-gr-muted uppercase tracking-wide mb-1">Utilizado</p>
           <p className="text-[20px] sm:text-[28px] font-900 leading-none"
             style={{ color: totalConsumidoKg > 0 ? '#A05C0A' : '#9CA3AF' }}>
-            {allKardexQ.isLoading ? '…' : formatNum(kgToQQ(totalConsumidoKg), 1)}
+            {allKardexQ.isLoading ? '…' : formatNum(kgToQQ(totalConsumidoKg), 2)}
           </p>
           <p className="text-[10px] sm:text-[12px] text-gr-muted mt-1">QQ en producción</p>
           <p className="text-[10px] sm:text-[11px] text-gr-muted hidden sm:block">{formatNum(totalConsumidoKg, 0)} kg</p>
@@ -471,7 +471,7 @@ export default function MateriaPrimaPage() {
         {/* Disponible */}
         <div className="card border-t-2" style={{ borderTopColor: 'var(--color-gr-primary)' }}>
           <p className="text-[10px] sm:text-[11.5px] font-700 text-gr-muted uppercase tracking-wide mb-1">Disponible</p>
-          <p className="text-[20px] sm:text-[28px] font-900 text-gr-primary leading-none">{formatNum(kgToQQ(totalKg), 1)}</p>
+          <p className="text-[20px] sm:text-[28px] font-900 text-gr-primary leading-none">{formatNum(kgToQQ(totalKg), 2)}</p>
           <p className="text-[10px] sm:text-[12px] text-gr-muted mt-1">QQ en stock</p>
           <p className="text-[10px] sm:text-[11px] text-gr-muted hidden sm:block">{formatNum(totalKg, 0)} kg</p>
         </div>

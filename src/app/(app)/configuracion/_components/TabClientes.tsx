@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useClientes } from '@/lib/api/catalogos';
-import { Btn, Spinner } from '@/components/ui';
+import { Btn, Spinner, Pagination, usePagination } from '@/components/ui';
 import { NuevoClienteModal } from '@/components/NuevoClienteModal';
 import { Plus, Pencil } from 'lucide-react';
 import type { Cliente } from '@/lib/types';
@@ -9,6 +9,7 @@ import type { Cliente } from '@/lib/types';
 export function TabClientes() {
   const q = useClientes();
   const clientes = q.data ?? [];
+  const { page, setPage, totalPages, pageItems, pageSize, setPageSize, total } = usePagination(clientes);
   const [open, setOpen] = useState(false);
   const [editCliente, setEditCliente] = useState<Cliente | null>(null);
 
@@ -31,7 +32,7 @@ export function TabClientes() {
             </tr>
           </thead>
           <tbody>
-            {clientes.map((c, i) => (
+            {pageItems.map((c, i) => (
               <tr key={c.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
                 className="border-b border-[var(--color-gr-border-lite)]">
                 <td className="px-4 py-3 font-700 whitespace-nowrap">{c.nombre}</td>
@@ -48,6 +49,7 @@ export function TabClientes() {
           </tbody>
         </table>
         </div>
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} total={total} />
       </div>
       {open && <NuevoClienteModal onClose={() => setOpen(false)} />}
       {editCliente && (
