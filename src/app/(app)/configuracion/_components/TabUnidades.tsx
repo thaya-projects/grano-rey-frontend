@@ -4,7 +4,7 @@ import { useUnidades, useCreateUnidad, useUpdateUnidad, useDeleteUnidad } from '
 import { TipoUnidad, type UnidadMedida } from '@/lib/types';
 import { kgToQQ } from '@/lib/utils';
 import { apiErrorMessage } from '@/lib/api';
-import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
+import { Btn, Modal, FormField, Input, Select, Spinner, useToast, Pagination, usePagination } from '@/components/ui';
 import { Plus, Pencil, Trash2, Scale } from 'lucide-react';
 
 const TIPO_LABELS: Record<string, string> = {
@@ -82,7 +82,7 @@ function NuevaUnidadModal({ onClose, onSaved, onError }: {
         <p className="text-[12px] text-gr-muted bg-gr-border-lite rounded-lg px-3 py-2">
           1 <strong>{codigo || '…'}</strong> = <strong>{factorABase} kg</strong>
           {tipo === TipoUnidad.PESO && parseFloat(factorABase) !== 1 && (
-            <> · {kgToQQ(parseFloat(factorABase)).toFixed(3)} qq (46 kg)</>
+            <> · {kgToQQ(parseFloat(factorABase)).toFixed(2)} qq (46 kg)</>
           )}
         </p>
       )}
@@ -159,14 +159,23 @@ function EditarUnidadModal({ unidad, onClose, onSaved, onError }: {
 
 // ─── Tab principal ────────────────────────────────────────────
 export function TabUnidades() {
-  const toast       = useToast(s => s.show);
   const unidadesQ   = useUnidades();
-  const deleteUnit  = useDeleteUnidad();
   const unidades    = unidadesQ.data ?? [];
 
-  const [showNueva, setShowNueva]               = useState(false);
-  const [editando, setEditando]                 = useState<UnidadMedida | null>(null);
-  const [confirmDelete, setConfirmDelete]       = useState<UnidadMedida | null>(null);
+  if (unidadesQ.isLoading) {
+    return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
+  }
+
+  return <TabUnidadesBody unidades={unidades} />;
+}
+
+function TabUnidadesBody({ unidades }: { unidades: UnidadMedida[] }) {
+  const toast       = useToast(s => s.show);
+  const deleteUnit  = useDeleteUnidad();
+
+  const [showNueva, setShowNueva]         = useState(false);
+  const [editando, setEditando]           = useState<UnidadMedida | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<UnidadMedida | null>(null);
 
   async function handleDelete(u: UnidadMedida) {
     try {
@@ -179,75 +188,77 @@ export function TabUnidades() {
     }
   }
 
-  if (unidadesQ.isLoading) {
-    return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
-  }
+  const tiposConItems = Object.entries(TIPO_LABELS)
+    .map(([tipo, label]) => ({ tipo, label, count: unidades.filter(u => u.tipo === tipo).length }))
+    .filter(g => g.count > 0);
 
-  const porTipo = Object.entries(TIPO_LABELS).map(([tipo, label]) => ({
-    tipo, label,
-    items: unidades.filter(u => u.tipo === tipo),
-  })).filter(g => g.items.length > 0);
+  const [filtroTipo, setFiltroTipo] = useState<string>(tiposConItems[0]?.tipo ?? TipoUnidad.PESO);
+  const itemsFiltrados = unidades.filter(u => u.tipo === filtroTipo);
+  const { page, setPage, totalPages, pageItems, pageSize, setPageSize, total } = usePagination(itemsFiltrados);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-[13px] text-gr-muted">{unidades.length} unidades configuradas</p>
         <Btn onClick={() => setShowNueva(true)}><Plus size={14} /> Nueva unidad</Btn>
       </div>
 
-      {/* Agrupadas por tipo */}
-      {porTipo.map(({ tipo, label, items }) => (
-        <div key={tipo}>
-          <div className="flex items-center gap-2 mb-2">
-            <Scale size={13} style={{ color: TIPO_COLORS[tipo] }} />
-            <p className="text-[11.5px] font-700 uppercase tracking-wide" style={{ color: TIPO_COLORS[tipo] }}>
-              {label}
-            </p>
-            <span className="text-[11px] text-gr-muted">({items.length})</span>
-          </div>
-
-          <div className="card-no-pad">
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr style={{ background: 'var(--color-gr-border-lite)' }}>
-                  {['Código', 'Nombre', 'Abrev.', 'Factor (kg)', ''].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-[11px] font-700 text-gr-muted uppercase tracking-wide whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((u, i) => (
-                  <tr key={u.id}
-                    className={`border-t border-gr-border-lite ${i % 2 === 1 ? 'bg-gr-border-lite/40' : 'bg-white'}`}>
-                    <td className="px-4 py-3 font-mono font-700 text-[12.5px] text-gr-primary">{u.codigo}</td>
-                    <td className="px-4 py-3 font-600 text-gr-text">{u.nombre}</td>
-                    <td className="px-4 py-3 text-gr-muted font-mono text-[12px]">{u.abreviatura ?? '—'}</td>
-                    <td className="px-4 py-3 text-gr-text">
-                      {u.factorABase}
-                      {u.tipo === TipoUnidad.PESO && u.factorABase !== 1 && (
-                        <span className="text-gr-muted text-[11.5px] ml-1">
-                          ({kgToQQ(u.factorABase).toFixed(3)} qq)
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <Btn size="sm" variant="ghost" onClick={() => setEditando(u)}>
-                          <Pencil size={12} />
-                        </Btn>
-                        <Btn size="sm" variant="ghost" onClick={() => setConfirmDelete(u)}
-                          className="text-gr-danger hover:bg-red-50">
-                          <Trash2 size={12} />
-                        </Btn>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {/* Switch por tipo: Peso / Volumen / Unidad */}
+      {tiposConItems.length > 0 && (
+        <div className="flex rounded-[10px] overflow-hidden border border-gr-border w-fit">
+          {tiposConItems.map(({ tipo, label, count }) => (
+            <button key={tipo} type="button" onClick={() => setFiltroTipo(tipo)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 text-[12.5px] font-700 transition-all ${
+                filtroTipo === tipo ? 'text-white' : 'bg-white text-gr-muted hover:text-gr-text'
+              }`}
+              style={filtroTipo === tipo ? { background: TIPO_COLORS[tipo] } : undefined}>
+              <Scale size={13} /> {label} <span className="opacity-70">({count})</span>
+            </button>
+          ))}
         </div>
-      ))}
+      )}
+
+      <div className="card-no-pad">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr style={{ background: 'var(--color-gr-border-lite)' }}>
+              {['Código', 'Nombre', 'Abrev.', 'Factor (kg)', ''].map(h => (
+                <th key={h} className="px-4 py-2.5 text-left text-[11px] font-700 text-gr-muted uppercase tracking-wide whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {pageItems.map((u, i) => (
+              <tr key={u.id}
+                className={`border-t border-gr-border-lite ${i % 2 === 1 ? 'bg-gr-border-lite/40' : 'bg-white'}`}>
+                <td className="px-4 py-3 font-mono font-700 text-[12.5px] text-gr-primary">{u.codigo}</td>
+                <td className="px-4 py-3 font-600 text-gr-text">{u.nombre}</td>
+                <td className="px-4 py-3 text-gr-muted font-mono text-[12px]">{u.abreviatura ?? '—'}</td>
+                <td className="px-4 py-3 text-gr-text">
+                  {u.factorABase}
+                  {u.tipo === TipoUnidad.PESO && u.factorABase !== 1 && (
+                    <span className="text-gr-muted text-[11.5px] ml-1">
+                      ({kgToQQ(u.factorABase).toFixed(2)} qq)
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end gap-1">
+                    <Btn size="sm" variant="ghost" onClick={() => setEditando(u)}>
+                      <Pencil size={12} />
+                    </Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => setConfirmDelete(u)}
+                      className="text-gr-danger hover:bg-red-50">
+                      <Trash2 size={12} />
+                    </Btn>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} total={total} />
+      </div>
 
       {unidades.length === 0 && (
         <div className="py-12 text-center text-gr-muted text-[14px]">

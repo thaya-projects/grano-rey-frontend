@@ -22,7 +22,7 @@ const s = StyleSheet.create({
 });
 
 function fBs(n: number) { return `Bs ${n.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`; }
-function fQQ(n: number) { return `${n.toFixed(1)} QQ`; }
+function fQQ(n: number) { return `${n.toFixed(2)} QQ`; }
 
 function DocComp({ data }: { data: { movimientos: MovimientoMP[] } }) {
   const { movimientos } = data;

@@ -121,10 +121,10 @@ export default function DashboardPage() {
           icon={<ShoppingCart size={20} />} color="primary" href="/ventas" />
         <KpiCard
           label="Stock productos" value={formatNum(stats.totalStock, 0) + ' bol'}
-          sub={`${formatNum(stats.totalQQ, 1)} QQ equivalente`}
+          sub={`${formatNum(stats.totalQQ, 2)} QQ equivalente`}
           icon={<Package size={20} />} color="gold" href="/stock" />
         <KpiCard
-          label="Materia Prima" value={formatNum(stats.totalMP, 0) + ' QQ'}
+          label="Materia Prima" value={formatNum(stats.totalMP, 2) + ' QQ'}
           sub={mpStockBajo ? '⚠ Hay stock bajo' : 'Stock suficiente'}
           icon={<Wheat size={20} />} color="success" href="/materia-prima" />
         <KpiCard
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                 <p className="text-[28px] font-900 text-[var(--color-gr-text)] leading-none mb-1">
                   {formatNum(Number(p.stockActual), 0)} <span className="text-[14px] font-500 text-[var(--color-gr-muted)]">bol</span>
                 </p>
-                <p className="text-[12px] text-[var(--color-gr-muted)] mb-3">{formatNum(equivPT(Number(p.stockActual), p.unidadProduccion?.factorABase, p.unidadProduccion?.tipo), 1)} {equivLabel(p.unidadProduccion?.tipo)}</p>
+                <p className="text-[12px] text-[var(--color-gr-muted)] mb-3">{formatNum(equivPT(Number(p.stockActual), p.unidadProduccion?.factorABase, p.unidadProduccion?.tipo), 2)} {equivLabel(p.unidadProduccion?.tipo)}</p>
                 <StockBar value={Number(p.stockActual)} min={Number(p.stockMinimo)} />
               </div>
             );

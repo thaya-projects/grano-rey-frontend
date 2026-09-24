@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { X, Check, AlertTriangle, Info, CheckCircle } from 'lucide-react';
+import { X, Check, AlertTriangle, Info, CheckCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 // ─── Button ───────────────────────────────────────────────────────────────────
 type BtnVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'gold' | 'green';
@@ -437,5 +437,98 @@ export function IconBtn({
         {children}
       </button>
     </Tooltip>
+  );
+}
+
+// ─── Paginación ─────────────────────────────────────────────────────────────
+export const PAGE_SIZES = [10, 20, 50, 100] as const;
+
+/** Recorta `items` a la página actual. La página se ajusta sola si la lista se achica (ej. al filtrar). */
+export function usePagination<T>(items: T[], initialPageSize: number = 10) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSizeState] = useState(initialPageSize);
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const page_ = Math.min(page, totalPages);
+  const pageItems = items.slice((page_ - 1) * pageSize, page_ * pageSize);
+  function setPageSize(size: number) {
+    setPageSizeState(size);
+    setPage(1);
+  }
+  return { page: page_, setPage, totalPages, pageItems, pageSize, setPageSize, total: items.length };
+}
+
+/** Números de página a mostrar, con '…' cuando hay demasiadas para listarlas todas. */
+function pageNumbers(current: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const nums: (number | '…')[] = [1];
+  if (current > 3) nums.push('…');
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  for (let p = start; p <= end; p++) nums.push(p);
+  if (current < total - 2) nums.push('…');
+  nums.push(total);
+  return nums;
+}
+
+export function Pagination({ page, totalPages, onChange, pageSize, onPageSizeChange, total, className }: {
+  page: number;
+  totalPages: number;
+  onChange: (page: number) => void;
+  pageSize: number;
+  onPageSizeChange: (size: number) => void;
+  total: number;
+  className?: string;
+}) {
+  if (total === 0) return null;
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+  return (
+    <div className={cn(
+      'grid grid-cols-1 sm:grid-cols-3 items-center gap-3 px-5 py-3 border-t border-[var(--color-gr-border-lite)]',
+      className,
+    )}>
+      <span className="text-[12px] text-[var(--color-gr-muted)] whitespace-nowrap justify-self-center sm:justify-self-start">
+        {from}–{to} de {total}
+      </span>
+
+      <div className="flex items-center gap-1 justify-self-center">
+        <IconBtn tooltip="Primera página" onClick={() => onChange(1)} disabled={page <= 1}>
+          <ChevronsLeft size={15} />
+        </IconBtn>
+        <IconBtn tooltip="Anterior" onClick={() => onChange(page - 1)} disabled={page <= 1}>
+          <ChevronLeft size={15} />
+        </IconBtn>
+        {pageNumbers(page, totalPages).map((n, i) => n === '…' ? (
+          <span key={`e${i}`} className="w-7 text-center text-[12px] text-[var(--color-gr-muted)] select-none">…</span>
+        ) : (
+          <button key={n} type="button" onClick={() => onChange(n)}
+            className={cn(
+              'w-8 h-8 rounded-[8px] border text-[12.5px] font-700 transition-all',
+              n === page
+                ? 'bg-[var(--color-gr-primary)] border-[var(--color-gr-primary)] text-white'
+                : 'bg-white border-[var(--color-gr-border)] text-[var(--color-gr-muted)] hover:bg-[var(--color-gr-border-lite)] hover:text-[var(--color-gr-text)]',
+            )}>
+            {n}
+          </button>
+        ))}
+        <IconBtn tooltip="Siguiente" onClick={() => onChange(page + 1)} disabled={page >= totalPages}>
+          <ChevronRight size={15} />
+        </IconBtn>
+        <IconBtn tooltip="Última página" onClick={() => onChange(totalPages)} disabled={page >= totalPages}>
+          <ChevronsRight size={15} />
+        </IconBtn>
+      </div>
+
+      <div className="flex items-center gap-2 justify-self-center sm:justify-self-end">
+        <span className="text-[12px] text-[var(--color-gr-muted)] whitespace-nowrap">Ver por página</span>
+        <select
+          value={pageSize}
+          onChange={e => onPageSizeChange(Number(e.target.value))}
+          className="h-7 px-2 rounded-[6px] border border-[var(--color-gr-border)] text-[12px] text-[var(--color-gr-text)] bg-white cursor-pointer"
+        >
+          {PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
+        </select>
+      </div>
+    </div>
   );
 }

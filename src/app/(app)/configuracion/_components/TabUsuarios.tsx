@@ -5,7 +5,7 @@ import { RolUsuario, type Usuario } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { generarPassword } from '@/lib/utils';
 import {
-  Btn, Modal, FormField, Input, Select, Badge, Spinner, useToast,
+  Btn, Modal, FormField, Input, Select, Badge, Spinner, useToast, Pagination, usePagination,
 } from '@/components/ui';
 import { Plus, Trash2, Pencil, Users, CheckCircle2, XCircle, Wand2, Eye, EyeOff } from 'lucide-react';
 
@@ -231,6 +231,7 @@ export function TabUsuarios() {
       .sort((a, b) => a.nombre.localeCompare(b.nombre)),
     [usuarios, filtroRol],
   );
+  const { page, setPage, totalPages, pageItems, pageSize, setPageSize, total } = usePagination(filtrados);
 
   async function handleDelete(u: Usuario) {
     try {
@@ -294,9 +295,9 @@ export function TabUsuarios() {
             <p>Sin usuarios registrados</p>
           </div>
         ) : (
-          filtrados.map((u, i) => (
+          pageItems.map((u, i) => (
             <div key={u.id}
-              className={`px-5 py-3.5 ${i < filtrados.length - 1 ? 'border-b border-gr-border-lite' : ''}`}>
+              className={`px-5 py-3.5 ${i < pageItems.length - 1 ? 'border-b border-gr-border-lite' : ''}`}>
               {/* Mobile */}
               <div className="flex items-start justify-between gap-2 md:hidden">
                 <div className="flex-1 min-w-0">
@@ -367,6 +368,8 @@ export function TabUsuarios() {
             </div>
           ))
         )}
+
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} total={total} />
 
         {filtrados.length > 0 && (
           <div className="px-5 py-3 text-[12.5px] text-gr-muted border-t border-gr-border"

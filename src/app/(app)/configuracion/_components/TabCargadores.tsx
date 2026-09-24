@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useCargadores, useCreateCargador, useUpdateCargador } from '@/lib/api/cargadores';
 import { apiErrorMessage } from '@/lib/api';
 import type { Cargador } from '@/lib/types';
-import { Btn, Modal, FormField, Input, Spinner, useToast } from '@/components/ui';
+import { Btn, Modal, FormField, Input, Spinner, useToast, Pagination, usePagination } from '@/components/ui';
 import { Plus, Pencil } from 'lucide-react';
 
 export function TabCargadores() {
@@ -12,6 +12,7 @@ export function TabCargadores() {
   const create = useCreateCargador();
   const update = useUpdateCargador();
   const items = q.data ?? [];
+  const { page, setPage, totalPages, pageItems, pageSize, setPageSize, total } = usePagination(items);
 
   const [modal, setModal] = useState<{ mode: 'create' } | { mode: 'edit'; cargador: Cargador } | null>(null);
   const [nombre, setNombre] = useState('');
@@ -83,7 +84,7 @@ export function TabCargadores() {
                 </td>
               </tr>
             )}
-            {items.map((c, i) => (
+            {pageItems.map((c, i) => (
               <tr key={c.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
                 className="border-b border-[var(--color-gr-border-lite)]">
                 <td className="px-4 py-3 font-700">{c.nombre}</td>
@@ -98,6 +99,7 @@ export function TabCargadores() {
             ))}
           </tbody>
         </table>
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} total={total} />
       </div>
 
       {modal && (
