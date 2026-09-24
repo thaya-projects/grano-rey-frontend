@@ -8,7 +8,7 @@ import {
 import { useUnidades } from '@/lib/api/catalogos';
 import { apiErrorMessage } from '@/lib/api';
 import type { Producto, ProductoImagen } from '@/lib/types';
-import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
+import { Btn, Modal, FormField, Input, Select, Spinner, useToast, Pagination, usePagination } from '@/components/ui';
 import { Plus, Pencil, Star, Trash2, ImageIcon, Upload, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const STOPWORDS = new Set(['DE','DEL','LA','LAS','LOS','EL','Y','E','A','EN','CON','POR','UN','UNA']);
@@ -481,6 +481,7 @@ export function TabProductos() {
 
   const [modal, setModal]           = useState<{ mode: 'create' } | { mode: 'edit'; producto: Producto } | null>(null);
   const [imagenModal, setImagenModal] = useState<Producto | null>(null);
+  const { page, setPage, totalPages, pageItems, pageSize, setPageSize, total } = usePagination(productos);
 
   if (productosQ.isLoading) {
     return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
@@ -504,7 +505,7 @@ export function TabProductos() {
             </tr>
           </thead>
           <tbody>
-            {productos.map((p, i) => (
+            {pageItems.map((p, i) => (
               <tr key={p.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
                 className="border-b border-gr-border-lite">
                 <td className="px-4 py-3 font-mono font-700 text-[12.5px] text-gr-primary">{p.codigo}</td>
@@ -536,6 +537,7 @@ export function TabProductos() {
           </tbody>
         </table>
         </div>
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} total={total} />
       </div>
 
       {modal && (

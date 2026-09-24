@@ -4,9 +4,9 @@ import { useProductos } from '@/lib/api/productos';
 import { useLotes } from '@/lib/api/produccion';
 import { useUnidades } from '@/lib/api/catalogos';
 import { type Producto, type LoteProduccion, type UnidadMedida, TipoUnidad } from '@/lib/types';
-import { formatNum, formatBs } from '@/lib/utils';
+import { formatNum, formatBs, KG_POR_QQ } from '@/lib/utils';
 import { StockBar, Badge, Spinner } from '@/components/ui';
-import { Info } from 'lucide-react';
+import { Info, LayoutGrid, Table2 } from 'lucide-react';
 
 // ─── Sub-componente: card de producto con toggle de unidad ─────
 function ProductCard({
@@ -31,7 +31,11 @@ function ProductCard({
     if (cant <= 0) continue;
     const factor  = Number(l.totalKg) / cant;
     const unidad  = l.unidad ?? unidadesPeso.find(u => Math.abs(Number(u.factorABase) - factor) < 0.5);
-    const abrev   = unidad?.abreviatura ?? unidad?.codigo ?? `${Math.round(factor)}kg`;
+    // Cualquier unidad con factor ≈46kg es un quintal — se muestra siempre "QQ",
+    // sin importar cómo esté nombrada en el catálogo (evita etiquetas feas tipo "qq46").
+    const abrev   = Math.abs(factor - KG_POR_QQ) < 0.5
+      ? 'QQ'
+      : (unidad?.abreviatura ?? unidad?.codigo ?? `${formatNum(factor, 0)}kg`);
     const restante = Number(l.stockRestante);
     const restanteKg = restante * factor;
     const existing = grupos.find(g => Math.abs(g.factor - factor) < 0.5);
@@ -43,24 +47,30 @@ function ProductCard({
     }
   }
 
-  // Unidades disponibles para el toggle: cada unidad de los lotes + kg siempre
+  // Unidades disponibles para el toggle: cada unidad de los lotes + kg y QQ siempre
   const unitsDisponibles: { factor: number; abrev: string }[] = [
     ...grupos.map(g => ({ factor: g.factor, abrev: g.abrev })),
   ];
   if (!unitsDisponibles.find(u => Math.abs(u.factor - 1) < 0.1)) {
     unitsDisponibles.push({ factor: 1, abrev: 'kg' });
   }
+  if (!unitsDisponibles.find(u => Math.abs(u.factor - KG_POR_QQ) < 0.5)) {
+    unitsDisponibles.push({ factor: KG_POR_QQ, abrev: 'QQ' });
+  }
 
   const defaultFactor = grupos.length > 0 ? grupos[0].factor : 1;
   const [selFactor, setSelFactor] = useState(defaultFactor);
 
   const selAbrev   = unitsDisponibles.find(u => Math.abs(u.factor - selFactor) < 0.1)?.abrev ?? 'kg';
-  const stockDisplay = selFactor > 0 ? Math.round(stockKg / selFactor) : Math.round(stockKg);
-  const minDisplay   = selFactor > 0 ? Math.round(minKg / selFactor) : Math.round(minKg);
+  // Solo kg (factor 1) muestra entero; cualquier otra unidad convertida (QQ, bolsas de otro peso, etc.)
+  // muestra 2 decimales para no perder precisión en la conversión.
+  const displayDecimals = Math.abs(selFactor - 1) < 0.1 ? 0 : 2;
+  const stockDisplay = selFactor > 0 ? stockKg / selFactor : stockKg;
+  const minDisplay   = selFactor > 0 ? minKg / selFactor : minKg;
 
   // Desglose por grupo de unidad (solo si hay más de uno o si difiere de la unidad elegida)
   const desglose = grupos.length > 1
-    ? grupos.map(g => `${Math.round(g.restanteKg / g.factor)} ${g.abrev}`).join(' + ')
+    ? grupos.map(g => `${formatNum(g.restanteKg / g.factor, Math.abs(g.factor - 1) < 0.1 ? 0 : 2)} ${g.abrev}`).join(' + ')
     : null;
 
   return (
@@ -82,7 +92,7 @@ function ProductCard({
       <div>
         <div className="flex items-end justify-between gap-2">
           <div className="flex items-baseline gap-1.5">
-            <span className="text-[36px] font-900 text-gr-text leading-none">{formatNum(stockDisplay, 0)}</span>
+            <span className="text-[36px] font-900 text-gr-text leading-none">{formatNum(stockDisplay, displayDecimals)}</span>
             <span className="text-[13px] font-600 text-gr-muted">{selAbrev}</span>
           </div>
 
@@ -114,7 +124,7 @@ function ProductCard({
         )}
         {!desglose && (
           <p className="text-[12px] text-gr-muted mt-0.5">
-            {formatNum(stockKg, 0)} kg · mín {minDisplay} {selAbrev} · vida útil {p.vidaUtilMeses}m
+            {formatNum(stockKg, 0)} kg · mín {formatNum(minDisplay, displayDecimals)} {selAbrev} · vida útil {p.vidaUtilMeses}m
           </p>
         )}
       </div>
@@ -150,16 +160,22 @@ export default function StockPage() {
     const already = tableUnits.find(u => Math.abs(u.factor - factor) < 0.5);
     if (!already) {
       const unidad = l.unidad ?? unidadesPeso.find(u => Math.abs(Number(u.factorABase) - factor) < 0.5);
-      const abrev  = unidad?.abreviatura ?? unidad?.codigo ?? `${Math.round(factor)}kg`;
+      const abrev  = Math.abs(factor - KG_POR_QQ) < 0.5
+        ? 'QQ'
+        : (unidad?.abreviatura ?? unidad?.codigo ?? `${formatNum(factor, 0)}kg`);
       tableUnits.push({ factor, abrev });
     }
   }
   if (!tableUnits.find(u => Math.abs(u.factor - 1) < 0.1)) {
     tableUnits.push({ factor: 1, abrev: 'kg' });
   }
+  if (!tableUnits.find(u => Math.abs(u.factor - KG_POR_QQ) < 0.5)) {
+    tableUnits.push({ factor: KG_POR_QQ, abrev: 'QQ' });
+  }
 
   const defaultTableUnit = tableUnits[0] ?? { factor: 1, abrev: 'kg' };
   const [tableUnit, setTableUnit] = useState<{ factor: number; abrev: string }>(defaultTableUnit);
+  const [vista, setVista] = useState<'cards' | 'tabla'>('cards');
 
   if (productosQ.isLoading) {
     return (
@@ -171,11 +187,27 @@ export default function StockPage() {
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <div>
-        <h1 className="text-[22px] font-900 text-gr-text">Stock de Productos</h1>
-        <p className="text-gr-muted text-[13.5px] mt-0.5">
-          Productos terminados · las ventas descuentan automáticamente
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-[22px] font-900 text-gr-text">Stock de Productos</h1>
+          <p className="text-gr-muted text-[13.5px] mt-0.5">
+            Productos terminados · las ventas descuentan automáticamente
+          </p>
+        </div>
+        <div className="flex rounded-[10px] overflow-hidden border border-gr-border shrink-0">
+          <button type="button" onClick={() => setVista('cards')}
+            className={`flex items-center gap-1.5 px-3 py-2 text-[12.5px] font-700 transition-all ${
+              vista === 'cards' ? 'bg-gr-primary text-white' : 'bg-white text-gr-muted hover:text-gr-text'
+            }`}>
+            <LayoutGrid size={14} /> Tarjetas
+          </button>
+          <button type="button" onClick={() => setVista('tabla')}
+            className={`flex items-center gap-1.5 px-3 py-2 text-[12.5px] font-700 transition-all ${
+              vista === 'tabla' ? 'bg-gr-primary text-white' : 'bg-white text-gr-muted hover:text-gr-text'
+            }`}>
+            <Table2 size={14} /> Tabla
+          </button>
+        </div>
       </div>
 
       <div className="bg-[var(--color-gr-info-bg)] border border-[var(--color-gr-info)]/20 rounded-[12px] px-5 py-3 flex items-center gap-3">
@@ -186,18 +218,21 @@ export default function StockPage() {
       </div>
 
       {/* Product cards */}
-      <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {productos.map(p => (
-          <ProductCard
-            key={p.id}
-            p={p}
-            lotesActivos={getLotes(p.id)}
-            unidadesPeso={unidadesPeso}
-          />
-        ))}
-      </div>
+      {vista === 'cards' && (
+        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {productos.map(p => (
+            <ProductCard
+              key={p.id}
+              p={p}
+              lotesActivos={getLotes(p.id)}
+              unidadesPeso={unidadesPeso}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Lote table */}
+      {vista === 'tabla' && (
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-[13px] font-700 text-gr-muted uppercase tracking-wide">
@@ -302,6 +337,7 @@ export default function StockPage() {
           </div>
         </div>
       </div>
+      )}
 
     </div>
   );

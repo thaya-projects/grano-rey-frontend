@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useTransportistas } from '@/lib/api/catalogos';
-import { Btn, Spinner } from '@/components/ui';
+import { Btn, Spinner, Pagination, usePagination } from '@/components/ui';
 import { NuevoTransportistaModal } from '@/components/NuevoTransportistaModal';
 import { Plus, Pencil } from 'lucide-react';
 import type { Transportista } from '@/lib/types';
@@ -9,6 +9,7 @@ import type { Transportista } from '@/lib/types';
 export function TabTransportistas() {
   const q = useTransportistas();
   const items = q.data ?? [];
+  const { page, setPage, totalPages, pageItems, pageSize, setPageSize, total } = usePagination(items);
   const [open, setOpen] = useState(false);
   const [editTransportista, setEditTransportista] = useState<Transportista | null>(null);
 
@@ -31,7 +32,7 @@ export function TabTransportistas() {
             </tr>
           </thead>
           <tbody>
-            {items.map((t, i) => (
+            {pageItems.map((t, i) => (
               <tr key={t.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
                 className="border-b border-[var(--color-gr-border-lite)]">
                 <td className="px-4 py-3 font-700 whitespace-nowrap">{t.nombre}</td>
@@ -49,6 +50,7 @@ export function TabTransportistas() {
           </tbody>
         </table>
         </div>
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} total={total} />
       </div>
       {open && <NuevoTransportistaModal onClose={() => setOpen(false)} />}
       {editTransportista && (

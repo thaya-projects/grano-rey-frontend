@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useProveedores } from '@/lib/api/catalogos';
-import { Btn, Spinner } from '@/components/ui';
+import { Btn, Spinner, Pagination, usePagination } from '@/components/ui';
 import { NuevoProveedorModal } from '@/components/NuevoProveedorModal';
 import { Plus, Pencil } from 'lucide-react';
 import type { Proveedor } from '@/lib/types';
@@ -9,6 +9,7 @@ import type { Proveedor } from '@/lib/types';
 export function TabProveedores() {
   const q = useProveedores();
   const items = q.data ?? [];
+  const { page, setPage, totalPages, pageItems, pageSize, setPageSize, total } = usePagination(items);
   const [open, setOpen] = useState(false);
   const [editProveedor, setEditProveedor] = useState<Proveedor | null>(null);
 
@@ -31,7 +32,7 @@ export function TabProveedores() {
             </tr>
           </thead>
           <tbody>
-            {items.map((p, i) => (
+            {pageItems.map((p, i) => (
               <tr key={p.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
                 className="border-b border-[var(--color-gr-border-lite)]">
                 <td className="px-4 py-3 font-700 whitespace-nowrap">{p.nombre}</td>
@@ -49,6 +50,7 @@ export function TabProveedores() {
           </tbody>
         </table>
         </div>
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} total={total} />
       </div>
       {open && <NuevoProveedorModal onClose={() => setOpen(false)} />}
       {editProveedor && (

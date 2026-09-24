@@ -23,7 +23,7 @@ const s = StyleSheet.create({
 });
 
 function fBs(n: number) { return `Bs ${n.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`; }
-function fEquiv(n: number, label: string) { return `${n.toFixed(1)} ${label}`; }
+function fEquiv(n: number, label: string) { return `${n.toFixed(2)} ${label}`; }
 
 function DocComp({ data }: { data: { productos: Producto[]; materiaPrima: MateriaPrimaStock[] } }) {
   const { productos, materiaPrima } = data;
