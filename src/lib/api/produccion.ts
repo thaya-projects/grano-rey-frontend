@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import type { LoteProduccion, CreateLoteRequest } from '../types';
 import { productosKeys } from './productos';
+import { mpKeys } from './materia-prima';
 
 export const lotesKeys = {
   all: ['lotes-produccion'] as const,
@@ -31,6 +32,10 @@ export function useCreateLote() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: lotesKeys.all });
       qc.invalidateQueries({ queryKey: productosKeys.all });
+      // Registrar producción consume materia prima — refrescamos stock y kardex de MP,
+      // si no la pantalla de Materia Prima muestra datos viejos (stock/lote sin descontar).
+      qc.invalidateQueries({ queryKey: mpKeys.all });
+      qc.invalidateQueries({ queryKey: mpKeys.kardex() });
     },
   });
 }

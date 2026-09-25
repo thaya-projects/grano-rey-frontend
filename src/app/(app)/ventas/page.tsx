@@ -215,8 +215,18 @@ export default function VentasPage() {
                   <p className="text-[11.5px] text-[var(--color-gr-muted)]">{v.fecha}</p>
                 </td>
                 <td className="px-4 py-3 text-[var(--color-gr-sub)] whitespace-nowrap">
-                  {v.detalles[0]?.producto?.nombre ?? '—'}
-                  {v.detalles.length > 1 && <span className="text-[var(--color-gr-muted)]"> +{v.detalles.length - 1}</span>}
+                  {(() => {
+                    // Un mismo producto puede venir repartido en varios lotes (varios "detalles"
+                    // del backend) — contamos productos DISTINTOS, no filas de detalle crudas,
+                    // para no mostrar "+1" cuando en realidad es el mismo producto en otro lote.
+                    const productosUnicos = [...new Set(v.detalles.map(d => d.producto?.id ?? d.producto?.nombre ?? ''))];
+                    return (
+                      <>
+                        {v.detalles[0]?.producto?.nombre ?? '—'}
+                        {productosUnicos.length > 1 && <span className="text-[var(--color-gr-muted)]"> +{productosUnicos.length - 1}</span>}
+                      </>
+                    );
+                  })()}
                 </td>
                 <td className="px-4 py-3 font-800 text-[var(--color-gr-primary)] whitespace-nowrap text-right">
                   {formatBs(Number(v.totalBs))}

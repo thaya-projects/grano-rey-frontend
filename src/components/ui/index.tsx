@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { X, Check, AlertTriangle, Info, CheckCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { X, Check, AlertTriangle, Info, CheckCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ChevronDown } from 'lucide-react';
 
 // ─── Button ───────────────────────────────────────────────────────────────────
 type BtnVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'gold' | 'green';
@@ -529,6 +529,90 @@ export function Pagination({ page, totalPages, onChange, pageSize, onPageSizeCha
           {PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
         </select>
       </div>
+    </div>
+  );
+}
+
+// ─── Combobox (select con búsqueda) ────────────────────────────────────────
+export interface ComboboxOption {
+  value: string;
+  label: string;
+  sublabel?: string;
+}
+
+/**
+ * Reemplazo de `<Select>` para listas largas: se puede escribir para filtrar
+ * en vez de scrollear un `<select>` nativo. Muestra la opción elegida cuando
+ * está cerrado; al hacer foco/escribir se abre la lista filtrada.
+ */
+export function Combobox({ value, onChange, options, placeholder, emptyLabel = '— Sin seleccionar —', disabled }: {
+  value: string;
+  onChange: (value: string) => void;
+  options: ComboboxOption[];
+  placeholder?: string;
+  emptyLabel?: string;
+  disabled?: boolean;
+}) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const selected = options.find(o => o.value === value);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery('');
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? options.filter(o =>
+        o.label.toLowerCase().includes(q) || (o.sublabel ?? '').toLowerCase().includes(q))
+    : options;
+
+  return (
+    <div className="relative" ref={ref}>
+      <input
+        value={open ? query : (selected?.label ?? '')}
+        onChange={e => { setQuery(e.target.value); setOpen(true); }}
+        onFocus={() => { setOpen(true); setQuery(''); }}
+        disabled={disabled}
+        placeholder={placeholder ?? 'Escribí para buscar...'}
+        className="w-full h-10 pl-3 pr-9 rounded-[10px] border border-[var(--color-gr-border)] bg-white text-[14px] text-[var(--color-gr-text)] outline-none focus:border-[var(--color-gr-primary)] focus:ring-2 focus:ring-[var(--color-gr-primary)]/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-text"
+      />
+      <ChevronDown size={15}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-gr-muted)] pointer-events-none" />
+      {open && !disabled && (
+        <div className="absolute z-20 mt-1 w-full max-h-64 overflow-y-auto rounded-[10px] border border-[var(--color-gr-border)] bg-white shadow-lg py-1">
+          {value && (
+            <button type="button" onClick={() => { onChange(''); setQuery(''); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-[12.5px] text-[var(--color-gr-muted)] hover:bg-[var(--color-gr-border-lite)] transition-colors">
+              {emptyLabel}
+            </button>
+          )}
+          {filtered.length === 0 && (
+            <p className="px-3 py-3 text-[13px] text-[var(--color-gr-muted)] text-center">Sin resultados</p>
+          )}
+          {filtered.map(o => (
+            <button key={o.value} type="button"
+              onClick={() => { onChange(o.value); setQuery(''); setOpen(false); }}
+              className={cn(
+                'w-full text-left px-3 py-2 text-[13.5px] transition-colors',
+                o.value === value
+                  ? 'bg-[var(--color-gr-primary-lite)] font-700 text-[var(--color-gr-primary)]'
+                  : 'text-[var(--color-gr-text)] hover:bg-[var(--color-gr-border-lite)]',
+              )}>
+              {o.label}
+              {o.sublabel && <span className="block text-[11.5px] font-400 text-[var(--color-gr-muted)]">{o.sublabel}</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

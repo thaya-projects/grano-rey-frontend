@@ -62,7 +62,8 @@ export default function DashboardPage() {
   const hayAlertas     = stockBajo.length > 0 || dispPendientes > 0;
   const mpStockBajo    = materiasPrimas.some(m => Number(m.stockActualKg) < Number(m.stockMinimoKg));
 
-  const ultimas5 = [...ventas].slice(0, 5);
+  const ultimas4 = [...ventas].slice(0, 4);
+  const productosDestacados = productos.slice(0, 4);
 
   const loading = ventasQ.isLoading || productosQ.isLoading || mpQ.isLoading;
   if (loading) {
@@ -173,11 +174,11 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-800 text-[var(--color-gr-text)] text-[15px]">Stock actual por producto</h2>
           <Link href="/stock" className="flex items-center gap-1 text-[var(--color-gr-primary)] text-[13px] font-600 hover:underline">
-            Ver detalle <ArrowRight size={13} />
+            Ver todo <ArrowRight size={13} />
           </Link>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {productos.map(p => {
+          {productosDestacados.map(p => {
             const low = Number(p.stockActual) < Number(p.stockMinimo);
             return (
               <div key={p.id} className={`card p-4 border-t-[3px] ${low ? 'border-t-[var(--color-gr-danger)]' : 'border-t-[var(--color-gr-success)]'}`}>
@@ -203,8 +204,8 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="card-no-pad">
-          {ultimas5.map((v, i) => (
-            <div key={v.id} className={`flex items-center gap-4 px-5 py-3.5 ${i < ultimas5.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
+          {ultimas4.map((v, i) => (
+            <div key={v.id} className={`flex items-center gap-4 px-5 py-3.5 ${i < ultimas4.length - 1 ? 'border-b border-[var(--color-gr-border-lite)]' : ''}`}>
               <div className="w-9 h-9 rounded-[10px] bg-[var(--color-gr-primary-lite)] flex items-center justify-center shrink-0">
                 <ShoppingCart size={16} className="text-[var(--color-gr-primary)]" />
               </div>
