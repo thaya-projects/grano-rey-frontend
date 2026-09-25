@@ -5,7 +5,7 @@ import { useVentas, useCambiarEstadoVenta } from '@/lib/api/ventas';
 import { useTransportistas } from '@/lib/api/catalogos';
 import { type NotaVenta, EstadoVenta, TipoFlete, TipoPagoCarga } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
-import { formatBs } from '@/lib/utils';
+import { formatBs, formatNum } from '@/lib/utils';
 import { Btn, Modal, EstadoBadge, Badge, Spinner, useToast, FormField, Select } from '@/components/ui';
 import { NuevoTransportistaModal } from '@/components/NuevoTransportistaModal';
 import { Truck, CheckCircle2, Clock, Printer, ArrowRight, Package, Zap, User, Calendar, HardHat, Receipt, Plus } from 'lucide-react';
@@ -325,9 +325,18 @@ function ReporteEstadoModal({
 
 /** Fila informativa (read-only) — sin botones de acción. */
 function ReporteFila({ venta: v, color }: { venta: NotaVenta; color: string }) {
-  const productos = v.detalles.map(d =>
-    `${Number(d.cantidad)} ${d.unidad?.abreviatura ?? ''} ${d.producto?.nombre ?? ''}`.trim()
-  ).join(' · ');
+  // Un mismo producto puede venir repartido en varios lotes (varios "detalles" del backend) —
+  // se agrupan por producto sumando cantidades, para no repetir el nombre como si fueran
+  // productos distintos (ej. "3 qq Maíz · 2 qq Maíz" en vez de "5 qq Maíz").
+  const detallesPorProducto = Object.values(
+    v.detalles.reduce<Record<string, { nombre: string; abrev: string; cantidad: number }>>((acc, d) => {
+      const key = d.producto?.id ?? d.producto?.nombre ?? '';
+      if (!acc[key]) acc[key] = { nombre: d.producto?.nombre ?? '', abrev: d.unidad?.abreviatura ?? '', cantidad: 0 };
+      acc[key].cantidad += Number(d.cantidad ?? 0);
+      return acc;
+    }, {}),
+  );
+  const productos = detallesPorProducto.map(x => `${formatNum(x.cantidad, 0)} ${x.abrev} ${x.nombre}`.trim()).join(' · ');
   const bolsas = v.detalles.reduce((s, d) => s + Number(d.cantidad ?? 0), 0);
   const cargas = v.cargas ?? [];
 

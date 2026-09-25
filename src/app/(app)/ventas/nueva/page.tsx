@@ -5,7 +5,7 @@ import { useClientes, useTransportistas } from '@/lib/api/catalogos';
 import { useProductos } from '@/lib/api/productos';
 import { useLotes } from '@/lib/api/produccion';
 import { useCreateVenta } from '@/lib/api/ventas';
-import { TipoFlete, type CreateVentaRequest, type LoteProduccion, type Producto } from '@/lib/types';
+import { TipoFlete, type CreateVentaRequest, type CreateDetalleVentaRequest, type LoteProduccion, type Producto } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatBs, formatNum, equivPT } from '@/lib/utils';
 import { Btn, FormField, Input, Select, SearchBox, Spinner, useToast } from '@/components/ui';
@@ -22,9 +22,13 @@ type Step = 0 | 1 | 2;
 interface LineaDetalle {
   key: string;
   productoId: string;
-  loteId: string;
   cantidad: number;
   precioUnitario: string;
+}
+
+interface LoteAsignado {
+  lote: LoteProduccion;
+  cantidad: number;
 }
 
 const FLETE_OPCIONES = [
@@ -82,6 +86,25 @@ export default function NuevaVentaPage() {
   const clienteSel       = clientes.find(c => c.id === clienteId);
   const transportistaSel = transportistas.find(t => t.id === transportistaId);
 
+  /** Reparte `cantidad` entre los lotes disponibles del producto, FIFO (más antiguo primero),
+   *  limitado a lo que cada lote realmente tiene. `faltante` > 0 indica que los lotes activos
+   *  no alcanzan a cubrir la cantidad (aunque el stock total del producto sí lo indique). */
+  function asignarLotesFifo(productoId: string, cantidad: number): { asignaciones: LoteAsignado[]; faltante: number } {
+    const disponibles = lotesParaProducto(productoId);
+    const asignaciones: LoteAsignado[] = [];
+    let restante = cantidad;
+    for (const lote of disponibles) {
+      if (restante <= 0) break;
+      const disp = Number(lote.stockRestante);
+      const usar = Math.min(restante, disp);
+      if (usar > 0) {
+        asignaciones.push({ lote, cantidad: usar });
+        restante -= usar;
+      }
+    }
+    return { asignaciones, faltante: Math.max(0, restante) };
+  }
+
   function agregarProducto(prod: Producto) {
     setLineas(ls => {
       const exist = ls.find(l => l.productoId === prod.id);
@@ -90,11 +113,9 @@ export default function NuevaVentaPage() {
           ? { ...l, cantidad: l.cantidad + 1 }
           : l);
       }
-      const ls2 = lotesParaProducto(prod.id);
       return [...ls, {
         key: prod.id,
         productoId: prod.id,
-        loteId: ls2[0]?.id ?? '',
         cantidad: 1,
         precioUnitario: prod.precioUnitarioBs != null ? String(prod.precioUnitarioBs) : '',
       }];
@@ -127,10 +148,6 @@ export default function NuevaVentaPage() {
     setLineas(ls => ls.map(l => l.productoId === productoId ? { ...l, precioUnitario: precio } : l));
   }
 
-  function setLote(productoId: string, loteId: string) {
-    setLineas(ls => ls.map(l => l.productoId === productoId ? { ...l, loteId } : l));
-  }
-
   const lineasValidas = lineas.filter(l =>
     l.productoId && l.cantidad > 0 && parseFloat(l.precioUnitario) >= 0,
   );
@@ -158,7 +175,7 @@ export default function NuevaVentaPage() {
 
   const detallesUI = useMemo(() => lineasValidas.map(l => {
     const prod  = productos.find(p => p.id === l.productoId)!;
-    const lt    = lotesParaProducto(prod.id).find(x => x.id === l.loteId) ?? lotesParaProducto(prod.id)[0];
+    const { asignaciones, faltante } = asignarLotesFifo(prod.id, l.cantidad);
     return {
       key: l.key,
       productoId: prod.id,
@@ -167,7 +184,8 @@ export default function NuevaVentaPage() {
       unidadId: prod.unidadProduccion?.id ?? '',
       unidadLabel: prod.unidadProduccion?.abreviatura ?? prod.unidadProduccion?.codigo ?? '',
       precioUnitario: parseFloat(l.precioUnitario),
-      lote: lt,
+      lotes: asignaciones,
+      loteFaltante: faltante,
       totalBs: l.cantidad * parseFloat(l.precioUnitario),
       stockInsuf: l.cantidad > Number(prod.stockActual),
     };
@@ -184,13 +202,27 @@ export default function NuevaVentaPage() {
       tipoFlete,
       fleteBs: fleteConMonto ? fleteNum : undefined,
       observaciones: observaciones || undefined,
-      detalles: detallesUI.map(d => ({
-        productoId: d.productoId,
-        unidadId: d.unidadId,
-        loteId: d.lote?.id,
-        cantidad: d.cantidad,
-        precioUnitarioBs: d.precioUnitario,
-      })),
+      // Una línea de producto puede cubrir la cantidad con VARIOS lotes (FIFO) — cada lote
+      // se manda como su propio detalle, con la porción que realmente le corresponde, para
+      // que la trazabilidad quede correcta (no se le puede atribuir a un solo lote más de lo
+      // que ese lote realmente tenía).
+      detalles: detallesUI.flatMap((d): CreateDetalleVentaRequest[] =>
+        d.lotes.length > 0
+          ? d.lotes.map(a => ({
+              productoId: d.productoId,
+              unidadId: d.unidadId,
+              loteId: a.lote.id,
+              cantidad: a.cantidad,
+              precioUnitarioBs: d.precioUnitario,
+            }))
+          : [{
+              productoId: d.productoId,
+              unidadId: d.unidadId,
+              loteId: undefined,
+              cantidad: d.cantidad,
+              precioUnitarioBs: d.precioUnitario,
+            }],
+      ),
     };
     try {
       await createVenta.mutateAsync(dto);
@@ -395,6 +427,8 @@ export default function NuevaVentaPage() {
                   const lotesProd  = prod ? lotesParaProducto(prod.id) : [];
                   const precio     = parseFloat(l.precioUnitario) || 0;
                   const stockInsuf = l.cantidad > Number(prod?.stockActual);
+                  const { asignaciones: lotesAsignados, faltante: loteFaltante } =
+                    prod ? asignarLotesFifo(prod.id, l.cantidad) : { asignaciones: [], faltante: 0 };
 
                   return (
                     <div key={l.key} className="rounded-[12px] border p-3 space-y-2.5"
@@ -454,16 +488,33 @@ export default function NuevaVentaPage() {
                       </div>
 
                       {lotesProd.length > 0 && (
-                        <FormField label="Lote (FIFO sugerido)">
-                          <Select value={l.loteId} onChange={e => setLote(prod.id, e.target.value)}>
-                            <option value="">— Sin asignar —</option>
-                            {lotesProd.map(lt => (
-                              <option key={lt.id} value={lt.id}>
-                                {lt.codigoLote} · {Number(lt.stockRestante)} disp. · vence {lt.fechaVencimiento}
-                              </option>
+                        <div>
+                          <p className="text-[10.5px] font-700 text-[var(--color-gr-muted)] uppercase tracking-wide mb-1">
+                            Lote (FIFO automático)
+                          </p>
+                          <div className="space-y-1">
+                            {lotesAsignados.map(a => (
+                              <div key={a.lote.id}
+                                className="flex items-center justify-between gap-2 rounded-[8px] px-2.5 py-1.5 text-[12px]"
+                                style={{ background: 'var(--color-gr-border-lite)' }}>
+                                <span className="font-600 text-[var(--color-gr-text)] truncate">
+                                  {a.lote.codigoLote} <span className="text-[var(--color-gr-muted)] font-500">· vence {a.lote.fechaVencimiento}</span>
+                                </span>
+                                <span className="font-800 text-[var(--color-gr-primary)] whitespace-nowrap">{a.cantidad}</span>
+                              </div>
                             ))}
-                          </Select>
-                        </FormField>
+                          </div>
+                        </div>
+                      )}
+
+                      {loteFaltante > 0 && (
+                        <div className="flex items-center gap-2 rounded-[8px] px-3 py-2 text-[12px]"
+                          style={{ background: 'var(--color-gr-danger-bg)', color: 'var(--color-gr-danger)' }}>
+                          <AlertTriangle size={13} className="shrink-0" />
+                          <span className="font-600">
+                            Los lotes activos no alcanzan — faltan <strong>{loteFaltante}</strong> {prod?.unidadProduccion?.abreviatura ?? 'unid.'}
+                          </span>
+                        </div>
                       )}
 
                       {stockInsuf && (
@@ -608,7 +659,10 @@ export default function NuevaVentaPage() {
                     <p className="font-600 text-[var(--color-gr-text)] text-[13px]">{d.productoNombre}</p>
                     <p className="text-[11px] text-[var(--color-gr-muted)]">
                       {d.cantidad} {d.unidadLabel} × {formatBs(d.precioUnitario)}
-                      {d.lote ? ` · ${d.lote.codigoLote}` : ''}
+                      {d.lotes.length === 1 ? ` · ${d.lotes[0].lote.codigoLote}` : ''}
+                      {d.lotes.length > 1
+                        ? ` · ${d.lotes.map(a => `${a.lote.codigoLote} (${a.cantidad})`).join(' + ')}`
+                        : ''}
                     </p>
                   </div>
                   <span className="font-800 text-[var(--color-gr-primary)] text-[14px]">{formatBs(d.totalBs)}</span>

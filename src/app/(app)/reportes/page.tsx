@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useVentas } from '@/lib/api/ventas';
 import { useGastos } from '@/lib/api/gastos';
@@ -7,9 +7,9 @@ import { useKardexMP } from '@/lib/api/materia-prima';
 import { useMateriasPrimas } from '@/lib/api/materia-prima';
 import { useProductos } from '@/lib/api/productos';
 import { useReporteCargadores } from '@/lib/api/cargadores';
-import { CategoriaGasto, EstadoVenta, TipoMovimientoMP } from '@/lib/types';
+import { CategoriaGasto, EstadoVenta, TipoMovimientoMP, type DetalleVenta } from '@/lib/types';
 import { formatBs, formatNum, kgToQQ, equivPT, equivLabel } from '@/lib/utils';
-import { Badge, SearchBox, Spinner } from '@/components/ui';
+import { Badge, SearchBox, Spinner, Pagination, usePagination } from '@/components/ui';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
@@ -101,6 +101,22 @@ function filterByPeriod<T extends { fecha: string }>(items: T[], anchor: Date, t
   }
   const { start, end } = getWeekBounds(anchor);
   return items.filter(it => it.fecha >= start && it.fecha <= end);
+}
+
+/**
+ * Un mismo producto puede venir repartido en varios lotes (varios "detalles" del backend,
+ * cada uno con su propio loteId) — se agrupan por producto sumando cantidades para no
+ * mostrarlo como si fueran productos distintos (ej. "Maíz ×3 · Maíz ×2" en vez de "Maíz ×5").
+ */
+function agruparDetallesPorProducto(detalles: DetalleVenta[]): { nombre: string; cantidad: number }[] {
+  return Object.values(
+    detalles.reduce<Record<string, { nombre: string; cantidad: number }>>((acc, d) => {
+      const key = d.producto?.id ?? d.producto?.nombre ?? '';
+      if (!acc[key]) acc[key] = { nombre: d.producto?.nombre ?? '—', cantidad: 0 };
+      acc[key].cantidad += Number(d.cantidad ?? 0);
+      return acc;
+    }, {}),
+  );
 }
 
 function buildChartData(
@@ -234,6 +250,7 @@ function ReporteCargadores() {
   const [hasta, setHasta] = useState('');
   const reporteQ = useReporteCargadores(desde || undefined, hasta || undefined);
   const r = reporteQ.data;
+  const porCargadorPag = usePagination(r?.porCargador ?? []);
 
   if (reporteQ.isLoading) {
     return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
@@ -332,7 +349,7 @@ function ReporteCargadores() {
               <span className="text-right">Total pagado</span>
               <span className="text-right">Pendiente</span>
             </div>
-            {r.porCargador.map(c => (
+            {porCargadorPag.pageItems.map(c => (
               <div key={c.cargadorId}
                 className="px-5 py-3 border-b border-gr-border-lite last:border-b-0"
               >
@@ -368,6 +385,8 @@ function ReporteCargadores() {
                 {formatBs(r.totalPagadoBs)} pagado + {formatBs(r.totalPendienteBs)} pendiente
               </span>
             </div>
+            <Pagination page={porCargadorPag.page} totalPages={porCargadorPag.totalPages} onChange={porCargadorPag.setPage}
+              pageSize={porCargadorPag.pageSize} onPageSizeChange={porCargadorPag.setPageSize} total={porCargadorPag.total} />
           </>
         )}
       </div>
@@ -609,10 +628,13 @@ function ReporteVentas() {
     id: v.id, numero: v.numeroNota, fecha: v.fecha,
     clienteNombre: v.cliente?.nombre ?? '—',
     totalBs: Number(v.totalBs), estado: v.estado,
-    detalles: v.detalles.map(d => ({ productoNombre: d.producto?.nombre ?? '—', cantidad: Number(d.cantidad) })),
+    detalles: agruparDetallesPorProducto(v.detalles).map(x => ({ productoNombre: x.nombre, cantidad: x.cantidad })),
   }));
 
   const MEDALS = ['🥇','🥈','🥉'];
+
+  const ventasPag = usePagination(filtered);
+  useEffect(() => { ventasPag.setPage(1); }, [search, filterCliente, filterEstado, fechaDesde, fechaHasta]);
 
   if (ventasQ.isLoading) {
     return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
@@ -720,7 +742,7 @@ function ReporteVentas() {
           {/* Rows */}
           {filtered.length === 0 ? (
             <p className="px-4 py-8 text-center text-[13px] text-gr-muted">Sin ventas para los filtros seleccionados</p>
-          ) : filtered.map((v, i) => {
+          ) : ventasPag.pageItems.map((v, i) => {
             const ventaQQ = v.detalles.reduce((s, d) => s + kgToQQ(Number(d.totalKg)), 0);
             return (
               <div key={v.id}
@@ -733,7 +755,7 @@ function ReporteVentas() {
                 <span className="text-gr-muted whitespace-nowrap">{v.fecha}</span>
                 <span className="font-600 truncate">{v.cliente?.nombre ?? '—'}</span>
                 <span className="text-gr-muted text-[12px] truncate">
-                  {v.detalles.map(d => `${d.producto?.nombre ?? ''} ×${Number(d.cantidad)}`).join(' · ')}
+                  {agruparDetallesPorProducto(v.detalles).map(x => `${x.nombre} ×${formatNum(x.cantidad, 0)}`).join(' · ')}
                 </span>
                 <span className="text-right font-700">{formatNum(ventaQQ, 2)}</span>
                 <span className="text-right font-700 whitespace-nowrap">{formatBs(Number(v.totalBs))}</span>
@@ -755,6 +777,8 @@ function ReporteVentas() {
             </span>
             <span />
           </div>
+          <Pagination page={ventasPag.page} totalPages={ventasPag.totalPages} onChange={ventasPag.setPage}
+            pageSize={ventasPag.pageSize} onPageSizeChange={ventasPag.setPageSize} total={ventasPag.total} />
         </div>
       </div>
     </div>
@@ -862,6 +886,9 @@ function ReporteMovimientosMP() {
   }, [filtered]);
 
   const COLS_MOVS = '120px 1fr 80px 110px 80px 90px 130px';
+
+  const movsPag = usePagination(filtered);
+  useEffect(() => { movsPag.setPage(1); }, [filterMP, filterTipo, fechaDesde, fechaHasta]);
 
   if (kardexQ.isLoading) {
     return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
@@ -993,7 +1020,7 @@ function ReporteMovimientosMP() {
           {/* Rows */}
           {filtered.length === 0 ? (
             <p className="px-4 py-8 text-center text-[13px] text-gr-muted">Sin movimientos para los filtros seleccionados</p>
-          ) : filtered.map((m, i) => {
+          ) : movsPag.pageItems.map((m, i) => {
             const t = m.tipoMovimiento;
             const [color, label] =
               t === TipoMovimientoMP.INGRESO    ? ['green',  '↑ Ingreso']    :
@@ -1029,6 +1056,8 @@ function ReporteMovimientosMP() {
             style={{ background: 'var(--color-gr-border-lite)' }}>
             {filtered.length} movimientos
           </div>
+          <Pagination page={movsPag.page} totalPages={movsPag.totalPages} onChange={movsPag.setPage}
+            pageSize={movsPag.pageSize} onPageSizeChange={movsPag.setPageSize} total={movsPag.total} />
         </div>
       </div>
     </div>
@@ -1042,6 +1071,8 @@ function ReporteStock() {
   const productos = productosQ.data ?? [];
   const materiaPrima = mpQ.data ?? [];
   const [tab, setTab] = useState<StockTab>('productos');
+  const productosPag = usePagination(productos);
+  const mpPag = usePagination(materiaPrima);
 
   if (productosQ.isLoading || mpQ.isLoading) {
     return <div className="py-8 flex justify-center"><Spinner size={22} color="var(--color-gr-primary)" /></div>;
@@ -1102,7 +1133,7 @@ function ReporteStock() {
             style={{ gridTemplateColumns: '80px 1fr 90px 80px 80px 70px', background: 'var(--color-gr-border-lite)' }}>
             <span>Código</span><span>Producto</span><span className="text-right">Stock</span><span className="text-right">Equiv.</span><span className="text-right">Precio/u</span><span>Estado</span>
           </div>
-          {productos.map((p, i) => {
+          {productosPag.pageItems.map((p, i) => {
             const stock = Number(p.stockActual);
             const min   = Number(p.stockMinimo);
             const qq    = equivPT(stock, p.unidadProduccion?.factorABase, p.unidadProduccion?.tipo);
@@ -1111,7 +1142,7 @@ function ReporteStock() {
             const warn  = !low && stock < min * 2;
             return (
               <div key={p.id}
-                className={`px-5 py-3.5 ${i < productos.length - 1 ? 'border-b border-gr-border-lite' : ''}`}>
+                className={`px-5 py-3.5 ${i < productosPag.pageItems.length - 1 ? 'border-b border-gr-border-lite' : ''}`}>
                 <div className="md:hidden flex items-center justify-between gap-2">
                   <div>
                     <p className="font-700 text-gr-text text-[13.5px]">{p.nombre}</p>
@@ -1146,6 +1177,8 @@ function ReporteStock() {
               {formatNum(productos.reduce((s, p) => s + Number(p.stockActual), 0), 0)} unidades totales
             </span>
           </div>
+          <Pagination page={productosPag.page} totalPages={productosPag.totalPages} onChange={productosPag.setPage}
+            pageSize={productosPag.pageSize} onPageSizeChange={productosPag.setPageSize} total={productosPag.total} />
           </div>
           </div>
         </div>
@@ -1159,14 +1192,14 @@ function ReporteStock() {
             style={{ gridTemplateColumns: '1fr 110px 110px 90px 80px', background: 'var(--color-gr-border-lite)' }}>
             <span>Materia Prima</span><span className="text-right">Stock (kg)</span><span className="text-right">Stock (QQ)</span><span className="text-right">Mínimo</span><span>Estado</span>
           </div>
-          {materiaPrima.map((mp, i) => {
+          {mpPag.pageItems.map((mp, i) => {
             const stockKg = Number(mp.stockActualKg);
             const minKg   = Number(mp.stockMinimoKg);
             const low     = minKg > 0 && stockKg < minKg;
             const warn    = !low && minKg > 0 && stockKg < minKg * 2;
             return (
               <div key={mp.id}
-                className={`px-5 py-3.5 ${i < materiaPrima.length - 1 ? 'border-b border-gr-border-lite' : ''}`}>
+                className={`px-5 py-3.5 ${i < mpPag.pageItems.length - 1 ? 'border-b border-gr-border-lite' : ''}`}>
                 <div className="md:hidden flex items-center justify-between gap-2">
                   <div>
                     <p className="font-700 text-gr-text text-[13.5px]">{mp.nombre}</p>
@@ -1200,6 +1233,8 @@ function ReporteStock() {
               {formatNum(materiaPrima.reduce((s, m) => s + Number(m.stockActualKg), 0), 1)} kg totales
             </span>
           </div>
+          <Pagination page={mpPag.page} totalPages={mpPag.totalPages} onChange={mpPag.setPage}
+            pageSize={mpPag.pageSize} onPageSizeChange={mpPag.setPageSize} total={mpPag.total} />
           </div>
           </div>
         </div>

@@ -42,7 +42,7 @@ export function useTodasCargas(
       if (typeof pagado === 'boolean') params.pagado = String(pagado);
       if (desde) params.desde = desde;
       if (hasta) params.hasta = hasta;
-      const { data } = await api.get<DeudaItem[]>('/cargadores/todas-cargas', { params });
+      const { data } = await api.get<DeudaItem[]>('/personal/todas-cargas', { params });
       return data;
     },
     enabled: opts.enabled !== false,
@@ -53,14 +53,14 @@ export function useTodasCargas(
 export function useCargadores() {
   return useQuery({
     queryKey: cargadoresKeys.all,
-    queryFn: async () => (await api.get<Cargador[]>('/cargadores')).data,
+    queryFn: async () => (await api.get<Cargador[]>('/personal')).data,
   });
 }
 
 export function useCargador(id: string | undefined) {
   return useQuery({
     queryKey: id ? cargadoresKeys.detail(id) : ['cargadores', 'noop'],
-    queryFn: async () => (await api.get<Cargador>(`/cargadores/${id}`)).data,
+    queryFn: async () => (await api.get<Cargador>(`/personal/${id}`)).data,
     enabled: !!id,
   });
 }
@@ -69,7 +69,7 @@ export function useCreateCargador() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (dto: CreateCargadorRequest) =>
-      (await api.post<Cargador>('/cargadores', dto)).data,
+      (await api.post<Cargador>('/personal', dto)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: cargadoresKeys.all }),
   });
 }
@@ -78,7 +78,7 @@ export function useUpdateCargador() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, dto }: { id: string; dto: UpdateCargadorRequest }) =>
-      (await api.patch<Cargador>(`/cargadores/${id}`, dto)).data,
+      (await api.patch<Cargador>(`/personal/${id}`, dto)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: cargadoresKeys.all }),
   });
 }
@@ -86,7 +86,7 @@ export function useUpdateCargador() {
 export function useDeleteCargador() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => (await api.delete(`/cargadores/${id}`)).data,
+    mutationFn: async (id: string) => (await api.delete(`/personal/${id}`)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: cargadoresKeys.all }),
   });
 }
@@ -95,14 +95,14 @@ export function useDeleteCargador() {
 export function useDeudaCargadores() {
   return useQuery({
     queryKey: cargadoresKeys.deudaTotal,
-    queryFn: async () => (await api.get<DeudaCargador[]>('/cargadores/deuda')).data,
+    queryFn: async () => (await api.get<DeudaCargador[]>('/personal/deuda')).data,
   });
 }
 
 export function useDeudaCargador(id: string | undefined) {
   return useQuery({
     queryKey: id ? cargadoresKeys.deuda(id) : ['cargadores', 'noop', 'deuda'],
-    queryFn: async () => (await api.get<DeudaCargador>(`/cargadores/${id}/deuda`)).data,
+    queryFn: async () => (await api.get<DeudaCargador>(`/personal/${id}/deuda`)).data,
     enabled: !!id,
   });
 }
@@ -120,7 +120,7 @@ export function useCargasCargador(id: string | undefined, filtros: CargasFiltros
       if (typeof filtros.pagado === 'boolean') params.pagado = String(filtros.pagado);
       if (filtros.desde) params.desde = filtros.desde;
       if (filtros.hasta) params.hasta = filtros.hasta;
-      const { data } = await api.get<CargaTrabajo[]>(`/cargadores/${id}/cargas`, { params });
+      const { data } = await api.get<CargaTrabajo[]>(`/personal/${id}/cargas`, { params });
       return data;
     },
     enabled: !!id,
@@ -131,7 +131,7 @@ export function useUpdateCargaTrabajo() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, dto }: { id: string; dto: UpdateCargaTrabajoRequest }) =>
-      (await api.patch<CargaTrabajo>(`/cargadores/cargas/${id}`, dto)).data,
+      (await api.patch<CargaTrabajo>(`/personal/cargas/${id}`, dto)).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: cargadoresKeys.all });
       qc.invalidateQueries({ queryKey: cargadoresKeys.deudaTotal });
@@ -144,7 +144,7 @@ export function usePagarCarga() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, fechaPago }: { id: string; fechaPago?: string }) =>
-      (await api.post<PagoCargadorResponse>(`/cargadores/cargas/${id}/pagar`, { fechaPago })).data,
+      (await api.post<PagoCargadorResponse>(`/personal/cargas/${id}/pagar`, { fechaPago })).data,
     onSuccess: invalidateCargasQueries(qc),
   });
 }
@@ -153,7 +153,7 @@ export function usePagarCargasBulk() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (dto: PagarBulkRequest) =>
-      (await api.post<PagoCargadorResponse>('/cargadores/cargas/pagar-bulk', dto)).data,
+      (await api.post<PagoCargadorResponse>('/personal/cargas/pagar-bulk', dto)).data,
     onSuccess: invalidateCargasQueries(qc),
   });
 }
@@ -177,7 +177,7 @@ export function useReporteCargadores(desde?: string, hasta?: string) {
       const params: Record<string, string> = {};
       if (desde) params.desde = desde;
       if (hasta) params.hasta = hasta;
-      const { data } = await api.get<ReporteCargadores>('/cargadores/reporte', { params });
+      const { data } = await api.get<ReporteCargadores>('/personal/reporte', { params });
       return data;
     },
   });
