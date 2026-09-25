@@ -10,7 +10,7 @@ import { apiErrorMessage } from '@/lib/api';
 import { formatNum, formatBs, KG_POR_QQ, kgToQQ, equivPT, equivLabel } from '@/lib/utils';
 import {
   Btn, Modal, FormField, Input, Select, Textarea, Badge,
-  Spinner, SearchBox, useToast,
+  Spinner, SearchBox, useToast, Combobox,
 } from '@/components/ui';
 import { NuevoProveedorModal } from '@/components/NuevoProveedorModal';
 import {
@@ -250,7 +250,7 @@ export default function ProduccionPage() {
                       )}
                       <p className="text-[13px] mt-0.5 font-600">{l.producto?.nombre}</p>
                       <p className="text-[12px] text-gr-muted">
-                        {formatNum(restante, 0)}/{formatNum(cant, 0)} {loteAbrev} · {l.fecha}
+                        {formatNum(restante, 2)}/{formatNum(cant, 2)} {loteAbrev} · {l.fecha}
                       </p>
                       {hasMerma && (
                         <p className="text-[11.5px] text-gr-warning mt-0.5 flex items-center gap-1">
@@ -281,11 +281,11 @@ export default function ProduccionPage() {
                     </p>
                   </div>
                   <span className="text-right text-[13px] font-600">
-                    {formatNum(cant, 0)}
+                    {formatNum(cant, 2)}
                     {loteAbrev && <span className="text-[11px] font-500 text-gr-muted ml-1">{loteAbrev}</span>}
                   </span>
                   <span className="text-right font-800 text-[14px] text-gr-text">
-                    {formatNum(restante, 0)}
+                    {formatNum(restante, 2)}
                     {loteAbrev && <span className="text-[11px] font-500 text-gr-muted ml-1">{loteAbrev}</span>}
                   </span>
                   <span className="text-right text-[12.5px]">
@@ -437,13 +437,34 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
     [kardexMpQ.data],
   );
 
-  // Auto-agregar el lote más antiguo (FIFO) cuando carga la MP
+  // Disponible REAL por lote: el backend solo guarda el stockActualKg total de la MP,
+  // así que reconstruimos cuánto le queda a cada entrada de ingreso restando el consumo
+  // acumulado (de todas las producciones anteriores) empezando por la más antigua —
+  // mismo criterio que ya usa Materia Prima > lotes. Sin esto, un lote ya consumido
+  // seguía apareciendo con su cantidad ORIGINAL para siempre.
+  const dispKgPorLote = useMemo(() => {
+    const totalIngresadoKg = ingresosMp.reduce((s, k) => s + Number(k.cantidadKg), 0);
+    const stockActualKg = Number(mpSeleccionada?.stockActualKg ?? 0);
+    const totalConsumidoKg = Math.max(0, totalIngresadoKg - stockActualKg);
+    let pendConsumed = totalConsumidoKg;
+    const map = new Map<string, number>();
+    for (const k of ingresosMp) {
+      const kgK = Number(k.cantidadKg);
+      const consumidoK = Math.min(pendConsumed, kgK);
+      map.set(k.id, kgK - consumidoK);
+      pendConsumed = Math.max(0, pendConsumed - kgK);
+    }
+    return map;
+  }, [ingresosMp, mpSeleccionada?.stockActualKg]);
+
+  // Auto-agregar el lote disponible más antiguo (FIFO) cuando carga la MP
   useEffect(() => {
-    if (ingresosMp.length > 0 && loteKardexIds.length === 0) {
-      setLoteKardexIds([ingresosMp[0].id]);
+    if (loteKardexIds.length === 0) {
+      const primerDisponible = ingresosMp.find(k => (dispKgPorLote.get(k.id) ?? 0) > 0);
+      if (primerDisponible) setLoteKardexIds([primerDisponible.id]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ingresosMp]);
+  }, [ingresosMp, dispKgPorLote]);
 
   const toKg = (v: number) => v * factorInput;
 
@@ -453,9 +474,12 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
   const mermaKg   = toKg(mermaNum);
   const producidoKg = Math.max(0, mpKg - mermaKg);
 
-  // Cantidad producida en unidades de producto — usa factorABase de la unidad de salida seleccionada
+  // Cantidad producida en unidades de producto — usa factorABase de la unidad de salida seleccionada.
+  // SIN redondear: Math.round(2.5) da 3 en JS (redondea .5 hacia arriba), lo que fabricaría
+  // más producto del que la materia prima usada puede dar (115 kg / 46 kg no son 3 quintales,
+  // son 2.5). El balance de masa tiene que cuadrar exacto, así que se guarda el decimal real.
   const pesoUnit    = Number(selectedOutputUnit?.factorABase) || 0;
-  const unidades    = pesoUnit > 0 ? Math.round(producidoKg / pesoUnit) : 0;
+  const unidades    = pesoUnit > 0 ? producidoKg / pesoUnit : 0;
 
   // Stock MP después
   const mpStockDespues = mpSeleccionada
@@ -463,20 +487,23 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
     : null;
 
   const lotesAgregados   = ingresosMp.filter(k => loteKardexIds.includes(k.id));
-  const disponiblesLotes = ingresosMp.filter(k => !loteKardexIds.includes(k.id));
+  // Un lote ya agotado (disponible <= 0) no se puede volver a elegir.
+  const disponiblesLotes = ingresosMp.filter(k => !loteKardexIds.includes(k.id) && (dispKgPorLote.get(k.id) ?? 0) > 0);
 
-  // Distribución FIFO: llenar desde el más antiguo hasta cubrir mpKg
+  // Distribución FIFO: llenar desde el más antiguo hasta cubrir mpKg, limitado a lo
+  // que realmente queda disponible en cada lote (no a su cantidad original).
   const fifoDistribucion: { id: string; usadoKg: number }[] = [];
   if (mpKg > 0 && lotesAgregados.length > 0) {
     let rem = mpKg;
     for (const k of lotesAgregados) {
-      const usadoKg = Math.min(rem, Number(k.cantidadKg));
+      const dispoK  = dispKgPorLote.get(k.id) ?? 0;
+      const usadoKg = Math.min(rem, dispoK);
       fifoDistribucion.push({ id: k.id, usadoKg });
-      rem = Math.max(0, rem - Number(k.cantidadKg));
+      rem = Math.max(0, rem - dispoK);
       if (rem <= 0) break;
     }
   }
-  const totalLotesKg = lotesAgregados.reduce((s, k) => s + Number(k.cantidadKg), 0);
+  const totalLotesKg = lotesAgregados.reduce((s, k) => s + (dispKgPorLote.get(k.id) ?? 0), 0);
   const costoMpBs    = fifoDistribucion.reduce((total, d) => {
     const lote   = ingresosMp.find(k => k.id === d.id);
     if (!lote?.costoUnitarioBs) return total;
@@ -550,19 +577,21 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
       {/* ── Fila 1: Materia prima + Lote ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <FormField label="Materia prima" required>
-          <Select value={mpId} onChange={e => { setMpId(e.target.value); setLoteKardexIds([]); }}>
-            <option value="">— Seleccionar —</option>
-            {materiasPrimas.map(m => (
-              <option key={m.id} value={m.id}>{m.codigo} · {m.nombre}</option>
-            ))}
-          </Select>
+          <Combobox
+            value={mpId}
+            onChange={id => { setMpId(id); setLoteKardexIds([]); }}
+            placeholder="Escribí para buscar..."
+            options={materiasPrimas.map(m => ({ value: m.id, label: m.nombre, sublabel: m.codigo }))}
+          />
         </FormField>
 
         <FormField label="Lote a utilizar"
           hint={!mpId ? 'Seleccioná una MP primero'
             : kardexMpQ.isLoading ? 'Cargando lotes…'
             : ingresosMp.length === 0 ? 'Sin lotes registrados para esta MP'
-            : disponiblesLotes.length === 0 ? 'Todos los lotes están en la lista'
+            : disponiblesLotes.length === 0 && ingresosMp.every(k => (dispKgPorLote.get(k.id) ?? 0) <= 0)
+            ? 'Todos los lotes de esta MP están agotados'
+            : disponiblesLotes.length === 0 ? 'Todos los lotes con saldo ya están en la lista'
             : `${disponiblesLotes.length} disponible${disponiblesLotes.length !== 1 ? 's' : ''} — el más antiguo ya fue agregado`}>
           <Select value=""
             onChange={e => e.target.value && setLoteKardexIds(prev => [...prev, e.target.value])}
@@ -572,12 +601,14 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
             </option>
             {disponiblesLotes.map(k => {
               const label = k.numeroLotePropio ?? 'Sin N°';
+              const factor = Number(k.unidad?.factorABase) || 1;
+              const dispoNativo = (dispKgPorLote.get(k.id) ?? 0) / factor;
               const costo = k.costoUnitarioBs
                 ? `Bs ${Number(k.costoUnitarioBs).toFixed(2)}/${k.unidad?.codigo ?? 'u'}`
                 : 'sin costo';
               return (
                 <option key={k.id} value={k.id}>
-                  {label} · {k.fecha} · {formatNum(k.cantidad, 1)} {k.unidad?.codigo ?? ''} · {costo}
+                  {label} · {k.fecha} · {formatNum(dispoNativo, 1)} {k.unidad?.codigo ?? ''} disp. · {costo}
                 </option>
               );
             })}
@@ -589,10 +620,10 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
       {lotesAgregados.length > 0 && (
         <div className="space-y-1.5">
           {lotesAgregados.map(k => {
-            const dist   = fifoDistribucion.find(d => d.id === k.id);
-            const loteKg = Number(k.cantidadKg);
-            const label  = k.numeroLotePropio ?? 'Sin N°';
-            const factor = Number(k.unidad?.factorABase) || 1;
+            const dist    = fifoDistribucion.find(d => d.id === k.id);
+            const dispoKg = dispKgPorLote.get(k.id) ?? 0;
+            const label   = k.numeroLotePropio ?? 'Sin N°';
+            const factor  = Number(k.unidad?.factorABase) || 1;
             const costoParcial = dist && k.costoUnitarioBs && mpKg > 0
               ? (dist.usadoKg / factor) * Number(k.costoUnitarioBs)
               : null;
@@ -606,7 +637,7 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
                     <span className="font-500 text-gr-muted text-[11.5px] ml-1.5">{k.fecha}</span>
                   </p>
                   <p className="text-[11px] text-gr-muted leading-tight mt-0.5">
-                    {formatNum(k.cantidad, 1)} {k.unidad?.codigo ?? ''}
+                    {formatNum(dispoKg / factor, 1)} {k.unidad?.codigo ?? ''} disp.
                     {k.costoUnitarioBs ? ` · Bs ${Number(k.costoUnitarioBs).toFixed(2)}/${k.unidad?.codigo ?? 'u'}` : ''}
                   </p>
                 </div>
@@ -615,9 +646,9 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
                     <p className="text-[13px] font-800 text-gr-primary leading-tight">
                       {formatNum(dist.usadoKg / factor, 2)} {k.unidad?.abreviatura ?? k.unidad?.codigo ?? 'qq'}
                     </p>
-                    {dist.usadoKg < loteKg && (
+                    {dist.usadoKg < dispoKg && (
                       <p className="text-[10.5px] text-gr-muted leading-tight">
-                        de {formatNum(loteKg / factor, 2)}
+                        de {formatNum(dispoKg / factor, 2)}
                       </p>
                     )}
                   </div>
@@ -657,12 +688,12 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
       {/* ── Fila 2: Producto + Producir en ── */}
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
         <FormField label="Producto terminado" required>
-          <Select value={productoId} onChange={e => setProductoId(e.target.value)}>
-            <option value="">— Seleccionar —</option>
-            {productos.map(p => (
-              <option key={p.id} value={p.id}>{p.codigo} · {p.nombre}</option>
-            ))}
-          </Select>
+          <Combobox
+            value={productoId}
+            onChange={setProductoId}
+            placeholder="Escribí para buscar..."
+            options={productos.map(p => ({ value: p.id, label: p.nombre, sublabel: p.codigo }))}
+          />
         </FormField>
 
         <FormField label="Producir en" hint={selectedOutputUnit ? `1 ${abrev} = ${selectedOutputUnit.factorABase} kg` : 'Seleccioná'}>
@@ -846,7 +877,7 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
 
               {/* kg netos */}
               <p className="text-[11.5px] text-gr-sub text-center">
-                = {formatNum(producidoKg, 0)} kg netos
+                = {formatNum(producidoKg, 2)} kg netos
               </p>
             </>
           ) : (
@@ -916,7 +947,7 @@ function ProduccionModal({ productos, productoIdInicial, onClose, onSaved, onErr
           <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
           <Btn onClick={handleSave} disabled={!valid} loading={createLote.isPending}>
             <Package size={14} />
-            Confirmar producción{unidades > 0 ? ` · ${formatNum(unidades, 0)} ${abrev}` : ''}
+            Confirmar producción{unidades > 0 ? ` · ${formatNum(unidades, 2)} ${abrev}` : ''}
           </Btn>
         </div>
       </div>
@@ -1018,6 +1049,7 @@ function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
   const unidadesQ = useUnidades();
   const categoriasQ = useCategoriasMP();
   const proveedoresQ = useProveedores();
+  const allKardexQ = useKardexMP();
   const createMp = useCreateMateriaPrima();
   const createKardex = useCreateKardexMP();
 
@@ -1025,6 +1057,7 @@ function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
   const unidades = unidadesQ.data ?? [];
   const categorias = categoriasQ.data ?? [];
   const proveedores = proveedoresQ.data ?? [];
+  const allKardex = allKardexQ.data ?? [];
 
   const mermaMp = Number(lote.mermaMpKg || 0);
   const mermaUn = Number(lote.mermaUnidades || 0);
@@ -1041,6 +1074,24 @@ function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
   const [unidadId, setUnidadId] = useState('');
   const [observaciones, setObs] = useState(`Residuo aprovechable del lote ${lote.codigoLote}`);
 
+  // Número de lote propio sugerido: MP-XXXX secuencial, sin colisión con los existentes
+  // (mismo criterio que en Materia Prima → Registrar entrada).
+  const sugeridoLotePropio = useMemo(() => {
+    const existentes = new Set(allKardex.map(k => k.numeroLotePropio).filter(Boolean));
+    const nums = [...existentes]
+      .map(n => { const m = /^MP-0*(\d+)$/i.exec(n!); return m ? parseInt(m[1]) : 0; })
+      .filter(n => n > 0);
+    let siguiente = (nums.length > 0 ? Math.max(...nums) : 0) + 1;
+    while (existentes.has(`MP-${String(siguiente).padStart(4, '0')}`)) siguiente++;
+    return `MP-${String(siguiente).padStart(4, '0')}`;
+  }, [allKardex]);
+  const [numeroLotePropio, setNumeroLotePropio] = useState(sugeridoLotePropio);
+  const [lotePropioEditado, setLotePropioEditado] = useState(false);
+  // allKardex carga async — una vez que llega, refresca la sugerencia si el usuario no la tocó todavía.
+  useEffect(() => {
+    if (!lotePropioEditado) setNumeroLotePropio(sugeridoLotePropio);
+  }, [sugeridoLotePropio, lotePropioEditado]);
+
   // Origen (opcional) y costo — un residuo interno puede no tener proveedor ni costo,
   // pero si se vendió/compró a alguien o tiene un valor, hay que poder registrarlo.
   const [proveedorId, setProveedorId] = useState('');
@@ -1054,7 +1105,7 @@ function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
     ? (costoModo === 'total' && cantNum > 0 ? costoNum / cantNum : costoNum)
     : undefined;
   const validNueva = !!nombreNueva && !!codigoNueva && !!categoriaId;
-  const valid = cantNum > 0 && !!unidadId
+  const valid = cantNum > 0 && !!unidadId && !!numeroLotePropio.trim()
     && (modo === 'existente' ? !!materiaPrimaId : validNueva);
   const saving = createMp.isPending || createKardex.isPending;
 
@@ -1084,6 +1135,7 @@ function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
         materiaPrimaId: mpId,
         unidadId,
         loteProduccionId: lote.id,
+        numeroLotePropio: numeroLotePropio.trim(),
         proveedorId: proveedorId || undefined,
         costoUnitarioBs,
         observaciones: observaciones || undefined,
@@ -1168,6 +1220,11 @@ function ResiduoAMPModal({ lote, onClose, onSaved, onError }: {
           </Select>
         </FormField>
       </div>
+
+      <FormField label="N° de lote" required hint="Sugerido · editable">
+        <Input placeholder="MP-0001" value={numeroLotePropio}
+          onChange={e => { setNumeroLotePropio(e.target.value); setLotePropioEditado(true); }} />
+      </FormField>
 
       <FormField label="Proveedor / origen" hint="Opcional — deja en blanco si es 100% interno (sin proveedor externo)">
         <div className="flex gap-2">
