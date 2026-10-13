@@ -1,107 +1,15 @@
 'use client';
 import { useState, useMemo, useRef } from 'react';
-import { useGastos, useCreateGasto, useDeleteGasto, useUploadComprobante, useDeleteComprobante } from '@/lib/api/gastos';
+import { useGastos, useDeleteGasto, useUploadComprobante, useDeleteComprobante } from '@/lib/api/gastos';
 import { CategoriaGasto, type Gasto } from '@/lib/types';
 import { apiErrorMessage } from '@/lib/api';
 import { formatBs } from '@/lib/utils';
-import {
-  Btn, Modal, FormField, Input, Select, Badge, Spinner, useToast,
-} from '@/components/ui';
-import { Plus, Trash2, Receipt, ImagePlus, Eye, X as XIcon } from 'lucide-react';
-
-const CATEGORIA_LABELS: Record<CategoriaGasto, string> = {
-  transporte:        'Transporte',
-  servicios_basicos: 'Servicios Básicos',
-  mano_de_obra:      'Mano de Obra',
-  mantenimiento:     'Mantenimiento',
-  materia_prima:     'Materia Prima',
-  administrativo:    'Administrativo',
-  impuestos:         'Impuestos',
-  otros:             'Otros',
-};
-
-const CATEGORIA_COLORS: Record<CategoriaGasto, 'blue' | 'yellow' | 'green' | 'red' | 'gray'> = {
-  transporte:        'blue',
-  servicios_basicos: 'yellow',
-  mano_de_obra:      'green',
-  mantenimiento:     'yellow',
-  materia_prima:     'green',
-  administrativo:    'blue',
-  impuestos:         'red',
-  otros:             'gray',
-};
-
-// ─── Modal registrar gasto ─────────────────────────────────────
-function NuevoGastoModal({ onClose, onSaved, onError }: {
-  onClose: () => void;
-  onSaved: () => void;
-  onError: (msg: string) => void;
-}) {
-  const create = useCreateGasto();
-  const [fecha, setFecha]           = useState(new Date().toISOString().slice(0, 10));
-  const [categoria, setCategoria]   = useState<CategoriaGasto>(CategoriaGasto.OTROS);
-  const [descripcion, setDesc]      = useState('');
-  const [montoBs, setMonto]         = useState('');
-  const [comprobante, setComprobante] = useState('');
-
-  const valid = !!descripcion.trim() && parseFloat(montoBs) > 0;
-
-  async function handleSave() {
-    if (!valid) return;
-    try {
-      await create.mutateAsync({
-        fecha,
-        categoria,
-        descripcion: descripcion.trim(),
-        montoBs: parseFloat(montoBs),
-        comprobante: comprobante.trim() || undefined,
-      });
-      onSaved();
-    } catch (err) {
-      onError(apiErrorMessage(err, 'No se pudo registrar el gasto'));
-    }
-  }
-
-  return (
-    <Modal open title="Registrar gasto" onClose={onClose}
-      footer={<>
-        <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-        <Btn onClick={handleSave} disabled={!valid} loading={create.isPending}>
-          <Receipt size={14} /> Registrar
-        </Btn>
-      </>}>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Fecha" required>
-          <Input type="date" value={fecha} onChange={e => setFecha(e.target.value)} />
-        </FormField>
-        <FormField label="Categoría" required>
-          <Select value={categoria} onChange={e => setCategoria(e.target.value as CategoriaGasto)}>
-            {Object.entries(CATEGORIA_LABELS).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </Select>
-        </FormField>
-      </div>
-      <FormField label="Descripción" required hint="Ej: Factura ELFEC julio 2026">
-        <Input autoFocus value={descripcion} onChange={e => setDesc(e.target.value)}
-          placeholder="Descripción del gasto" />
-      </FormField>
-      <div className="grid grid-cols-2 gap-3">
-        <FormField label="Monto (Bs)" required>
-          <Input type="number" min="0" step="0.01" placeholder="0.00"
-            value={montoBs} onChange={e => setMonto(e.target.value)} />
-        </FormField>
-        <FormField label="Comprobante" hint="N° de factura o recibo (opcional)">
-          <Input value={comprobante} onChange={e => setComprobante(e.target.value)}
-            placeholder="FACT-00234" />
-        </FormField>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── Página principal ──────────────────────────────────────────
-const FILTROS = ['Este mes', 'Mes anterior', 'Todos'] as const;
+import { Btn, Modal, Spinner, useToast } from '@/components/ui';
+import { Plus, Trash2, Receipt } from 'lucide-react';
+import { NuevoGastoModal } from './_components/NuevoGastoModal';
+import { ComprobantePreviewModal } from './_components/ComprobantePreviewModal';
+import { GastoRow } from './_components/GastoRow';
+import { CATEGORIA_LABELS, FILTROS } from './_components/constants';
 
 export default function GastosPage() {
   const toast             = useToast(s => s.show);
@@ -273,89 +181,14 @@ export default function GastosPage() {
             <p>Sin gastos registrados para este período</p>
           </div>
         ) : (
-          filtrados.map((g, i) => {
-            const hasImg    = !!g.comprobanteImagenUrl;
-            const uploading = uploadingId === g.id;
-            return (
-              <div key={g.id}
-                className={`px-5 py-3.5 ${i < filtrados.length - 1 ? 'border-b border-gr-border-lite' : ''}`}>
-                {/* Mobile */}
-                <div className="flex items-start justify-between gap-2 md:hidden">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <Badge color={CATEGORIA_COLORS[g.categoria]} className="text-[10px]">
-                        {CATEGORIA_LABELS[g.categoria]}
-                      </Badge>
-                      <span className="text-[11px] text-gr-muted">{g.fecha}</span>
-                    </div>
-                    <p className="text-[13px] font-600 text-gr-text">{g.descripcion}</p>
-                    {g.comprobante && (
-                      <p className="text-[11px] text-gr-muted font-mono">{g.comprobante}</p>
-                    )}
-                    <p className="text-[15px] font-800 text-gr-primary mt-1">{formatBs(Number(g.montoBs))}</p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {hasImg ? (
-                      <button type="button" onClick={() => setViendoImagen(g)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gr-primary hover:bg-gr-primary/10 transition-colors">
-                        <Eye size={14} />
-                      </button>
-                    ) : (
-                      <button type="button" disabled={uploading}
-                        onClick={() => { setUploadingId(g.id); fileInputRef.current?.click(); }}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-gr-muted hover:text-gr-primary hover:bg-gr-primary/10 transition-colors disabled:opacity-40">
-                        {uploading ? <Spinner size={12} /> : <ImagePlus size={14} />}
-                      </button>
-                    )}
-                    <button type="button" onClick={() => setConfirmDel(g)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-gr-muted hover:text-gr-danger hover:bg-red-50 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Desktop */}
-                <div className="hidden md:grid gap-3 items-center"
-                  style={{ gridTemplateColumns: '100px 130px 1fr 120px 36px 36px 36px' }}>
-                  <span className="text-[12.5px] text-gr-muted font-mono">{g.fecha}</span>
-                  <Badge color={CATEGORIA_COLORS[g.categoria]}>
-                    {CATEGORIA_LABELS[g.categoria]}
-                  </Badge>
-                  <div>
-                    <p className="font-600 text-[13px] text-gr-text">{g.descripcion}</p>
-                    {g.comprobante && (
-                      <p className="text-[11px] text-gr-muted font-mono">{g.comprobante}</p>
-                    )}
-                  </div>
-                  <span className="text-right font-800 text-[14px] text-gr-primary">
-                    {formatBs(Number(g.montoBs))}
-                  </span>
-                  {/* Ver imagen */}
-                  <button type="button"
-                    onClick={() => hasImg ? setViendoImagen(g) : undefined}
-                    disabled={!hasImg}
-                    title={hasImg ? 'Ver comprobante' : 'Sin imagen'}
-                    className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-                      hasImg ? 'text-gr-primary hover:bg-gr-primary/10' : 'text-gr-border cursor-default'
-                    }`}>
-                    <Eye size={14} />
-                  </button>
-                  {/* Subir imagen */}
-                  <button type="button" disabled={uploading}
-                    title="Subir comprobante"
-                    onClick={() => { setUploadingId(g.id); fileInputRef.current?.click(); }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gr-muted hover:text-gr-primary hover:bg-gr-primary/10 transition-colors disabled:opacity-40">
-                    {uploading ? <Spinner size={12} /> : <ImagePlus size={14} />}
-                  </button>
-                  {/* Eliminar gasto */}
-                  <button type="button" onClick={() => setConfirmDel(g)}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gr-muted hover:text-gr-danger hover:bg-red-50 transition-colors">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            );
-          })
+          filtrados.map((g, i) => (
+            <GastoRow key={g.id} gasto={g} isLast={i === filtrados.length - 1}
+              uploading={uploadingId === g.id}
+              onVerImagen={() => setViendoImagen(g)}
+              onSubirImagen={() => { setUploadingId(g.id); fileInputRef.current?.click(); }}
+              onEliminar={() => setConfirmDel(g)}
+            />
+          ))
         )}
 
         {filtrados.length > 0 && (
@@ -394,45 +227,12 @@ export default function GastosPage() {
 
       {/* Preview comprobante */}
       {viendoImagen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={() => setViendoImagen(null)}>
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-[3px]" />
-          <div className="relative z-10 bg-white rounded-2xl shadow-2xl overflow-hidden max-w-2xl w-full max-h-[90vh] flex flex-col"
-            onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gr-border shrink-0">
-              <div>
-                <p className="font-700 text-[14px] text-gr-text">{viendoImagen.descripcion}</p>
-                <p className="text-[12px] text-gr-muted">{viendoImagen.fecha} · {formatBs(Number(viendoImagen.montoBs))}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Btn variant="danger" size="sm"
-                  onClick={() => handleDeleteComprobante(viendoImagen)}
-                  loading={deleteComprobante.isPending}>
-                  <Trash2 size={12} /> Eliminar imagen
-                </Btn>
-                <button type="button" onClick={() => setViendoImagen(null)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg text-gr-muted hover:text-gr-text hover:bg-gr-border-lite transition-colors">
-                  <XIcon size={16} />
-                </button>
-              </div>
-            </div>
-            {/* Imagen */}
-            <div className="flex-1 overflow-auto flex items-center justify-center p-4 min-h-50">
-              {viendoImagen.comprobanteImagenUrl ? (
-                viendoImagen.comprobanteImagenUrl.toLowerCase().includes('.pdf') ? (
-                  <iframe src={viendoImagen.comprobanteImagenUrl} className="w-full h-[60vh] rounded-lg border border-gr-border" title="Comprobante PDF" />
-                ) : (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={viendoImagen.comprobanteImagenUrl} alt="Comprobante"
-                    className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md" />
-                )
-              ) : (
-                <p className="text-gr-muted text-[13px]">Imagen no disponible (el enlace puede haber expirado)</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <ComprobantePreviewModal
+          gasto={viendoImagen}
+          onClose={() => setViendoImagen(null)}
+          onEliminar={() => handleDeleteComprobante(viendoImagen)}
+          eliminando={deleteComprobante.isPending}
+        />
       )}
     </div>
   );

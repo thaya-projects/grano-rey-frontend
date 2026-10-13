@@ -57,20 +57,11 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* User */}
+      {/* Logout */}
       {user && (
         <div className="border-t border-white/10 p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-full bg-gr-gold flex items-center justify-center text-[12px] font-800 text-[#1a0e00] shrink-0">
-              {user.iniciales}
-            </div>
-            <div className="min-w-0">
-              <div className="text-white text-[13px] font-600 truncate">{user.nombre}</div>
-              <div className="text-white/45 text-[11px] capitalize">{user.rol}</div>
-            </div>
-          </div>
           <button onClick={logout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-[8px] text-white/50 hover:text-white hover:bg-white/8 text-[13px] font-500 transition-all">
+            className="w-full cursor-pointer flex items-center gap-2 px-3 py-2 rounded-[8px] text-white/50 hover:text-white hover:bg-white/8 text-[13px] font-500 transition-all">
             <LogOut size={14} /> Cerrar sesión
           </button>
         </div>

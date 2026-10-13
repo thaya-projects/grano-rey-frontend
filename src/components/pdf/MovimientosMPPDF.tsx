@@ -2,6 +2,7 @@
 import { Document, Page, View, Text, StyleSheet, PDFDownloadLink } from '@react-pdf/renderer';
 import { Download } from 'lucide-react';
 import type { MovimientoMP } from '@/lib/mock';
+import { formatBs } from '@/lib/utils';
 
 const GREEN  = '#3C5A44';
 const MUTED  = '#8AA08A';
@@ -21,7 +22,6 @@ const s = StyleSheet.create({
   ftext:  { fontSize: 8, color: MUTED },
 });
 
-function fBs(n: number) { return `Bs ${n.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`; }
 function fQQ(n: number) { return `${n.toFixed(2)} QQ`; }
 
 function DocComp({ data }: { data: { movimientos: MovimientoMP[] } }) {
@@ -59,7 +59,7 @@ function DocComp({ data }: { data: { movimientos: MovimientoMP[] } }) {
             </Text>
             <Text style={[s.tCell, { flex: 1, fontFamily: 'Helvetica-Bold' }]}>{m.mpNombre}</Text>
             <Text style={[s.tCell, { width: 55, textAlign: 'right' }]}>{fQQ(m.totalQQ)}</Text>
-            <Text style={[s.tCell, { width: 65, textAlign: 'right', color: MUTED }]}>{m.costoBs ? fBs(m.costoBs) : '—'}</Text>
+            <Text style={[s.tCell, { width: 65, textAlign: 'right', color: MUTED }]}>{m.costoBs ? formatBs(m.costoBs) : '—'}</Text>
             <Text style={[s.tCell, { width: 40, textAlign: 'right', color: MUTED }]}>{m.lote ? `#${m.lote}` : '—'}</Text>
             <Text style={[s.tCell, { width: 55, color: MUTED }]}>{m.fecha}</Text>
             <Text style={[s.tCell, { width: 70 }]}>{m.responsable}</Text>

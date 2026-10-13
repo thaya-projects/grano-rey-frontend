@@ -2,9 +2,10 @@
 import { useState } from 'react';
 import { useUnidades, useCreateUnidad, useUpdateUnidad, useDeleteUnidad } from '@/lib/api/catalogos';
 import { TipoUnidad, type UnidadMedida } from '@/lib/types';
-import { kgToQQ } from '@/lib/utils';
+import { kgToQQ, formatNum } from '@/lib/utils';
 import { apiErrorMessage } from '@/lib/api';
-import { Btn, Modal, FormField, Input, Select, Spinner, useToast, Pagination, usePagination } from '@/components/ui';
+import { Btn, Modal, FormField, Input, Select, Spinner, useToast } from '@/components/ui';
+import { DataTable } from '@/components/ui/Table';
 import { Plus, Pencil, Trash2, Scale } from 'lucide-react';
 
 const TIPO_LABELS: Record<string, string> = {
@@ -82,7 +83,7 @@ function NuevaUnidadModal({ onClose, onSaved, onError }: {
         <p className="text-[12px] text-gr-muted bg-gr-border-lite rounded-lg px-3 py-2">
           1 <strong>{codigo || '…'}</strong> = <strong>{factorABase} kg</strong>
           {tipo === TipoUnidad.PESO && parseFloat(factorABase) !== 1 && (
-            <> · {kgToQQ(parseFloat(factorABase)).toFixed(2)} qq (46 kg)</>
+            <> · {formatNum(kgToQQ(parseFloat(factorABase)), 2)} qq (46 kg)</>
           )}
         </p>
       )}
@@ -194,7 +195,6 @@ function TabUnidadesBody({ unidades }: { unidades: UnidadMedida[] }) {
 
   const [filtroTipo, setFiltroTipo] = useState<string>(tiposConItems[0]?.tipo ?? TipoUnidad.PESO);
   const itemsFiltrados = unidades.filter(u => u.tipo === filtroTipo);
-  const { page, setPage, totalPages, pageItems, pageSize, setPageSize, total } = usePagination(itemsFiltrados);
 
   return (
     <div className="space-y-4">
@@ -218,54 +218,44 @@ function TabUnidadesBody({ unidades }: { unidades: UnidadMedida[] }) {
         </div>
       )}
 
-      <div className="card-no-pad">
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr style={{ background: 'var(--color-gr-border-lite)' }}>
-              {['Código', 'Nombre', 'Abrev.', 'Factor (kg)', ''].map(h => (
-                <th key={h} className="px-4 py-2.5 text-left text-[11px] font-700 text-gr-muted uppercase tracking-wide whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map((u, i) => (
-              <tr key={u.id}
-                className={`border-t border-gr-border-lite ${i % 2 === 1 ? 'bg-gr-border-lite/40' : 'bg-white'}`}>
-                <td className="px-4 py-3 font-mono font-700 text-[12.5px] text-gr-primary">{u.codigo}</td>
-                <td className="px-4 py-3 font-600 text-gr-text">{u.nombre}</td>
-                <td className="px-4 py-3 text-gr-muted font-mono text-[12px]">{u.abreviatura ?? '—'}</td>
-                <td className="px-4 py-3 text-gr-text">
-                  {u.factorABase}
-                  {u.tipo === TipoUnidad.PESO && u.factorABase !== 1 && (
-                    <span className="text-gr-muted text-[11.5px] ml-1">
-                      ({kgToQQ(u.factorABase).toFixed(2)} qq)
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-1">
-                    <Btn size="sm" variant="ghost" onClick={() => setEditando(u)}>
-                      <Pencil size={12} />
-                    </Btn>
-                    <Btn size="sm" variant="ghost" onClick={() => setConfirmDelete(u)}
-                      className="text-gr-danger hover:bg-red-50">
-                      <Trash2 size={12} />
-                    </Btn>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <Pagination page={page} totalPages={totalPages} onChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} total={total} />
-      </div>
-
-      {unidades.length === 0 && (
-        <div className="py-12 text-center text-gr-muted text-[14px]">
-          <Scale size={36} className="mx-auto mb-3 opacity-20" />
-          <p>No hay unidades configuradas</p>
-        </div>
-      )}
+      <DataTable
+        data={itemsFiltrados}
+        keyFn={u => u.id}
+        minWidth={520}
+        emptyMessage="No hay unidades configuradas"
+        columns={[
+          { header: 'Código', width: '18%', className: 'font-mono font-700 text-[12.5px] text-gr-primary', render: u => u.codigo },
+          { header: 'Nombre', width: '30%', className: 'font-600 text-gr-text', render: u => u.nombre },
+          { header: 'Abrev.', width: '14%', className: 'text-gr-muted font-mono text-[12px]', render: u => u.abreviatura ?? '—' },
+          {
+            header: 'Factor (kg)', width: '20%', className: 'text-gr-text',
+            render: u => (
+              <>
+                {u.factorABase}
+                {u.tipo === TipoUnidad.PESO && u.factorABase !== 1 && (
+                  <span className="text-gr-muted text-[11.5px] ml-1">
+                    ({formatNum(kgToQQ(u.factorABase), 2)} qq)
+                  </span>
+                )}
+              </>
+            ),
+          },
+          {
+            header: '', align: 'right', width: '18%',
+            render: u => (
+              <div className="flex items-center justify-end gap-1">
+                <Btn size="sm" variant="ghost" onClick={() => setEditando(u)}>
+                  <Pencil size={12} />
+                </Btn>
+                <Btn size="sm" variant="ghost" onClick={() => setConfirmDelete(u)}
+                  className="text-gr-danger hover:bg-red-50">
+                  <Trash2 size={12} />
+                </Btn>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {/* Modal nueva */}
       {showNueva && (

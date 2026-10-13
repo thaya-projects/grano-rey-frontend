@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { useCargadores, useCreateCargador, useUpdateCargador } from '@/lib/api/cargadores';
 import { apiErrorMessage } from '@/lib/api';
 import type { Cargador } from '@/lib/types';
-import { Btn, Modal, FormField, Input, Spinner, useToast, Pagination, usePagination } from '@/components/ui';
+import { Btn, Modal, FormField, Input, Spinner, useToast } from '@/components/ui';
+import { DataTable } from '@/components/ui/Table';
 import { Plus, Pencil } from 'lucide-react';
 
 export function TabCargadores() {
@@ -12,7 +13,6 @@ export function TabCargadores() {
   const create = useCreateCargador();
   const update = useUpdateCargador();
   const items = q.data ?? [];
-  const { page, setPage, totalPages, pageItems, pageSize, setPageSize, total } = usePagination(items);
 
   const [modal, setModal] = useState<{ mode: 'create' } | { mode: 'edit'; cargador: Cargador } | null>(null);
   const [nombre, setNombre] = useState('');
@@ -64,43 +64,27 @@ export function TabCargadores() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[13px] text-[var(--color-gr-muted)]">{items.length} cargadores activos</p>
+        <p className="text-[13px] text-gr-muted">{items.length} cargadores activos</p>
         <Btn onClick={openCreate}><Plus size={14} /> Nuevo cargador</Btn>
       </div>
-      <div className="card-no-pad overflow-x-auto">
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr style={{ background: 'var(--color-gr-primary)' }}>
-              {['Nombre', 'CI', 'Teléfono', ''].map(h => (
-                <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-[var(--color-gr-muted)]">
-                  Sin cargadores cargados todavía.
-                </td>
-              </tr>
-            )}
-            {pageItems.map((c, i) => (
-              <tr key={c.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
-                className="border-b border-[var(--color-gr-border-lite)]">
-                <td className="px-4 py-3 font-700">{c.nombre}</td>
-                <td className="px-4 py-3 font-mono text-[12px]">{c.ci ?? '—'}</td>
-                <td className="px-4 py-3">{c.telefono ?? '—'}</td>
-                <td className="px-4 py-3 text-right">
-                  <Btn size="sm" variant="ghost" onClick={() => openEdit(c)}>
-                    <Pencil size={12} />
-                  </Btn>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <Pagination page={page} totalPages={totalPages} onChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} total={total} />
-      </div>
+      <DataTable
+        data={items}
+        keyFn={c => c.id}
+        emptyMessage="Sin cargadores cargados todavía."
+        columns={[
+          { header: 'Nombre', width: '40%', className: 'font-700', render: c => c.nombre },
+          { header: 'CI', width: '25%', className: 'font-mono text-[12px]', render: c => c.ci ?? '—' },
+          { header: 'Teléfono', width: '25%', render: c => c.telefono ?? '—' },
+          {
+            header: '', align: 'right', width: '10%',
+            render: c => (
+              <Btn size="sm" variant="ghost" onClick={() => openEdit(c)}>
+                <Pencil size={12} />
+              </Btn>
+            ),
+          },
+        ]}
+      />
 
       {modal && (
         <Modal

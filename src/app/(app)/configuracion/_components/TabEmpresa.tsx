@@ -84,8 +84,8 @@ export function TabEmpresa() {
     <div className="space-y-5 max-w-2xl">
       <div className="card space-y-4">
         <div className="flex items-center gap-2">
-          <Building2 size={18} className="text-[var(--color-gr-primary)]" />
-          <h2 className="font-800 text-[15px] text-[var(--color-gr-text)]">Datos de la empresa</h2>
+          <Building2 size={18} className="text-gr-primary" />
+          <h2 className="font-800 text-[15px] text-gr-text">Datos de la empresa</h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -140,17 +140,17 @@ export function TabEmpresa() {
 
       <div className="card space-y-4">
         <div className="flex items-center gap-2">
-          <ShieldCheck size={18} className="text-[var(--color-gr-primary)]" />
-          <h2 className="font-800 text-[15px] text-[var(--color-gr-text)]">Registro sanitario SENASAG</h2>
+          <ShieldCheck size={18} className="text-gr-primary" />
+          <h2 className="font-800 text-[15px] text-gr-text">Registro sanitario SENASAG</h2>
         </div>
-        <p className="text-[12.5px] text-[var(--color-gr-muted)] -mt-2">
+        <p className="text-[12.5px] text-gr-muted -mt-2">
           Conforme a Norma Boliviana NB 314001 y SENASAG R.A. 042/2023. Se imprime automáticamente en cada lote producido.
         </p>
 
         <div className="rounded-[10px] px-4 py-3" style={{ background: 'var(--color-gr-primary-lite)' }}>
-          <p className="text-[12px] font-700 text-[var(--color-gr-muted)] uppercase mb-1">Registro actual</p>
-          <p className="font-800 text-[15px] text-[var(--color-gr-primary)] font-mono">
-            {rsActual || <span className="text-[var(--color-gr-muted)] font-normal italic">Sin configurar</span>}
+          <p className="text-[12px] font-700 text-gr-muted uppercase mb-1">Registro actual</p>
+          <p className="font-800 text-[15px] text-gr-primary font-mono">
+            {rsActual || <span className="text-gr-muted font-normal italic">Sin configurar</span>}
           </p>
         </div>
 
