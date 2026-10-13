@@ -25,6 +25,7 @@ export function ProductoModal({ mode, producto, unidades, codigosExistentes, onC
   const [unidadId, setUnidadId]    = useState(producto?.unidadProduccion?.id ?? '');
   const [descripcion, setDesc]     = useState(producto?.descripcion ?? '');
   const [stockMinimo, setStockMin] = useState(String(producto?.stockMinimo ?? '0'));
+  const [precioRef, setPrecioRef]  = useState(String(producto?.precioReferencialBs ?? ''));
   const [vidaUtil, setVidaUtil]    = useState(String(producto?.vidaUtilMeses ?? '12'));
   const [activo, setActivo]        = useState(producto?.activo ?? true);
 
@@ -36,8 +37,9 @@ export function ProductoModal({ mode, producto, unidades, codigosExistentes, onC
   }
 
   const codigoConflicto = mode === 'create' && !!codigo && codigosExistentes.has(codigo);
-  const stockMin = parseFloat(stockMinimo) || 0;
-  const vidaNum  = parseInt(vidaUtil) || 0;
+  const stockMin  = parseFloat(stockMinimo) || 0;
+  const vidaNum   = parseInt(vidaUtil) || 0;
+  const precioNum = parseFloat(precioRef) || 0;
   const valid    = !!nombre && vidaNum >= 1 && !!unidadId
     && (mode === 'create' ? !!codigo && !codigoConflicto : true);
 
@@ -50,6 +52,7 @@ export function ProductoModal({ mode, producto, unidades, codigosExistentes, onC
           nombre,
           descripcion: descripcion || undefined,
           stockMinimo: stockMin || undefined,
+          precioReferencialBs: precioNum || undefined,
           unidadProduccionId: unidadId,
           vidaUtilMeses: vidaNum,
         });
@@ -60,6 +63,7 @@ export function ProductoModal({ mode, producto, unidades, codigosExistentes, onC
             nombre,
             descripcion: descripcion || undefined,
             stockMinimo: stockMin || undefined,
+            precioReferencialBs: precioNum || undefined,
             vidaUtilMeses: vidaNum,
             activo,
             unidadProduccionId: unidadId || undefined,
@@ -118,6 +122,11 @@ export function ProductoModal({ mode, producto, unidades, codigosExistentes, onC
             onChange={e => setVidaUtil(e.target.value)} />
         </FormField>
       </div>
+
+      <FormField label="Precio referencial (Bs)" hint="Opcional · se muestra en el catálogo público">
+        <Input type="number" min="0" step="0.01" value={precioRef}
+          onChange={e => setPrecioRef(e.target.value)} placeholder="155.00" />
+      </FormField>
 
       {mode === 'edit' && (
         <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => setActivo(v => !v)}>

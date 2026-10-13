@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getPublicEmpresa, getPublicProducto } from '@/lib/api/public';
 import { formatBs } from '@/lib/utils';
-import { ArrowLeft, Package, Clock } from 'lucide-react';
+import { ArrowLeft, Package } from 'lucide-react';
 import { ProductGallery } from './_components/ProductGallery';
 import { SiteFooter } from '@/components/SiteFooter';
 
@@ -79,36 +79,24 @@ export default async function ProductoDetallePage({ params }: { params: Promise<
                 )}
               </div>
 
-              {/* Precio */}
-              <div className="bg-gr-primary-dark rounded-2xl px-6 py-5 text-white">
-                <p className="text-white/50 text-[11px] font-bold uppercase tracking-wider mb-1">
-                  Precio por {producto.unidadProduccion?.nombre ?? 'unidad'}
-                </p>
-                <p className="text-[40px] font-black leading-none">{producto.precioUnitarioBs ? formatBs(Number(producto.precioUnitarioBs)) : '—'}</p>
-              </div>
-
-              {/* Atributos */}
+              {/* Precio + Presentación — mismo peso visual, ninguno domina sobre el producto */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <Package size={15} className="text-gr-primary" />
-                    <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Peso neto</span>
-                  </div>
-                  <p className="font-black text-[20px] text-gray-800">
-                    {producto.pesoKgPorUnidad ? Number(producto.pesoKgPorUnidad).toFixed(1) : '—'}
-                    <span className="text-[13px] font-medium text-gray-400 ml-1">kg / {producto.unidadProduccion?.codigo ?? 'u.'}</span>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Precio</p>
+                  <p className="font-black text-[22px] text-gr-primary leading-none">
+                    {producto.precio ? formatBs(Number(producto.precio)) : '—'}
                   </p>
+                  {producto.unidad && (
+                    <p className="text-[12px] text-gray-400 mt-1">por {producto.unidad.nombre}</p>
+                  )}
                 </div>
-                {producto.vidaUtilMeses && (
+                {producto.unidad && (
                   <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
                     <div className="flex items-center gap-2 mb-1.5">
-                      <Clock size={15} className="text-gr-primary" />
-                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Vida útil</span>
+                      <Package size={14} className="text-gr-primary" />
+                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Presentación</span>
                     </div>
-                    <p className="font-black text-[20px] text-gray-800">
-                      {producto.vidaUtilMeses}
-                      <span className="text-[13px] font-medium text-gray-400 ml-1">meses</span>
-                    </p>
+                    <p className="font-black text-[20px] text-gray-800 leading-none">{producto.unidad.nombre}</p>
                   </div>
                 )}
               </div>

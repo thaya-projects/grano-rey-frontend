@@ -1,15 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const APP_ROUTES = [
-  '/dashboard',
-  '/stock',
-  '/produccion',
-  '/materia-prima',
-  '/ventas',
-  '/despachos',
-  '/cargadores',
-  '/reportes',
-  '/configuracion',
+// Allowlist: rutas accesibles sin sesión. Todo lo que NO calce con ninguna
+// de estas queda protegido por defecto (fail-closed), en vez de mantener
+// una lista de rutas privadas que hay que recordar actualizar cada vez
+// que se agrega una página nueva al grupo (app).
+const PUBLIC_ROUTES = [
+  '/catalogo',
+  '/login',
+  '/api/auth',
+  '/api/public',
+  '/robots.txt',
+  '/sitemap.xml',
 ];
 
 // Nombres posibles del cookie de sesión de NextAuth v5
@@ -19,8 +20,9 @@ const SESSION_COOKIES = [
 ];
 
 export function proxy(req: NextRequest): NextResponse {
-  const isAppRoute = APP_ROUTES.some(r => req.nextUrl.pathname.startsWith(r));
-  if (!isAppRoute) return NextResponse.next();
+  const { pathname } = req.nextUrl;
+  const isPublicRoute = pathname === '/' || PUBLIC_ROUTES.some(r => pathname.startsWith(r));
+  if (isPublicRoute) return NextResponse.next();
 
   // Solo comprobamos si el cookie existe.
   // El descifrado real lo hace /api/auth/session en Node.js.
@@ -33,5 +35,5 @@ export function proxy(req: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon|logo|.*\\..*).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon|logo|.*\\..*).*)'],
 };

@@ -315,6 +315,7 @@ export interface Producto extends AuditFields {
   descripcion?: string | null;
   pesoKgPorUnidad?: number | null;
   precioUnitarioBs?: number | null;
+  precioReferencialBs?: number | null;
   stockActual: number;
   stockMinimo: number;
   vidaUtilMeses: number;
@@ -501,6 +502,7 @@ export interface CreateProductoRequest {
   nombre: string;
   descripcion?: string;
   pesoKgPorUnidad?: number;
+  precioReferencialBs?: number;
   stockMinimo?: number;
   unidadProduccionId: string;
   vidaUtilMeses?: number;
@@ -510,6 +512,7 @@ export interface UpdateProductoRequest {
   nombre?: string;
   descripcion?: string;
   pesoKgPorUnidad?: number;
+  precioReferencialBs?: number;
   stockMinimo?: number;
   vidaUtilMeses?: number;
   activo?: boolean;
