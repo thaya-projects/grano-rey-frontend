@@ -6,13 +6,14 @@ import { DocumentoVenta, type ModoDocumento } from '@/components/print/Documento
 import { Spinner, Btn } from '@/components/ui';
 import { ArrowLeft, Printer } from 'lucide-react';
 
-const MODOS_VALIDOS: ModoDocumento[] = ['nota', 'proforma', 'combinada', 'remision-doble'];
+const MODOS_VALIDOS: ModoDocumento[] = ['nota', 'proforma', 'combinada', 'remision-doble', 'nota-doble'];
 
 const TITULOS: Record<ModoDocumento, string> = {
   nota:            'Nota de venta',
   proforma:        'Proforma (con datos del chofer)',
   combinada:       'Nota + Proforma para Grano Rey (uso interno)',
   'remision-doble': 'Remisión — copia cliente + copia Grano Rey',
+  'nota-doble':     'Nota de venta — copia cliente + copia Grano Rey',
 };
 
 export default function ImprimirVentaPage() {
@@ -40,7 +41,7 @@ export default function ImprimirVentaPage() {
     );
   }
   if (!venta) {
-    return <div className="text-center py-12 text-[var(--color-gr-muted)]">Venta no encontrada</div>;
+    return <div className="text-center py-12 text-gr-muted">Venta no encontrada</div>;
   }
 
   return (
@@ -51,8 +52,8 @@ export default function ImprimirVentaPage() {
             <ArrowLeft size={14} /> Volver
           </Btn>
           <div>
-            <h1 className="text-[18px] font-900 text-[var(--color-gr-text)]">{TITULOS[modo]}</h1>
-            <p className="text-[12.5px] text-[var(--color-gr-muted)]">NV-{venta.numeroNota} · {venta.cliente?.nombre}</p>
+            <h1 className="text-[18px] font-900 text-gr-text">{TITULOS[modo]}</h1>
+            <p className="text-[12.5px] text-gr-muted">NV-{venta.numeroNota} · {venta.cliente?.nombre}</p>
           </div>
         </div>
         <Btn onClick={() => window.print()}><Printer size={14} /> Imprimir</Btn>

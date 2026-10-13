@@ -2,6 +2,7 @@
 import { Document, Page, View, Text, StyleSheet, PDFDownloadLink } from '@react-pdf/renderer';
 import { Download } from 'lucide-react';
 import type { Venta } from '@/lib/mock';
+import { formatBs } from '@/lib/utils';
 
 const GREEN  = '#3C5A44';
 const MUTED  = '#8AA08A';
@@ -24,8 +25,6 @@ const s = StyleSheet.create({
 const ESTADO_LABELS: Record<string, string> = {
   entregado: 'Entregado', despachado: 'Despachado', pendiente: 'Pendiente', cancelado: 'Cancelado',
 };
-
-function fBs(n: number) { return `Bs ${n.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`; }
 
 function DocComp({ data }: { data: { ventas: Venta[]; total: number } }) {
   const { ventas, total } = data;
@@ -60,7 +59,7 @@ function DocComp({ data }: { data: { ventas: Venta[]; total: number } }) {
             <Text style={[s.tCell, { flex: 2, color: MUTED }]}>
               {v.detalles.map(d => `${d.productoNombre} ×${d.cantidad}`).join(' · ')}
             </Text>
-            <Text style={[s.tCell, { width: 70, textAlign: 'right', fontFamily: 'Helvetica-Bold' }]}>{fBs(v.totalBs)}</Text>
+            <Text style={[s.tCell, { width: 70, textAlign: 'right', fontFamily: 'Helvetica-Bold' }]}>{formatBs(v.totalBs)}</Text>
             <Text style={[s.tCell, { width: 70 }]}>{ESTADO_LABELS[v.estado] ?? v.estado}</Text>
             <Text style={[s.tCell, { width: 60, color: MUTED }]}>{v.fecha}</Text>
           </View>
@@ -68,7 +67,7 @@ function DocComp({ data }: { data: { ventas: Venta[]; total: number } }) {
         {/* Totals row */}
         <View style={{ flexDirection: 'row', padding: '8 10', backgroundColor: '#EBF2EC', borderRadius: 4, marginTop: 4 }}>
           <Text style={{ flex: 1, fontFamily: 'Helvetica-Bold', fontSize: 10, color: GREEN }}>{ventas.length} ventas</Text>
-          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, color: GREEN }}>{fBs(total)}</Text>
+          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, color: GREEN }}>{formatBs(total)}</Text>
         </View>
 
         <View style={s.footer} fixed>

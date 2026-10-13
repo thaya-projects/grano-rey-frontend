@@ -2,7 +2,7 @@
 import { Document, Page, View, Text, StyleSheet, PDFDownloadLink } from '@react-pdf/renderer';
 import { Download } from 'lucide-react';
 import type { Producto, MateriaPrimaStock } from '@/lib/mock';
-import { KG_POR_QQ, equivPT, equivLabel } from '@/lib/utils';
+import { KG_POR_QQ, equivPT, equivLabel, formatBs } from '@/lib/utils';
 
 const GREEN  = '#3C5A44';
 const MUTED  = '#8AA08A';
@@ -22,7 +22,6 @@ const s = StyleSheet.create({
   ftext:  { fontSize: 8, color: MUTED },
 });
 
-function fBs(n: number) { return `Bs ${n.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`; }
 function fEquiv(n: number, label: string) { return `${n.toFixed(2)} ${label}`; }
 
 function DocComp({ data }: { data: { productos: Producto[]; materiaPrima: MateriaPrimaStock[] } }) {
@@ -65,7 +64,7 @@ function DocComp({ data }: { data: { productos: Producto[]; materiaPrima: Materi
               <Text style={[s.tCell, { flex: 1, fontFamily: 'Helvetica-Bold' }]}>{p.nombre}</Text>
               <Text style={[s.tCell, { width: 60, textAlign: 'right', fontFamily: 'Helvetica-Bold', color: GREEN }]}>{p.stockActual.toLocaleString()}</Text>
               <Text style={[s.tCell, { width: 55, textAlign: 'right' }]}>{fEquiv(equiv, qlbl)}</Text>
-              <Text style={[s.tCell, { width: 70, textAlign: 'right', color: MUTED }]}>{fBs(p.precioUnitarioBs)}</Text>
+              <Text style={[s.tCell, { width: 70, textAlign: 'right', color: MUTED }]}>{formatBs(p.precioUnitarioBs)}</Text>
               <Text style={[s.tCell, { width: 50, color: estadoColor, fontFamily: 'Helvetica-Bold' }]}>{estado}</Text>
             </View>
           );

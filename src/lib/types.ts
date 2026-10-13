@@ -566,6 +566,8 @@ export interface CreateKardexMPRequest {
   fechaPago?: string;
   cargas?: CreateCargaTrabajoRequest[];
   loteProduccionId?: string;
+  /** Id de un KardexMP de tipo MERMA del que proviene este ingreso (evita reusar la misma merma dos veces). */
+  mermaOrigenId?: string;
 }
 
 export interface CreateCargadorRequest {
