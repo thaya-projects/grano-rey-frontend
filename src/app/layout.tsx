@@ -4,25 +4,25 @@ import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Grano Rey — Sistema de Gestión',
+    default: 'Grano Rey',
     template: '%s | Grano Rey',
   },
-  description: 'Sistema de gestión de inventario, ventas y despachos para Grano Rey. Control de stock, materia prima y notas de venta en un solo lugar.',
-  keywords: ['Grano Rey', 'sistema de gestión', 'inventario', 'ventas', 'Bolivia'],
+  description: 'Grano Rey — empresa boliviana dedicada a la elaboración y comercialización de alimentos precocidos, ofreciendo calidad y confianza a sus clientes.',
+  keywords: ['Grano Rey', 'alimentos precocidos', 'Monteagudo', 'Bolivia'],
   authors: [{ name: 'Grano Rey' }],
   icons: {
     icon: '/logo-reynales.webp',
     apple: '/logo-reynales.webp',
   },
   openGraph: {
-    title: 'Grano Rey — Sistema de Gestión',
-    description: 'Control de inventario, ventas y despachos para Grano Rey.',
+    title: 'Grano Rey',
+    description: 'Empresa boliviana dedicada a la elaboración y comercialización de alimentos precocidos.',
     locale: 'es_BO',
     type: 'website',
   },
   robots: {
     index: true,
-    follow: false,
+    follow: true,
   },
   verification: {
     google: 'z8GoTBaV6IJZEHuRUvWtaJ9W72h5lDWOvGQphkIb5RQ',
