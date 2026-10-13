@@ -1,7 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { useClientes } from '@/lib/api/catalogos';
-import { Btn, Spinner, Pagination, usePagination } from '@/components/ui';
+import { Btn, Spinner } from '@/components/ui';
+import { DataTable } from '@/components/ui/Table';
 import { NuevoClienteModal } from '@/components/NuevoClienteModal';
 import { Plus, Pencil } from 'lucide-react';
 import type { Cliente } from '@/lib/types';
@@ -9,7 +10,6 @@ import type { Cliente } from '@/lib/types';
 export function TabClientes() {
   const q = useClientes();
   const clientes = q.data ?? [];
-  const { page, setPage, totalPages, pageItems, pageSize, setPageSize, total } = usePagination(clientes);
   const [open, setOpen] = useState(false);
   const [editCliente, setEditCliente] = useState<Cliente | null>(null);
 
@@ -18,39 +18,29 @@ export function TabClientes() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[13px] text-[var(--color-gr-muted)]">{clientes.length} clientes</p>
+        <p className="text-[13px] text-gr-muted">{clientes.length} clientes</p>
         <Btn onClick={() => setOpen(true)}><Plus size={14} /> Nuevo cliente</Btn>
       </div>
-      <div className="card-no-pad">
-        <div className="overflow-x-auto">
-        <table className="w-full text-[13px]" style={{ minWidth: 400 }}>
-          <thead>
-            <tr style={{ background: 'var(--color-gr-primary)' }}>
-              {['Nombre', 'Ciudad', 'Teléfono', 'NIT', ''].map(h => (
-                <th key={h} className="px-4 py-3 text-[11px] font-700 text-white uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map((c, i) => (
-              <tr key={c.id} style={{ background: i % 2 ? 'var(--color-gr-border-lite)' : '#fff' }}
-                className="border-b border-[var(--color-gr-border-lite)]">
-                <td className="px-4 py-3 font-700 whitespace-nowrap">{c.nombre}</td>
-                <td className="px-4 py-3 whitespace-nowrap">{c.ciudad ?? '—'}</td>
-                <td className="px-4 py-3 whitespace-nowrap">{c.telefono ?? '—'}</td>
-                <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">{c.nit ?? '—'}</td>
-                <td className="px-4 py-3 text-right">
-                  <Btn size="sm" variant="ghost" onClick={() => setEditCliente(c)}>
-                    <Pencil size={12} />
-                  </Btn>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-        <Pagination page={page} totalPages={totalPages} onChange={setPage} pageSize={pageSize} onPageSizeChange={setPageSize} total={total} />
-      </div>
+      <DataTable
+        data={clientes}
+        keyFn={c => c.id}
+        minWidth={400}
+        emptyMessage="Sin clientes registrados"
+        columns={[
+          { header: 'Nombre', width: '28%', className: 'font-700', render: c => c.nombre },
+          { header: 'Ciudad', width: '22%', render: c => c.ciudad ?? '—' },
+          { header: 'Teléfono', width: '20%', render: c => c.telefono ?? '—' },
+          { header: 'NIT', width: '20%', className: 'font-mono text-[12px]', render: c => c.nit ?? '—' },
+          {
+            header: '', align: 'right', width: '10%',
+            render: c => (
+              <Btn size="sm" variant="ghost" onClick={() => setEditCliente(c)}>
+                <Pencil size={12} />
+              </Btn>
+            ),
+          },
+        ]}
+      />
       {open && <NuevoClienteModal onClose={() => setOpen(false)} />}
       {editCliente && (
         <NuevoClienteModal cliente={editCliente} onClose={() => setEditCliente(null)} />

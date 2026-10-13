@@ -100,14 +100,14 @@ export function MobileNav() {
       )}
 
       {/* ── Bottom tab bar ────────────────────────────────────── */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[var(--color-gr-border)] flex md:hidden no-print">
+      <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gr-border flex md:hidden no-print">
         {bottomAllowed.map(({ href, label, shortLabel, icon: Icon }) => {
           const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
           return (
             <Link key={href} href={href}
               className={cn(
                 'flex-1 flex flex-col items-center justify-center py-2.5 gap-1 text-[10px] font-600 transition-colors',
-                active ? 'text-[var(--color-gr-primary)]' : 'text-[var(--color-gr-muted)]',
+                active ? 'text-gr-primary' : 'text-gr-muted',
               )}>
               <Icon size={20} />
               {shortLabel ?? label}

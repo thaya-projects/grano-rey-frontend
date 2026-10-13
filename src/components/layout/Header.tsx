@@ -1,7 +1,7 @@
 'use client';
 import { usePathname } from 'next/navigation';
-import { useAuth } from '@/lib/auth-store';
 import { ChevronRight } from 'lucide-react';
+import { UserMenu } from './UserMenu';
 
 const PAGE_NAMES: Record<string, string> = {
   '/dashboard':     'Inicio',
@@ -23,7 +23,6 @@ function formatDateEs(date: Date): string {
 
 export function Header() {
   const pathname = usePathname();
-  const { user } = useAuth();
   const pageName = PAGE_NAMES[pathname] ?? 'Grano Rey';
 
   return (
@@ -43,14 +42,7 @@ export function Header() {
         <span className="text-[13px] text-gr-muted hidden sm:block">
           {formatDateEs(new Date())}
         </span>
-        {user && (
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-700 text-white shrink-0"
-            style={{ background: 'var(--color-gr-primary-dark)' }}
-            title={user.nombre}>
-            {user.iniciales}
-          </div>
-        )}
+        <UserMenu />
       </div>
     </header>
   );

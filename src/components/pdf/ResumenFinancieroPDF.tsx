@@ -1,6 +1,7 @@
 'use client';
 import { Document, Page, View, Text, StyleSheet, PDFDownloadLink } from '@react-pdf/renderer';
 import { Download } from 'lucide-react';
+import { formatBs } from '@/lib/utils';
 
 const GREEN  = '#3C5A44';
 const GOLD   = '#C49A1A';
@@ -30,8 +31,6 @@ type CatGasto = { label: string; monto: number; pct: number; esAutomatico: boole
 type Semanal  = { sem: string; ingresos: number; egresos: number };
 type Resumen  = { ingresosBs: number; egresosBs: number; utilidadBs: number; margenPct: number };
 
-function fBs(n: number) { return `Bs ${n.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`; }
-
 function DocComp({ data }: { data: { resumen: Resumen; gastosCat: CatGasto[]; semanales: Semanal[]; periodo: string } }) {
   const { resumen, gastosCat, semanales, periodo } = data;
   const label = periodo === 'mes_actual' ? 'Mayo 2026' : 'Abril 2026';
@@ -56,15 +55,15 @@ function DocComp({ data }: { data: { resumen: Resumen; gastosCat: CatGasto[]; se
         <View style={s.kpiRow}>
           <View style={s.kpiBox}>
             <Text style={s.kpiLbl}>Ingresos</Text>
-            <Text style={[s.kpiVal, { color: '#2E7D52' }]}>{fBs(resumen.ingresosBs)}</Text>
+            <Text style={[s.kpiVal, { color: '#2E7D52' }]}>{formatBs(resumen.ingresosBs)}</Text>
           </View>
           <View style={s.kpiBox}>
             <Text style={s.kpiLbl}>Egresos</Text>
-            <Text style={[s.kpiVal, { color: '#B53D35' }]}>{fBs(resumen.egresosBs)}</Text>
+            <Text style={[s.kpiVal, { color: '#B53D35' }]}>{formatBs(resumen.egresosBs)}</Text>
           </View>
           <View style={s.kpiBox}>
             <Text style={s.kpiLbl}>Utilidad neta</Text>
-            <Text style={[s.kpiVal, { color: resumen.utilidadBs >= 0 ? '#2E7D52' : '#B53D35' }]}>{fBs(resumen.utilidadBs)}</Text>
+            <Text style={[s.kpiVal, { color: resumen.utilidadBs >= 0 ? '#2E7D52' : '#B53D35' }]}>{formatBs(resumen.utilidadBs)}</Text>
           </View>
           <View style={s.kpiBox}>
             <Text style={s.kpiLbl}>Margen</Text>
@@ -82,7 +81,7 @@ function DocComp({ data }: { data: { resumen: Resumen; gastosCat: CatGasto[]; se
         {gastosCat.map((c, i) => (
           <View key={i} style={[s.tRow, i % 2 === 0 ? {} : { backgroundColor: '#F5F7F4' }]}>
             <Text style={[s.tCell, { flex: 1 }]}>{c.label}{c.esAutomatico ? ' ⚡' : ''}</Text>
-            <Text style={[s.tCell, { width: 80, textAlign: 'right' }]}>{fBs(c.monto)}</Text>
+            <Text style={[s.tCell, { width: 80, textAlign: 'right' }]}>{formatBs(c.monto)}</Text>
             <Text style={[s.tCell, { width: 50, textAlign: 'right', color: MUTED }]}>{c.pct.toFixed(1)}%</Text>
           </View>
         ))}
@@ -98,9 +97,9 @@ function DocComp({ data }: { data: { resumen: Resumen; gastosCat: CatGasto[]; se
         {semanales.map((w, i) => (
           <View key={i} style={[s.tRow, i % 2 === 0 ? {} : { backgroundColor: '#F5F7F4' }]}>
             <Text style={[s.tCell, { width: 60 }]}>{w.sem}</Text>
-            <Text style={[s.tCell, { flex: 1, textAlign: 'right', color: '#2E7D52' }]}>{fBs(w.ingresos)}</Text>
-            <Text style={[s.tCell, { flex: 1, textAlign: 'right', color: '#B53D35' }]}>{fBs(w.egresos)}</Text>
-            <Text style={[s.tCell, { flex: 1, textAlign: 'right', fontFamily: 'Helvetica-Bold' }]}>{fBs(w.ingresos - w.egresos)}</Text>
+            <Text style={[s.tCell, { flex: 1, textAlign: 'right', color: '#2E7D52' }]}>{formatBs(w.ingresos)}</Text>
+            <Text style={[s.tCell, { flex: 1, textAlign: 'right', color: '#B53D35' }]}>{formatBs(w.egresos)}</Text>
+            <Text style={[s.tCell, { flex: 1, textAlign: 'right', fontFamily: 'Helvetica-Bold' }]}>{formatBs(w.ingresos - w.egresos)}</Text>
           </View>
         ))}
 
