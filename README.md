@@ -5,8 +5,8 @@ Stack: **Next.js 16.2.4** · **React 19** · **TypeScript** · **Tailwind CSS v4
 ## Inicio rápido
 
 ```bash
-npm install
-npm run dev
+yarn install
+yarn dev
 ```
 
 Abre [http://localhost:3000](http://localhost:3000)
