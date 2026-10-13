@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useProductos } from '@/lib/api/productos';
 import { useUnidades } from '@/lib/api/catalogos';
 import type { Producto } from '@/lib/types';
+import { formatBs } from '@/lib/utils';
 import { Btn, Spinner, useToast } from '@/components/ui';
 import { DataTable } from '@/components/ui/Table';
 import { Plus, Pencil, ImageIcon } from 'lucide-react';
@@ -38,12 +39,13 @@ export function TabProductos() {
         minWidth={760}
         emptyMessage="Sin productos cargados"
         columns={[
-          { header: 'Código', width: '12%', className: 'font-mono font-700 text-[12.5px] text-gr-primary', render: p => p.codigo },
-          { header: 'Nombre', width: '28%', className: 'font-700', render: p => p.nombre },
-          { header: 'Unidad', width: '12%', className: 'text-[12px] text-gr-muted', render: p => p.unidadProduccion?.codigo ?? '—' },
-          { header: 'Stock', width: '12%', className: 'font-700', render: p => Number(p.stockActual) },
-          { header: 'Mínimo', width: '10%', render: p => Number(p.stockMinimo) },
-          { header: 'Vida útil', width: '12%', render: p => `${p.vidaUtilMeses}m` },
+          { header: 'Código', width: '10%', className: 'font-mono font-700 text-[12.5px] text-gr-primary', render: p => p.codigo },
+          { header: 'Nombre', width: '24%', className: 'font-700', render: p => p.nombre },
+          { header: 'Unidad', width: '10%', className: 'text-[12px] text-gr-muted', render: p => p.unidadProduccion?.codigo ?? '—' },
+          { header: 'Stock', width: '10%', className: 'font-700', render: p => Number(p.stockActual) },
+          { header: 'Mínimo', width: '8%', render: p => Number(p.stockMinimo) },
+          { header: 'Vida útil', width: '10%', render: p => `${p.vidaUtilMeses}m` },
+          { header: 'Precio ref.', width: '14%', className: 'text-[12px]', render: p => p.precioReferencialBs ? formatBs(Number(p.precioReferencialBs)) : '—' },
           {
             header: '', align: 'right', width: '14%',
             render: p => (

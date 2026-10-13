@@ -12,16 +12,19 @@ export interface PublicEmpresa {
   logoUrl?: string | null;
 }
 
+export interface PublicUnidad {
+  nombre: string;
+  abreviatura: string;
+  factorABase: number;
+}
+
 export interface PublicProducto {
   id: string;
   codigo: string;
   nombre: string;
-  descripcion?: string | null;
-  precioUnitarioBs?: number | null;
-  pesoKgPorUnidad?: number | null;
-  vidaUtilMeses?: number | null;
   fotoPrincipal?: string | null;
-  unidadProduccion?: { id: string; codigo: string; nombre: string } | null;
+  precio?: string | null;
+  unidad?: PublicUnidad | null;
 }
 
 export interface PublicImagen {
@@ -32,6 +35,7 @@ export interface PublicImagen {
 }
 
 export interface PublicProductoDetalle extends PublicProducto {
+  descripcion?: string | null;
   imagenes: PublicImagen[];
 }
 
