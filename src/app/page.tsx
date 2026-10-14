@@ -2,6 +2,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { getPublicEmpresa, getPublicProductos } from '@/lib/api/public';
 import { formatBs } from '@/lib/utils';
+import { SITE_URL } from '@/lib/site';
+import { JsonLd } from '@/components/seo/JsonLd';
 import { ShieldCheck, Wheat, Truck, ArrowRight, MapPin, Phone } from 'lucide-react';
 import { SiteFooter } from '@/components/SiteFooter';
 
@@ -18,6 +20,26 @@ export default async function LandingPage() {
   const tel    = empresa?.telefono ?? '+591 76012345';
   const ciudad = empresa?.ciudad   ?? 'Monteagudo, Chuquisaca';
   const nombre = empresa?.nombre   ?? 'Grano Rey';
+
+  // JSON-LD "Store" — solo con datos reales de la API; nunca se inventan ni se
+  // completan con los fallbacks de UI de arriba (tel/ciudad genéricos).
+  const storeJsonLd: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Store',
+    name: empresa?.nombre ?? 'Grano Rey',
+    url: SITE_URL,
+    image: `${SITE_URL}/logo-grano-rey.webp`,
+  };
+  if (empresa?.telefono) storeJsonLd.telephone = empresa.telefono;
+  if (empresa?.email) storeJsonLd.email = empresa.email;
+  if (empresa?.direccion || empresa?.ciudad) {
+    storeJsonLd.address = {
+      '@type': 'PostalAddress',
+      ...(empresa?.direccion ? { streetAddress: empresa.direccion } : {}),
+      ...(empresa?.ciudad ? { addressLocality: empresa.ciudad } : {}),
+      addressCountry: 'BO',
+    };
+  }
 
   return (
     <>
@@ -79,6 +101,8 @@ export default async function LandingPage() {
           animation: pulse-ring 2s ease-out infinite;
         }
       `}</style>
+
+      <JsonLd data={storeJsonLd} />
 
       <div className="min-h-screen bg-white overflow-x-hidden">
 
@@ -226,8 +250,9 @@ export default async function LandingPage() {
                       className="card-hover bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden group block">
                       <div className="img-zoom h-36 relative overflow-hidden bg-linear-to-br from-[#edf5ed] to-[#dbeadb]">
                         {p.fotoPrincipal ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.fotoPrincipal} alt={p.nombre} className="w-full h-full object-cover" />
+                          <Image src={p.fotoPrincipal} alt={p.nombre} fill
+                            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                            className="object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <Wheat size={32} className="text-gr-primary/20" />

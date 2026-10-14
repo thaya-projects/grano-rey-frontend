@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from './providers';
 import { JsonLd } from '@/components/seo/JsonLd';
-
-const SITE_URL = 'https://grano-rey.thaya.app';
+import { SITE_URL } from '@/lib/site';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -18,15 +17,18 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/',
   },
-  icons: {
-    icon: '/logo-reynales.webp',
-    apple: '/logo-reynales.webp',
-  },
   openGraph: {
+    siteName: 'Grano Rey',
     title: 'Grano Rey',
     description: 'Empresa boliviana dedicada a la elaboración y comercialización de alimentos precocidos.',
+    url: SITE_URL,
     locale: 'es_BO',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Grano Rey',
+    description: 'Empresa boliviana dedicada a la elaboración y comercialización de alimentos precocidos.',
   },
   robots: {
     index: true,
