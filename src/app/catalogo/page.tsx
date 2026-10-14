@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getPublicEmpresa, getPublicProductos } from '@/lib/api/public';
@@ -6,6 +7,12 @@ import { Wheat, ArrowRight, ChevronLeft } from 'lucide-react';
 import { SiteFooter } from '@/components/SiteFooter';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: 'Catálogo',
+  description: 'Conocé todos los productos de Grano Rey: harinas y granos precocidos de calidad, elaborados en Bolivia.',
+  alternates: { canonical: '/catalogo' },
+};
 
 export default async function CatalogoPage() {
   const [empresa, productos] = await Promise.all([
@@ -81,8 +88,9 @@ export default async function CatalogoPage() {
 
                   <div className="img-zoom h-36 relative overflow-hidden bg-linear-to-br from-[#edf5ed] to-[#dbeadb]">
                     {p.fotoPrincipal ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.fotoPrincipal} alt={p.nombre} className="w-full h-full object-cover" />
+                      <Image src={p.fotoPrincipal} alt={p.nombre} fill
+                        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
+                        className="object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Wheat size={28} className="text-gr-primary opacity-20" />

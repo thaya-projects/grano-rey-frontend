@@ -18,6 +18,12 @@ export function toNum(v: string | number | undefined | null): number {
   return parseFloat(String(v ?? 0)) || 0;
 }
 
+/** Recorta un texto a `max` caracteres, agregando "…" si lo corta (para meta descriptions). */
+export function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1).trimEnd() + '…';
+}
+
 const CODIGO_STOPWORDS = new Set(['DE', 'DEL', 'LA', 'LAS', 'LOS', 'EL', 'Y', 'E', 'A', 'EN', 'CON', 'POR', 'UN', 'UNA']);
 
 /** Sugiere un código corto (ej. "MBL-BL") a partir de un nombre, evitando colisiones con `existentes`. */
