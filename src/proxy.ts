@@ -11,6 +11,7 @@ const PUBLIC_ROUTES = [
   '/api/public',
   '/robots.txt',
   '/sitemap.xml',
+  '/opengraph-image',
 ];
 
 // Nombres posibles del cookie de sesión de NextAuth v5

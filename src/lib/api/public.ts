@@ -1,10 +1,9 @@
 import axios from 'axios';
+import { cache } from 'react';
 
 export interface PublicEmpresa {
-  id: string;
   nombre: string;
   rubro?: string | null;
-  nit?: string | null;
   telefono?: string | null;
   email?: string | null;
   direccion?: string | null;
@@ -62,6 +61,8 @@ export async function getPublicProductos(): Promise<PublicProducto[]> {
   return (await publicGet<PublicProducto[]>('/public/productos')) ?? [];
 }
 
-export async function getPublicProducto(id: string): Promise<PublicProductoDetalle | null> {
+// cache(): dedupe entre generateMetadata y la página — ambos piden el mismo
+// producto durante el mismo request, y con esto comparten la misma llamada.
+export const getPublicProducto = cache(async (id: string): Promise<PublicProductoDetalle | null> => {
   return publicGet<PublicProductoDetalle>(`/public/productos/${id}`);
-}
+});

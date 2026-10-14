@@ -1,13 +1,41 @@
+import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getPublicEmpresa, getPublicProducto } from '@/lib/api/public';
-import { formatBs } from '@/lib/utils';
+import { getPublicEmpresa, getPublicProducto, type PublicProductoDetalle } from '@/lib/api/public';
+import { formatBs, truncate } from '@/lib/utils';
+import { SITE_URL } from '@/lib/site';
+import { JsonLd } from '@/components/seo/JsonLd';
 import { ArrowLeft, Package } from 'lucide-react';
 import { ProductGallery } from './_components/ProductGallery';
 import { SiteFooter } from '@/components/SiteFooter';
 
 export const dynamic = 'force-dynamic';
+
+/** Fotos ordenadas (principal primero), con fallback a `fotoPrincipal` si el detalle no trae `imagenes`. */
+function orderedImageUrls(producto: PublicProductoDetalle): string[] {
+  const ordered = [...(producto.imagenes ?? [])].sort((a, b) => {
+    if (a.esPrincipal !== b.esPrincipal) return a.esPrincipal ? -1 : 1;
+    return a.orden - b.orden;
+  });
+  const urls = ordered.map(img => img.url);
+  return urls.length > 0 ? urls : (producto.fotoPrincipal ? [producto.fotoPrincipal] : []);
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const producto = await getPublicProducto(id);
+  if (!producto) notFound();
+
+  const images = orderedImageUrls(producto);
+
+  return {
+    title: producto.nombre,
+    description: producto.descripcion ? truncate(producto.descripcion, 155) : undefined,
+    alternates: { canonical: `/catalogo/${id}` },
+    openGraph: images.length > 0 ? { images: images.map(url => ({ url })) } : undefined,
+  };
+}
 
 export default async function ProductoDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,6 +50,31 @@ export default async function ProductoDetallePage({ params }: { params: Promise<
   const tel = empresa?.telefono ?? '';
   const nombre = empresa?.nombre ?? 'Grano Rey';
   const waNumber = '59168666330';
+  const productUrl = `${SITE_URL}/catalogo/${producto.id}`;
+
+  // JSON-LD "Product" — sin usar el stock real: si el producto se muestra
+  // públicamente, se asume InStock (no hay forma de saber disponibilidad real
+  // sin exponer el stock, que es un dato interno).
+  const productJsonLd: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: producto.nombre,
+    sku: producto.codigo,
+    brand: { '@type': 'Brand', name: 'Grano Rey' },
+    url: productUrl,
+  };
+  const images = orderedImageUrls(producto);
+  if (images.length > 0) productJsonLd.image = images;
+  if (producto.descripcion) productJsonLd.description = producto.descripcion;
+  if (producto.precio) {
+    productJsonLd.offers = {
+      '@type': 'Offer',
+      price: producto.precio,
+      priceCurrency: 'BOB',
+      availability: 'https://schema.org/InStock',
+      url: productUrl,
+    };
+  }
 
   return (
     <>
@@ -32,6 +85,8 @@ export default async function ProductoDetallePage({ params }: { params: Promise<
         }
         .fade-up { animation: fadeUp 0.5s ease both; }
       `}</style>
+
+      <JsonLd data={productJsonLd} />
 
       <div className="min-h-screen bg-gr-bg flex flex-col">
 
